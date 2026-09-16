@@ -17,7 +17,7 @@ Intervals.icu calendar (`.zwo` files are downloaded directly in the app).
 ## Structure
 
 ```
-zwift-coach/
+hermes-coach/
 ├── .opencode/agent/cycling-coach.md   # opencode agent (coach)
 ├── hermes/skills/cycling-coach/       # Hermes delegation skill
 ├── src/
@@ -41,14 +41,14 @@ zwift-coach/
 2. Install the agent in opencode (already linked in `~/.config/opencode/agent/`):
    ```
    mkdir -p ~/.config/opencode/agent
-   ln -s /home/valdelin/Work/zwift-coach/.opencode/agent/cycling-coach.md \
+   ln -s /home/valdelin/Work/hermes-coach/.opencode/agent/cycling-coach.md \
          ~/.config/opencode/agent/cycling-coach.md
    ```
 
 3. Install the skill in Hermes (already linked in `~/.hermes/skills/`):
    ```
    mkdir -p ~/.hermes/skills
-   ln -s /home/valdelin/Work/zwift-coach/hermes/skills/cycling-coach \
+   ln -s /home/valdelin/Work/hermes-coach/hermes/skills/cycling-coach \
          ~/.hermes/skills/cycling-coach
    ```
 

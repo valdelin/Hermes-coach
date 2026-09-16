@@ -22,7 +22,7 @@ curtos e a consulta/geracao de treinos nao consome credito de modelo.
 
 - opencode instalado e autenticado no CLI (o tier free basta).
 - Agente `cycling-coach` instalado em `.opencode/agent/` do projeto
-  `/home/valdelin/Work/zwift-coach` e linkado em `~/.config/opencode/agent/`.
+  `/home/valdelin/Work/hermes-coach` e linkado em `~/.config/opencode/agent/`.
 - `.env` do projeto configurado com `INTERVALS_ATHLETE_ID`, `INTERVALS_API_KEY`,
   `FTP` e (opcional) `CUE_LANG` (`pt` padrao | `en`) para o idioma das mensagens.
 
@@ -41,7 +41,7 @@ curtos e a consulta/geracao de treinos nao consome credito de modelo.
 1. Confirme que o projeto existe e o `.env` tem credenciais (sem exibir valores).
 2. Delega ao CLI com `run` (saida JSON, sem TTY):
    - `opencode run --agent cycling-coach --format json "Gere o treino de hoje do Intervals.icu e publique no calendario"`
-   - workdir: `/home/valdelin/Work/zwift-coach`
+   - workdir: `/home/valdelin/Work/hermes-coach`
    - Se a tarefa for longa/multiturno, prefira `background=true, pty=true`
      (monitore com `process(poll/log)`; saia com `process(action="write", data="\\x03")`).
 3. Recapitule o essencial para o usuario: TSB atual, foco do treino e TSS estimado.
@@ -51,7 +51,7 @@ curtos e a consulta/geracao de treinos nao consome credito de modelo.
 
 Quando o usuario pedir "monte/a ajuste o plano de treinos":
 
-1. Delegue ao agente no CLI do opencode (workdir `/home/valdelin/Work/zwift-coach`):
+1. Delegue ao agente no CLI do opencode (workdir `/home/valdelin/Work/hermes-coach`):
    ```
    opencode run --agent cycling-coach --format json "Monte o plano das proximas 2 semanas respeitando seg-sex e a carga semanal e publique no calendario do Intervals.icu"
    ```

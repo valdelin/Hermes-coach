@@ -16,7 +16,7 @@ foco do dia e publica o treino no calendario do Intervals.icu (os arquivos
 ## Estrutura
 
 ```
-zwift-coach/
+hermes-coach/
 ├── .opencode/agent/cycling-coach.md   # agente opencode (tremador)
 ├── hermes/skills/cycling-coach/       # skill de delegacao do Hermes
 ├── src/
@@ -40,14 +40,14 @@ zwift-coach/
 2. Instale o agente no opencode (ja linkado em `~/.config/opencode/agent/`):
    ```
    mkdir -p ~/.config/opencode/agent
-   ln -s /home/valdelin/Work/zwift-coach/.opencode/agent/cycling-coach.md \
+   ln -s /home/valdelin/Work/hermes-coach/.opencode/agent/cycling-coach.md \
          ~/.config/opencode/agent/cycling-coach.md
    ```
 
 3. Instale a skill no Hermes (ja linkada em `~/.hermes/skills/`):
    ```
    mkdir -p ~/.hermes/skills
-   ln -s /home/valdelin/Work/zwift-coach/hermes/skills/cycling-coach \
+   ln -s /home/valdelin/Work/hermes-coach/hermes/skills/cycling-coach \
          ~/.hermes/skills/cycling-coach
    ```
 

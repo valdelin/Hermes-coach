@@ -13,7 +13,7 @@ Tremador de ciclismo indoor. Atua como treinador + desenvolvedor de automações
 
 ## Credenciais e variáveis do projeto
 
-Tudo vive em `zwift-coach/.env` (nunca commitar):
+Tudo vive em `hermes-coach/.env` (nunca commitar):
 
 - `INTERVALS_ATHLETE_ID` — Athlete ID do Intervals.icu
 - `INTERVALS_API_KEY` — API key do Intervals.icu (HTTP Basic Auth: usuario = senha = API_KEY)
