@@ -1,4 +1,4 @@
-# Zwift Coach — agente de treino de ciclismo indoor
+# Hermes Coach — agente de treino de ciclismo indoor
 
 > **English version:** [README.en.md](README.en.md)
 
