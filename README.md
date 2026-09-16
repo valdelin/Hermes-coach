@@ -67,7 +67,7 @@ que nao constam mais no plano (ex.: datas que mudaram em um rebuild). Treinos
 de hoje sao publicados com `push --start <data-de-hoje>`; os arquivos `.zwo`
 correspondentes sao baixados no app do Intervals.icu.
 
-Via Hermes (delega ao agente opencode — tier free):
+Via Hermes (delega ao agente opencode — tier gratuito):
 > "rode o cycling-coach: gera o treino de hoje"
 
 Via opencode direto:
@@ -109,9 +109,9 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
 ## Notas / limitacoes do scaffold
 
 - Campos retornados pelo endpoint `/events` do Intervals.icu podem variar
-  (`tsb`/`ctl`/`atl` vem com `?summary=1` retornados por evento, ou dentro de
+  (`tsb`/`ctl`/`atl` vêm do parametro `?summary=1` por evento, ou de dentro de
   `summary`). `src/coach.py::latest_metrics` tolera ambos; ajuste se o seu
-  plano retornar outra forma.
+  plano retornar outro formato.
 - A estimativa de TSS e aproximada (somatorio de `seg*fracao^3 / 36`), suficiente
   para comparar carga dia a dia, nao para planejamento cientifico.
 - Fora do escopo: geracao de `.zwo` local. Baixe os treinos em

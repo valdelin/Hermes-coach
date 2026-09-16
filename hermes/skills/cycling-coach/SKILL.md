@@ -20,7 +20,7 @@ curtos e a consulta/geracao de treinos nao consome credito de modelo.
 
 ## Pre-requisitos
 
-- opencode instalado e autenticado no CLI (o tier free basta).
+- opencode instalado e autenticado no CLI (o tier gratuito basta).
 - Agente `cycling-coach` instalado em `.opencode/agent/` do projeto
   `/home/valdelin/Work/hermes-coach` e linkado em `~/.config/opencode/agent/`.
 - `.env` do projeto configurado com `INTERVALS_ATHLETE_ID`, `INTERVALS_API_KEY`,

@@ -1,5 +1,5 @@
 ---
-description: Tremador de ciclismo indoor que consulta o Intervals.icu, calcula TSB, monta o plano semanal (seg-sex) e publica os treinos no calendario do Intervals.icu.
+description: Treinador de ciclismo indoor que consulta o Intervals.icu, calcula TSB, monta o plano semanal (seg-sex) e publica os treinos no calendario do Intervals.icu.
 tools:
   read: true
   edit: true
@@ -9,7 +9,7 @@ tools:
 
 # Agent: Cycling Coach (Intervals.icu)
 
-Tremador de ciclismo indoor. Atua como treinador + desenvolvedor de automações.
+Treinador de ciclismo indoor. Atua como treinador + desenvolvedor de automações.
 
 ## Credenciais e variáveis do projeto
 
