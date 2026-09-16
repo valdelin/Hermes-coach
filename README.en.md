@@ -34,6 +34,7 @@ zwift-coach/
    ```
    cp .env.example .env
    # fill in INTERVALS_ATHLETE_ID, INTERVALS_API_KEY, FTP
+   # optional: CUE_LANG=pt (default) or en — workout message language
    ```
    (The Intervals.icu API uses HTTP Basic Auth with user = password = API_KEY.)
 
@@ -101,7 +102,11 @@ Each event name in Intervals carries the date in front:
 
 Every workout has a 10 min warm-up (45% -> 75%) and a 10 min cool-down
 (70% -> 45%). The published description uses the native workout-builder
-notation of Intervals (watts are shown computed by the app).
+notation of Intervals (watts are shown computed by the app) and includes
+**coaching messages** before every step: the warm-up explains the training zone
+and the day's structure (plus progress vs. the previous same-focus workout), and
+each interval gets a "Now you'll ride X minutes at Y percent of your FTP"
+cue. The message language is set via `CUE_LANG` in `.env` (`pt`|`en`).
 
 ## Notes / scaffold limitations
 

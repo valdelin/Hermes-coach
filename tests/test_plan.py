@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from src.plan import (build_plan, event_payload, reconcile, templates,
                       weekly_template, workout_text, orphan_external_ids,
-                      REST, FOCUS_THRESHOLD)
+                      REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD)
 
 
 class BuildPlanTest(unittest.TestCase):
@@ -91,18 +91,78 @@ class EventPayloadTest(unittest.TestCase):
         self.assertEqual(payload["category"], "WORKOUT")
         self.assertEqual(payload["target"], "POWER")
         self.assertEqual(payload["external_id"], "hermes-plan-2026-09-28")
-        self.assertIn("Bloco principal", payload["description"])
-        self.assertRegex(payload["description"], r"- \d+m \d+%")
+        self.assertIn("Agora voce vai entrar em", payload["description"])
+        self.assertRegex(payload["description"], r"- .* \d+m \d+%")
 
     def test_texto_descricao_nativo(self):
         plan = build_plan([], 2, ftp=182, days=1,
                           start=date(2026, 9, 28))
         lines = workout_text(plan[0]).splitlines()
         self.assertEqual(lines[0], plan[0]["name"])
-        self.assertTrue(any(l.startswith(f"{plan[0]['params']['repeats']}x")
-                            for l in lines))
+        reps = plan[0]["params"]["repeats"]
+        ons = [l for l in lines if l.startswith("- Agora voce vai entrar em")]
+        self.assertEqual(len(ons), reps,
+                         "cada repeticao vira um passo com mensagem propria")
         self.assertTrue(any("Aquecimento" in l for l in lines))
         self.assertTrue(any("Desaquecimento" in l for l in lines))
+
+    def test_intervalos_achatados_sem_marcador_nx(self):
+        plan = build_plan([], 2, ftp=182, days=1,
+                          start=date(2026, 9, 28))
+        lines = workout_text(plan[0]).splitlines()
+        self.assertFalse(any(l.strip() == "3x" for l in lines),
+                         "sem grupo Nx: passos devem ser individuais")
+        esperado = 1 + plan[0]["params"]["repeats"] * 2 + 1
+        self.assertEqual(len([l for l in lines if l.startswith("- ")]), esperado)
+
+    def test_mensagem_explicativa_sem_porcento_no_texto(self):
+        """O parser do Intervals trunca o cue no primeiro '%' ou no primeiro
+        padrao de duracao abreviado ('6m'/'30s'/'1h'): o texto explicativo
+        deve usar 'por cento' e 'minutos' por extenso; so o target usa %."""
+        import re as _re
+        plan = build_plan([], 2, ftp=182, days=1,
+                          start=date(2026, 9, 28))
+        lines = workout_text(plan[0]).splitlines()
+        for l in lines:
+            if not l.startswith("- "):
+                continue
+            cue = " ".join(l[2:].split(" ")[:-2])  # remove duracao+target final
+            self.assertNotIn("%", cue,
+                             f"cue nao pode conter %: {cue!r}")
+            self.assertIsNone(_re.search(r"\d+[hms]", cue),
+                              f"cue nao pode ter duracao abreviada: {cue!r}")
+
+    def test_descricao_em_ingles(self):
+        plan = build_plan([], 2, ftp=182, days=1,
+                          start=date(2026, 9, 28))
+        desc = workout_text(plan[0], lang="en")
+        self.assertIn("Now you'll ride", desc)
+        self.assertIn("percent of your FTP", desc)
+        self.assertNotIn("Agora voce vai entrar", desc)
+
+    def test_progressao_do_volume(self):
+        plan = build_plan([], 2, ftp=182, days=5,
+                          start=date(2026, 9, 21))  # semana cheia
+        sweet = [w for w in plan if w["focus"] == FOCUS_SWEETSPOT]
+        self.assertGreaterEqual(len(sweet), 2)
+        prev = {"params": {**sweet[0]["params"], "on_sec": 440}}  # 3x440 vs 3x480 = -2min
+        desc = workout_text(sweet[1], prev=prev)
+        self.assertIn("2 minutos a mais", desc)
+        prev = {"params": {**sweet[0]["params"], "on_sec": 520}}  # 3x520 vs 3x480 = +2min
+        desc = workout_text(sweet[1], prev=prev)
+        self.assertIn("2 minutos a menos", desc)
+        desc = workout_text(sweet[1], prev=sweet[0])
+        self.assertIn("Mesma carga", desc)
+        desc = workout_text(sweet[1])
+        self.assertNotIn("ultimo treino", desc)
+
+    def test_zone2_um_bloco_continuo(self):
+        plan = build_plan([], -20, ftp=182, days=1,
+                          start=date(2026, 9, 28))  # zona 2 com tsb baixo
+        desc = workout_text(plan[0])
+        self.assertIn("bloco continuo", desc)
+        self.assertEqual(plan[0]["params"]["repeats"], 1)
+        self.assertEqual(desc.count("Agora voce vai entrar em"), 1)
 
     def test_zone_mapper(self):
         foreach = [1.15, 0.98, 0.7, 0.4]

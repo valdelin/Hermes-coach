@@ -193,38 +193,167 @@ def _num(value):
         return None
 
 
-def event_payload(workout, ftp=DEFAULT_FTP, desc=None):
+CUE_LANGS = ("pt", "en")
+
+# Roteiro explicativo da zona do dia (cue text no aquecimento). IMPORTANTE: o
+# parser do Intervals.icu trunca o texto explicativo do passo no primeiro "%"
+# (o resto e interpretado como target) e ignora texto apos a duracao. Por isso
+# as mensagens escrevem "por cento"/"percent" por extenso e vem antes da
+# duracao. Maiusculas/minusculas seguem o jeitao da frase.
+FOCUS_ZONE_HINT = {
+    FOCUS_ZONE2: {
+        "pt": "a zona 2 fica entre 55 e 75 por cento do FTP",
+        "en": "the zone 2 band sits between 55 and 75 percent of FTP",
+    },
+    FOCUS_SWEETSPOT: {
+        "pt": "a zona de sweet spot fica entre 84 e 97 por cento do FTP",
+        "en": "the sweet spot training zone sits between 84 and 97 percent of FTP",
+    },
+    FOCUS_THRESHOLD: {
+        "pt": "a zona de limiar fica entre 95 e 105 por cento do FTP",
+        "en": "the threshold zone sits between 95 and 105 percent of FTP",
+    },
+    FOCUS_VO2: {
+        "pt": "a zona de VO2 Max fica acima de 105 por cento do FTP",
+        "en": "the VO2 Max zone sits above 105 percent of FTP",
+    },
+}
+
+FOCUS_LABELS_EN = {
+    FOCUS_ZONE2: "zone 2",
+    FOCUS_SWEETSPOT: "sweet spot",
+    FOCUS_THRESHOLD: "threshold",
+    FOCUS_VO2: "VO2 Max",
+}
+
+
+def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None):
     return {
         "start_date_local": f"{workout['day']}T{START_TIME}",
         "category": "WORKOUT", "type": "Ride",
         "name": workout["name"],
-        "description": desc or workout_text(workout, ftp),
+        "description": desc or workout_text(workout, ftp, lang=lang, prev=prev),
         "planned_duration": workout["planned_duration"],
         "target": "POWER", "external_id": workout["external_id"],
     }
 
 
-def workout_text(workout, ftp=DEFAULT_FTP):
+def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None):
     """Descricao nativa do Intervals (workout builder): a primeira linha e o
-    titulo do treino e cada passo e `duracao percentual%`. Os watts (ex:
-    `83% (151w)`) sao calculados pelo Intervals a partir do FTP."""
+    titulo do treino e cada passo e `texto duracao percentual%`. Os watts (ex:
+    `83% (151w)`) sao calculados pelo Intervals a partir do FTP.
+
+    Cada intervalo vira um passo proprio com uma mensagem explicativa antes da
+    duracao (cue text -> textevent no .zwo). As repeticoes sao achatadas em
+    passos individuais porque o parser do Intervals ignora o grupo `Nx` quando
+    os passos internos trazem texto. O texto do cue nao pode conter "%".
+    """
     params = workout["params"]
     lines = [workout["name"], ""]
-    lines.append(f"- {_hm(params['warmup_sec'])} "
-                 f"{_pct(params['warmup_power_low'])}-{_pct(params['warmup_power_high'])}% "
-                 "Aquecimento")
-    if params["repeats"] > 1:
-        lines += ["", f"{params['repeats']}x"]
-    lines.append(f"- {_hm(params['on_sec'])} "
-                 f"{_pct(params['on_power'])}% Bloco principal")
-    if params["off_sec"]:
-        lines.append(f"- {_hm(params['off_sec'])} "
-                     f"{_pct(params['off_power'])}% Recuperacao")
+    lines.append(f"- {_warmup_msg(workout, lang, prev)} "
+                 f"{_hm(params['warmup_sec'])} "
+                 f"{_pct(params['warmup_power_low'])}-{_pct(params['warmup_power_high'])}%")
+    for _ in range(max(1, params["repeats"])):
+        lines.append(f"- {_interval_msg(params, lang)} "
+                     f"{_hm(params['on_sec'])} {_pct(params['on_power'])}%")
+        if params["off_sec"]:
+            lines.append(f"- {_recovery_msg(params, lang)} "
+                         f"{_hm(params['off_sec'])} {_pct(params['off_power'])}%")
     lines += ["",
-              f"- {_hm(params['cooldown_sec'])} "
-              f"{_pct(params['cooldown_power_low'])}-{_pct(params['cooldown_power_high'])}% "
-              "Desaquecimento"]
+              f"- {_cooldown_msg(params, lang)} "
+              f"{_hm(params['cooldown_sec'])} "
+              f"{_pct(params['cooldown_power_low'])}-{_pct(params['cooldown_power_high'])}%"]
     return "\n".join(lines)
+
+
+def _warmup_msg(workout, lang, prev):
+    params = workout["params"]
+    focus = workout["focus"]
+    pct = _pct(params["on_power"])
+    hint = FOCUS_ZONE_HINT[focus][lang]
+    if lang == "en":
+        head = f"Warm-up: {hint}. Today we'll thread the needle at {pct} percent of FTP."
+        body = " After the warm-up, " + _structure_msg(params, lang) + "."
+        prog = _progress_msg(workout, prev, lang)
+        pep = " Look at you go!"
+    else:
+        head = f"Aquecimento: {hint}. Hoje miramos {pct} por cento do FTP."
+        body = " Apos o aquecimento, " + _structure_msg(params, lang) + "."
+        prog = _progress_msg(workout, prev, lang)
+        pep = " Vai com tudo!"
+    return head + body + prog + pep
+
+
+def _structure_msg(params, lang):
+    dur = _dur_text(params["on_sec"], lang)
+    pct = _pct(params["on_power"])
+    if lang == "en":
+        if params["off_sec"]:
+            return (f"we'll do {params['repeats']} sets of {dur} at {pct} percent of FTP, "
+                    f"with {_dur_text(params['off_sec'], lang)} of recovery between them, then cool down")
+        return f"we'll do a continuous {dur} block at {pct} percent of FTP, then cool down"
+    if params["off_sec"]:
+        return (f"faremos {params['repeats']} series de {dur} a {pct} por cento do FTP, "
+                f"com {_dur_text(params['off_sec'], lang)} de recuperacao entre elas, e depois o desaquecimento")
+    return (f"faremos um bloco continuo de {dur} a {pct} por cento do FTP, "
+            "e depois o desaquecimento")
+
+
+def _progress_msg(workout, prev, lang):
+    """`prev` e o treino anterior do mesmo foco (dict do plano). Fala de
+    progressao de volume so quando ha comparacao possivel."""
+    if not prev:
+        return ""
+    prev_total = int(prev["params"]["repeats"]) * int(prev["params"]["on_sec"])
+    cur_total = int(workout["params"]["repeats"]) * int(workout["params"]["on_sec"])
+    delta_min = round((cur_total - prev_total) / 60)
+    if lang == "en":
+        label = FOCUS_LABELS_EN.get(workout["focus"], workout["focus"])
+        if delta_min > 0:
+            return f" That's {delta_min} minutes more than the last {label} workout."
+        if delta_min < 0:
+            return f" That's {-delta_min} minutes less than the last {label} workout."
+        return f" Same load as the last {label} workout."
+    label = FOCUS_LABELS_PT.get(workout["focus"], workout["focus"])
+    if delta_min > 0:
+        return f" Isso sao {delta_min} minutos a mais que o ultimo treino de {label}."
+    if delta_min < 0:
+        return f" Isso sao {-delta_min} minutos a menos que o ultimo treino de {label}."
+    return f" Mesma carga do ultimo treino de {label}."
+
+
+def _interval_msg(params, lang):
+    dur = _dur_text(params["on_sec"], lang)
+    pct = _pct(params["on_power"])
+    if lang == "en":
+        return f"Now you'll ride {dur} at {pct} percent of your FTP"
+    return f"Agora voce vai entrar em {dur} a {pct} por cento do seu FTP"
+
+
+def _recovery_msg(params, lang):
+    dur = _dur_text(params["off_sec"], lang)
+    pct = _pct(params["off_power"])
+    if lang == "en":
+        return f"Recovery: {dur} at {pct} percent of FTP"
+    return f"Recuperacao de {dur} a {pct} por cento do FTP"
+
+
+def _cooldown_msg(params, lang):
+    low = _pct(params["cooldown_power_low"])
+    high = _pct(params["cooldown_power_high"])
+    if lang == "en":
+        return f"Cooldown: ease down from {low} to {high} percent of FTP"
+    return f"Desaquecimento: reduza de {low} a {high} por cento do FTP"
+
+
+def _dur_text(seconds, lang="pt"):
+    """'8 minutos'/'8 minutes' (sempre por extenso: o parser do Intervals
+    trunca o texto explicativo no primeiro padrao de duracao abreviado,
+    '6m'/'30s'/'1h', assim como no primeiro '%')."""
+    minutes = max(1, round(seconds / 60))
+    if lang == "en":
+        return f"{minutes} minute" + ("" if minutes == 1 else "s")
+    return f"{minutes} minuto" + ("" if minutes == 1 else "s")
 
 
 def _pct(frac):

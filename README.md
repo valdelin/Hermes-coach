@@ -33,6 +33,7 @@ zwift-coach/
    ```
    cp .env.example .env
    # preencha INTERVALS_ATHLETE_ID, INTERVALS_API_KEY, FTP
+   # opcional: CUE_LANG=pt (padrao) ou en — idioma das mensagens dos treinos
    ```
    (A API do Intervals.icu usa HTTP Basic Auth com usuario = senha = API_KEY.)
 
@@ -100,7 +101,10 @@ O nome de cada evento no Intervals leva a data na frente:
 
 Cada treino tem aquecimento 10 min (45% -> 75%) e desaquecimento 10 min
 (70% -> 45%). A descricao publicada usa a notacao nativa do workout builder do
-Intervals (os watts aparecem calculados pelo app).
+Intervals (os watts aparecem calculados pelo app) e inclui **mensagens
+explicativas** antes de cada passo (o aquecimento explica a zona, e cada
+intervalo recebe "Agora voce vai entrar em X minutos a Y por cento do seu
+FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
 
 ## Notas / limitacoes do scaffold
 

@@ -10,7 +10,8 @@ if __package__ in (None, ""):
 from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS)
 from intervals_client import IntervalsClient
 from plan import (build_plan, event_payload, load_plan, reconcile, save_plan,
-                  orphan_external_ids, FOCUS_LABELS_PT, REST, DEFAULT_FTP)
+                  orphan_external_ids, FOCUS_LABELS_PT, REST, DEFAULT_FTP,
+                  CUE_LANGS)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -105,12 +106,32 @@ def cmd_reconcile(args):
     return plan
 
 
+def get_cue_lang():
+    load_env(PROJECT_ROOT / ".env")
+    lang = os.environ.get("CUE_LANG", "pt").strip().lower()
+    if lang not in CUE_LANGS:
+        print(f"aviso: CUE_LANG={lang!r} invalido; usando 'pt'")
+        return "pt"
+    return lang
+
+
+def _prev_same_focus(plan, workout):
+    """Treino anterior do mesmo foco no plano (para mensagem de progressao)."""
+    prev = None
+    for w in plan:
+        if w["focus"] == workout["focus"] and w["day"] < workout["day"]:
+            prev = w
+    return prev
+
+
 def cmd_push(args):
     load_env(PROJECT_ROOT / ".env")
     plan = load_plan(PLAN_FILE)
     client = get_client()
+    lang = get_cue_lang()
     start = args.start or (date.today() + timedelta(days=1)).isoformat()
-    batch = [event_payload(w, get_ftp())
+    batch = [event_payload(w, get_ftp(), lang=lang,
+                           prev=_prev_same_focus(plan, w))
              for w in plan if w["day"] >= start]
 
     newest = (max((w["day"] for w in plan), default=None)

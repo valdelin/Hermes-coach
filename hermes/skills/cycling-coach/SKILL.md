@@ -1,7 +1,7 @@
 ---
 name: cycling-coach
 description: "Gera/monitora o treino de ciclismo do dia e o plano semanal (seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
-version: 2.1.0
+version: 2.2.0
 author: Hermes Agent -> opencode
 license: MIT
 platforms: [linux]
@@ -23,8 +23,8 @@ curtos e a consulta/geracao de treinos nao consome credito de modelo.
 - opencode instalado e autenticado no CLI (o tier free basta).
 - Agente `cycling-coach` instalado em `.opencode/agent/` do projeto
   `/home/valdelin/Work/zwift-coach` e linkado em `~/.config/opencode/agent/`.
-- `.env` do projeto configurado com `INTERVALS_ATHLETE_ID`, `INTERVALS_API_KEY`
-  e `FTP`.
+- `.env` do projeto configurado com `INTERVALS_ATHLETE_ID`, `INTERVALS_API_KEY`,
+  `FTP` e (opcional) `CUE_LANG` (`pt` padrao | `en`) para o idioma das mensagens.
 
 ## Regras de agendamento (passadas ao agente)
 
@@ -75,8 +75,14 @@ Quando o usuario pedir "monte/a ajuste o plano de treinos":
 ## Descricao no Intervals (formato nativo)
 
 Os treinos publicados usam a notacao nativa do workout builder no campo
-`description` (os passos aparecem no app como `10m 70% (127w)`). Nao altere esse
-formato ao ajustar um treino; mantenha o padrao do agente.
+`description` (os passos aparecem no app como `8m 88% (141w)`). Desde a v2.2,
+cada passo ganha uma mensagem explicativa (cue text -> textevent no .zwo):
+aquecimento com o roteiro da zona + estrutura do dia (e progressao vs. o treino
+anterior do mesmo foco) e "Agora voce vai entrar em X minutos a Y por cento do
+seu FTP" antes de cada intervalo. Repeticoes sao achatadas em passos
+individuais (o parser do Intervals descarta o grupo `Nx` com texto interno) e o
+idioma e controlado por `CUE_LANG`. Nao altere esse formato ao ajustar um
+treino; mantenha o padrao do agente.
 
 ## Pitfalls
 

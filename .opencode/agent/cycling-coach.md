@@ -18,6 +18,7 @@ Tudo vive em `zwift-coach/.env` (nunca commitar):
 - `INTERVALS_ATHLETE_ID` — Athlete ID do Intervals.icu
 - `INTERVALS_API_KEY` — API key do Intervals.icu (HTTP Basic Auth: usuario = senha = API_KEY)
 - `FTP` — FTP atual do atleta em watts (default 200)
+- `CUE_LANG` — idioma das mensagens explicativas dos treinos (`pt` padrao | `en`)
 
 ## Regras de agendamento
 
@@ -80,25 +81,45 @@ python3 src/training_plan.py all                         # fluxo completo
 
 O campo `description` enviado ao calendario deve usar a notacao nativa do
 workout builder do Intervals (`src/plan.py::workout_text`) para que os passos
-renderizem no app no formato `10m 70% (127w)`:
+renderizem no app no formato `8m 88% (141w)`. Cada passo ganha uma **mensagem
+explicativa** antes da duracao (cue text -> textevent no .zwo) e as repeticoes
+sao **achatadas em passos individuais** (o parser descarta o grupo `Nx` quando
+os passos internos trazem texto), por exemplo:
 
 ```
-2026-09-21 - Treino de Zona 2
+2026-09-21 - Treino de Sweet Spot
 
-- 10m 45-75% Aquecimento
-- 30m 70% Bloco principal
+- Aquecimento: a zona de sweet spot fica entre 84 e 97 por cento do FTP. Hoje miramos 88 por cento do FTP. Apos o aquecimento, faremos 3 series de 8 minutos a 88 por cento do FTP, com 4 minutos de recuperacao entre elas, e depois o desaquecimento. Vai com tudo! 10m 45-75%
+- Agora voce vai entrar em 8 minutos a 88 por cento do seu FTP 8m 88%
+- Recuperacao de 4 minutos a 55 por cento do FTP 4m 55%
+- Agora voce vai entrar em 8 minutos a 88 por cento do seu FTP 8m 88%
+- Recuperacao de 4 minutos a 55 por cento do FTP 4m 55%
+- Agora voce vai entrar em 8 minutos a 88 por cento do seu FTP 8m 88%
+- Recuperacao de 4 minutos a 55 por cento do FTP 4m 55%
 
-- 10m 70-45% Desaquecimento
+- Desaquecimento: reduza de 70 a 45 por cento do FTP 10m 70-45%
 ```
+
+Limitacoes do parser (validadas contra a API):
+- O cue **nao pode conter `%`** nem duracao abreviada (`6m`, `30s`, `1h`): o
+  parser trunca o texto no primeiro desses padroes. Use "por cento"/"percent" e
+  "minutos"/"minutes" por extenso; so o target do passo usa `%`.
+- Texto apos a duracao/target e ignorado: as mensagens vêm sempre ANTES.
+- `CUE_LANG` no `.env` escolhe o idioma (`pt` padrao | `en`); com `prev`, o
+  treino compara com o anterior do mesmo foco ("Isso sao 5 minutos a mais que o
+  ultimo treino de Limiar FTP").
 
 Nao envie `steps`/`workout_doc` na API: o Intervals ignora e monta o `workout_doc`
-a partir do texto em `description`. Os watts `(127w)` sao calculados por ele com
-o FTP.
+a partir do texto em `description`. Os watts `(141w)` sao calculados por ele com
+o FTP (obs.: `planned_duration` usa segundos exatos; o builder exibe minutos
+inteiros, pequena diferenca de arredondamento ja existente).
 
 ## Regras
 
 - Segmentos em fracoes do FTP (0.0 - 1.5), nunca watts absolutos.
 - Aquecimento 10 min (0.45 -> 0.75), Desaquecimento 10 min (0.70 -> 0.45).
+- Mensagens explicativas em `por cento`/`percent` e `minutos`/`minutes` por
+  extenso (nunca `%` nem `6m`/`30s` no texto do cue); idioma por `CUE_LANG`.
 - Sempre informar o TSB atual antes de escolher o foco do treino.
 - Se nao conseguir consultar o Intervals.icu, informe o usuario; nunca invente TSB.
 - Nunca expor a API key; manter apenas no `.env`.
