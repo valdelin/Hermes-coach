@@ -8,7 +8,7 @@ foco do dia e publica o treino no calendario do Intervals.icu (os arquivos
 
 ## Custo de modelos: R$ 0
 
-- **Autoras o cadas aqui:** opencode CLI, tier gratuito (`big-pickle` no CLI).
+- **Autoria aqui:** opencode CLI, tier gratuito (`big-pickle` no CLI).
 - **Orquestracao (Hermes):** turnos curtos; o trabalho pesado e delegado ao
   CLI do opencode via o skill `hermes/skills/cycling-coach/` (veja abaixo).
 - **Execucao do treino:** `training_plan.py` e deterministico — roda sem LLM.
@@ -17,7 +17,7 @@ foco do dia e publica o treino no calendario do Intervals.icu (os arquivos
 
 ```
 hermes-coach/
-├── .opencode/agent/cycling-coach.md   # agente opencode (tremador)
+├── .opencode/agent/cycling-coach.md   # agente opencode (treinador)
 ├── hermes/skills/cycling-coach/       # skill de delegacao do Hermes
 ├── src/
 │   ├── intervals_client.py            # cliente da API do Intervals.icu
