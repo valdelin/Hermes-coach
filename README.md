@@ -1,5 +1,7 @@
 # Zwift Coach — agente de treino de ciclismo indoor
 
+> **English version:** [README.en.md](README.en.md)
+
 Agente que consulta o **Intervals.icu**, calcula o **TSB** (forma), decide o
 foco do dia e publica o treino no calendario do Intervals.icu (os arquivos
 `.zwo` sao baixados direto no app).
