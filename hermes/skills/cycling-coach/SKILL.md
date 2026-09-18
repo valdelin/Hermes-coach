@@ -1,7 +1,7 @@
 ---
 name: cycling-coach
-description: "Gera/monitora o treino de ciclismo do dia e o plano semanal nos dias de treino configurados (padrao seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
-version: 2.3.0
+description: "Gera/monitora o treino de ciclismo do dia e o plano semanal nos dias de treino configurados (padrao seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal, reage a treinos extras nao-planejados e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
+version: 2.4.0
 author: Hermes Agent -> opencode
 license: MIT
 platforms: [linux]
@@ -67,7 +67,10 @@ Quando o usuario pedir "monte/a ajuste o plano de treinos":
 2. O agente executa: `info` (TSB atual) → `build` (historico -> plano seg-sex +
    orcamento de carga) → `reconcile` (treinos feitos/perdidos, recuperacao no
    proximo dia util) → `push` (calendario; remove automaticamente orfaos
-   `hermes-plan*`).
+   `hermes-plan*`). Se o atleta tiver feito um treino **fora do plano** (com
+   carga >= 1 dia de treino nos ultimos 7 dias), o `reconcile` tambem insere
+   recuperacao no proximo dia de treino e reduz o proximo Limiar — trabalho
+   leve nao altera o plano.
 3. Volte ao usuario um resumo: semana planejada (com TSS de cada dia) e TSB atual.
    Lembre que os `.zwo` sao baixados no app do Intervals (Custom Workouts).
 4. Diariamente (ou a pedido), rode o fluxo novamente para o plano se adaptar.

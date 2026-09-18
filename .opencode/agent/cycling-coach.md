@@ -73,7 +73,13 @@ python3 src/training_plan.py all                         # fluxo completo
   existe no plano anterior, ele e preservado ao regerar.
 - `reconcile` compara o plano com os treinos completos (evento de mesmo
   `external_id` com `paired_activity_id`). Treino perdido → recuperacao no
-  proximo dia util e proximo Limiar -5%.
+  proximo dia util e proximo Limiar -5%. **Treino extra fora do plano**
+  (evento com `paired_activity_id` e `external_id` nao-hermes; carga = TSS se
+  houver, senao `icu_training_load`): se a carga extra dos ultimos 7 dias
+  atingir um dia cheio (`>= daily_tss_cap(avg_load)`), insere recuperacao no
+  proximo dia de treino e reduz o proximo Limiar. Carga leve nao altera o
+  plano; recuperacao nunca entra num dia ja passado. Sempre mostre o TSB atual
+  e o que o reconcile mudou.
 - `push` publica no calendario via `POST /events/bulk?upsert=true`. **Limpa
   automaticamente** eventos `hermes-plan*` que nao estao no plano atual
   (`orphan_external_ids`) antes do upsert.

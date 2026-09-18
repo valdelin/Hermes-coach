@@ -168,6 +168,71 @@ class ReconcileTest(unittest.TestCase):
         plan, missed = reconcile(plan, events, ftp=182)
         self.assertNotIn(plan[0]["day"], [m["day"] for m in missed])
 
+    def test_extra_pesado_insere_recuperacao_no_proximo_dia(self):
+        today = date.today()
+        plan = build_plan([], 0, ftp=182, days=10,
+                          start=today)
+        prev_names = [w["name"] for w in plan]
+        anchor = (today - timedelta(days=2)).isoformat()
+        events = [{"external_id": None, "paired_activity_id": "999",
+                   "start_date_local": f"{anchor}T10:00:00",
+                   "icu_training_load": 100.0}]
+        plan2, missed = reconcile(plan, events, ftp=182)
+        self.assertFalse(missed)
+        nomes = [w["name"] for w in plan2]
+        self.assertTrue(any("Recuperacao" in n for n in nomes),
+                        "treino cheio fora do plano deveria gerar recuperacao")
+        rec = next(w for w in plan2 if "Recuperacao" in w["name"])
+        self.assertIn(rec["day"], [w["day"] for w in plan])
+
+    def test_extra_leve_nao_mexe_no_plano(self):
+        today = date.today()
+        plan = build_plan([], 0, ftp=182, days=5, start=today)
+        anchor = (today - timedelta(days=1)).isoformat()
+        events = [{"external_id": None, "paired_activity_id": "123",
+                   "start_date_local": f"{anchor}T10:00:00",
+                   "icu_training_load": 15.0}]
+        plan2, missed = reconcile(plan, events, ftp=182)
+        self.assertFalse(missed)
+        self.assertEqual(plan, plan2)
+
+    def test_treino_planejado_e_feito_nao_conta_como_extra(self):
+        today = date.today()
+        plan = build_plan([], 0, ftp=182, days=5, start=today)
+        anchor = (today - timedelta(days=3)).isoformat()
+        events = [{"external_id": "hermes-plan-sabado",
+                   "paired_activity_id": "999",
+                   "start_date_local": f"{anchor}T10:00:00",
+                   "icu_training_load": 100.0}]
+        plan2, missed = reconcile(plan, events, ftp=182)
+        self.assertFalse(missed)
+        self.assertEqual(plan, plan2)
+
+    def test_extra_nao_empilha_com_recuperacao_ja_programada(self):
+        today = date.today()
+        plan = build_plan([], 0, ftp=182, days=5, start=today)
+        anchor = (today - timedelta(days=4)).isoformat()
+        events = [{"external_id": None, "paired_activity_id": "999",
+                   "start_date_local": f"{anchor}T10:00:00",
+                   "icu_training_load": 100.0}]
+        plan_a, _ = reconcile(plan, events, ftp=182)
+        plan_b, _ = reconcile(plan_a, events, ftp=182)
+        ocorrencias = [w for w in plan_b if "Recuperacao" in w["name"]]
+        self.assertEqual(len(ocorrencias), 1,
+                         "reconcile repetido nao pode empilhar recuperacoes")
+
+    def test_extra_fora_da_janela_de_7_dias_ignorado(self):
+        today = date.today()
+        plan = build_plan([], 0, ftp=182, days=5, start=today)
+        old = (today - timedelta(days=30)).isoformat()
+        events = [{"external_id": None, "paired_activity_id": "999",
+                   "start_date_local": f"{old}T10:00:00",
+                   "icu_training_load": 100.0}]
+        from src.plan import _adjust_for_extra_workouts, _done_and_extra
+        done, extras = _done_and_extra(events)
+        plan2 = _adjust_for_extra_workouts(plan, extras, ftp=182)
+        self.assertEqual(plan, plan2)
+
 
 class EventPayloadTest(unittest.TestCase):
     def test_formato_de_evento(self):

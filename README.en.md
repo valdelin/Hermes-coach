@@ -102,6 +102,13 @@ budget**: the rolling TSS sum of the last 7 days must stay within
 slack. When the plan is regenerated, an already-existing workout for today in
 `plan.json` is preserved.
 
+**Off-plan extra workouts:** if the athlete rides on an unscheduled day, the
+reconcile step considers the load of those workouts (events with
+`paired_activity_id` and a non-hermes `external_id`) over the last 7 days. If
+their sum reaches a full training day (`>= daily_cap`, computed from the real
+load), the next training day becomes a recovery and the next threshold workout
+is reduced by 5%. Light work does not change the plan.
+
 Each event name in Intervals carries the date in front:
 `YYYY-MM-DD - Treino de <Focus>` (e.g. `2026-09-21 - Treino de Zona 2`).
 

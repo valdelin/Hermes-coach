@@ -100,6 +100,13 @@ estourar, o treino do dia e reduzido (encurta `on_sec` >= 120s, depois
 `on_power` >= 55%) e os dias subsequentes herdam a folga. Ao regerar o plano,
 o treino de hoje ja existente no `plan.json` e preservado.
 
+**Treinos extras fora do plano:** se o atleta pedalar num dia nao agendado,
+o reconcile considera a carga desses treinos (eventos com `paired_activity_id`
+e `external_id` nao-hermes) nos ultimos 7 dias. Se a soma chegar a um treino
+cheio (`>= cap_diario`, calculado pela carga real), o proximo dia de treino
+vira recuperacao e o proximo Limiar e reduzido 5%. Trabalho leve nao altera o
+plano.
+
 O nome de cada evento no Intervals leva a data na frente:
 `YYYY-MM-DD - Treino de <Foco>` (ex.: `2026-09-21 - Treino de Zona 2`).
 

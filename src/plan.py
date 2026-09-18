@@ -415,23 +415,72 @@ def _zone(frac):
 
 
 def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS):
-    done_ids = set()
-    for item in events:
-        eid = item.get("external_id")
-        if eid and item.get("paired_activity_id"):
-            done_ids.add(eid)
-    today = date.today().isoformat()
+    today = date.today()
+    done_ids, extras = _done_and_extra(events)
     missed = [w for w in plan
-              if w["day"] < today and w["external_id"] not in done_ids]
+              if w["day"] < today.isoformat() and w["external_id"] not in done_ids]
     if missed:
         for m in missed:
             plan = _insert_recovery(plan, m["day"], ftp, training_days)
             plan = _reduce_next_hard(plan, m["day"], ftp)
+    plan = _adjust_for_extra_workouts(plan, extras, ftp, training_days,
+                                      cap=daily_tss_cap(avg_load(events)))
     return plan, missed
 
 
-def _insert_recovery(plan, day, ftp, training_days=DEFAULT_TRAINING_DAYS):
-    next_day = _next_training_day(day, training_days)
+def _done_and_extra(events):
+    """Separa eventos hermes concluidos (done) de treinos feitos fora do plano
+    (extra): evento com paired_activity_id cujo external_id nao e hermes-plan."""
+    done_ids = set()
+    extras = []
+    for item in events:
+        eid = item.get("external_id")
+        paired = item.get("paired_activity_id")
+        if not paired:
+            continue
+        if eid and eid.startswith(EXTERNAL_ID_PREFIX):
+            done_ids.add(eid)
+        else:
+            day = _day(item)
+            load = _num(item.get("tss") or item.get("icu_training_load"))
+            if day and load:
+                extras.append({"day": day, "load": float(load)})
+    return done_ids, extras
+
+
+def _adjust_for_extra_workouts(plan, extras, ftp,
+                               training_days=DEFAULT_TRAINING_DAYS,
+                               extra_window_days=7, cap=None):
+    """Treino feito fora do plano soma carga no atleta. Se a carga extra nos
+    ultimos `extra_window_days` dias chegar a um treino cheio (>= cap diario),
+    insere recuperacao no proximo dia de treino e reduz o proximo Limiar.
+    Trabalho leve (abaixo do cap) nao mexe no plano."""
+    if not extras:
+        return plan
+    today = date.today()
+    cutoff = today - timedelta(days=extra_window_days)
+    window = [e for e in extras if cutoff <= e["day"] <= today]
+    if not window:
+        return plan
+    extra_load = sum(e["load"] for e in window)
+    cap = cap if cap is not None else daily_tss_cap(avg_load([]))
+    if extra_load < cap:
+        return plan
+    anchor = max(e["day"] for e in window)
+    # recuperacao nunca em dia passado: proximo dia de treino a partir do
+    # extra, mas no minimo hoje/tomorrow conforme o dia de hoje ser treino.
+    target = _next_training_day(anchor.isoformat(), training_days)
+    while target < today.isoformat():
+        target = _next_training_day(target, training_days)
+    if any(w["day"] == target and "Recuperacao" in w["name"] for w in plan):
+        return plan  # recuperacao ja programada (ex.: treino perdido)
+    plan = _insert_recovery(plan, target, ftp, training_days, on=target)
+    plan = _reduce_next_hard(plan, target, ftp)
+    return plan
+
+
+def _insert_recovery(plan, day, ftp, training_days=DEFAULT_TRAINING_DAYS, on=None):
+    next_day = on or _next_training_day(day, training_days)
     base = templates()[FOCUS_ZONE2]
     params = WorkoutParams(focus=FOCUS_ZONE2, **dict(base, on_sec=1200, on_power=0.60))
     duration = sum((params.warmup_sec, params.repeats * (params.on_sec + params.off_sec),
