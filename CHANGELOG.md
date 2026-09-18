@@ -22,6 +22,11 @@ própria — foram agrupadas na tag/release v0.0.7.
   [#2](https://github.com/valdelin/Hermes-coach/issues/2)): enviar resumo do
   treino por **e-mail, WhatsApp ou Telegram** (foco + TSB + TSS previsto/real +
   avisos do reconcile) — adicionado às **Direções futuras** do README.
+- **TODO registrado** (issue
+  [#3](https://github.com/valdelin/Hermes-coach/issues/3)): suporte a **treinos
+  sem medidor de potência** (outdoor/FC) — detectar ausência de potência,
+  `FTHR` no `.env`, carga por FC (`hrTSS`) e alvos %FTHR/RPE — adicionado às
+  **Direções futuras** do README.
 
 ## [0.0.8] - 2026-09-18
 

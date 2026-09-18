@@ -180,6 +180,11 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   enviar resumo do treino por **e-mail, WhatsApp ou Telegram** (foco + TSB +
   TSS previsto/real + avisos do reconcile). Proposta: começar por Telegram e
   manter interface extensível; envio assíncrono para não quebrar o fluxo diário.
+- **Treinos sem medidor de potência** (issue [#3](https://github.com/valdelin/Hermes-coach/issues/3)):
+  pedais outdoor sem potência deixam os dados incompletos (sem NP/TSS por
+  watts e sem verificação de %FTP). Proposta: detectar ausência de potência,
+  configurar `FTHR` (FC de limiar) no `.env`, estimar carga por FC
+  (`hrTSS`) e prescrever alvos em %FTHR/RPE nos dias outdoor.
 
 ## Notas / limitacoes do scaffold
 
