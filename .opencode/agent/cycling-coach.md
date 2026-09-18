@@ -55,6 +55,14 @@ Tudo vive em `hermes-coach/.env` (nunca commitar):
 5. Reportar: foco, TSB atual e carga prevista (TSS). O `.zwo` e baixado no app
    do Intervals — nao gerar arquivos locais.
 
+## Timer diario e falhas
+
+- O systemd user `cycling-coach-daily` roda `reconcile + push` a meia-noite
+  (`scripts/daily_reconcile.sh`, log em `logs/daily_reconcile.log`).
+- Se um passo falhar, o script notifica via `notify-send` (desktop) e sai com
+  codigo != 0; o log guarda o rastro. Se o usuario relatar a notificacao,
+  investigue o log antes de reexecutar manualmente.
+
 ## Plano de treinos (fluxo completo)
 
 Rotina (`training_plan.py`):

@@ -1,7 +1,7 @@
 ---
 name: cycling-coach
-description: "Gera/monitora o treino de ciclismo do dia e o plano semanal nos dias de treino configurados (padrao seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal, reage a treinos extras nao-planejados e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
-version: 2.4.0
+description: "Gera/monitora o treino de ciclismo do dia e o plano semanal nos dias de treino configurados (padrao seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal, reage a treinos extras nao-planejados, notifica falhas do fluxo diario e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
+version: 2.5.0
 author: Hermes Agent -> opencode
 license: MIT
 platforms: [linux]
@@ -77,6 +77,8 @@ Quando o usuario pedir "monte/a ajuste o plano de treinos":
    A meia-noite um timer do systemd (`cycling-coach-daily`) ja roda
    `reconcile + push` automaticamente (script `scripts/daily_reconcile.sh`,
    log em `logs/daily_reconcile.log`); nao foi preciso pedir manualmente.
+   **Se falhar**, o script emite notificacao desktop (`notify-send`) apontando
+   o log — pare o que estiver fazendo e investigue antes de reexecutar.
 5. **Teste de FTP:** periodicamente (ou a cada sessao de plano), o agente roda
    `ftp-check` e, se o reteste for devido (janela padrao de 8 semanas), sugere ao
    usuario refazer o **Ramp Test do app Zwift** em dia descansado para avaliar o
