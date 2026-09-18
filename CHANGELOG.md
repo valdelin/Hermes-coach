@@ -9,6 +9,19 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [Unreleased]
+
+### Adicionado
+
+- `docs/ARQUITETURA.md`: conceito original do agente (motor
+  Impulse-Response/Banister, schema de estado do atleta, system prompt de
+  corrida) marcado como **não implementado**/direção futura multi-esporte,
+  sincronizado com o vault do Obsidian, incluindo a tabela de diferenças para
+  a implementação atual (v0.0.7) e notas de design aproveitáveis (rampagem
+  +10%, teto de TSB, periodização por fases).
+- README pt/en: seções **Documentação** (link para o spec) e **Direções
+  futuras** (multi-atleta, modo solo, IA vs biblioteca, deload, corrida).
+
 ## [0.0.7] - 2026-09-18
 
 ### Adicionado

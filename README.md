@@ -29,6 +29,16 @@ hermes-coach/
 └── tests/                             # testes (stdlib unittest)
 ```
 
+## Documentação
+
+- [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — conceito original do agente
+  (motor Impulse-Response/Banister, schema de estado do atleta, system prompt)
+  e diferenças para a implementação atual. **Não implementado** — referência de
+  design e direção futura multi-esporte (corrida). Sincronizado com o vault do
+  Obsidian.
+- Roteiro de validação com treinador (ciência do treino + produto
+  multi-atleta/modo solo): `ROTEIRO-TREINADOR.md` no vault do Obsidian.
+
 ## Setup
 
 1. Copie as credenciais:
@@ -144,6 +154,20 @@ Intervals (os watts aparecem calculados pelo app) e inclui **mensagens
 explicativas** antes de cada passo (o aquecimento explica a zona, e cada
 intervalo recebe "Agora voce vai entrar em X minutos a Y por cento do seu
 FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
+
+## Direções futuras (em validação)
+
+- **Produto**: vender para treinadores (**multi-atleta**) com **modo solo**
+  (sem treinador) como opção — roteiro de entrevista no vault do Obsidian
+  (`ROTEIRO-TREINADOR.md`).
+- **IA vs biblioteca**: decidir com o treinador se o treino continua gerado por
+  regras (determinístico, como hoje) ou passa a ser escolhido de uma biblioteca
+  de treinos validados.
+- **Semanas de descanso / deload** a cada 3–4 semanas: avaliar agendamento
+  automático.
+- **Multi-esporte (corrida)**: o conceito original do agente (vDOT, pace/km,
+  FC, sistema prompt de corrida) está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
+  como direção futura — não implementado.
 
 ## Notas / limitacoes do scaffold
 

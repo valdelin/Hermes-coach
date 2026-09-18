@@ -30,6 +30,16 @@ hermes-coach/
 └── tests/                             # tests (stdlib unittest)
 ```
 
+## Documentation
+
+- [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — original agent concept
+  (Banister impulse-response engine, athlete state schema, system prompt) and
+  differences from the current implementation. **Not implemented** — design
+  reference and future multi-sport (running) direction. Kept in sync with the
+  Obsidian vault.
+- Coach-validation script (training science + multi-athlete/solo product):
+  `ROTEIRO-TREINADOR.md` in the Obsidian vault.
+
 ## Setup
 
 1. Copy the credentials:
@@ -148,6 +158,19 @@ notation of Intervals (watts are shown computed by the app) and includes
 and the day's structure (plus progress vs. the previous same-focus workout), and
 each interval gets a "Now you'll ride X minutes at Y percent of your FTP"
 cue. The message language is set via `CUE_LANG` in `.env` (`pt`|`en`).
+
+## Future directions (under validation)
+
+- **Product**: sell to coaches (**multi-athlete**) with **solo mode** (no
+  coach) as an option — interview script in the Obsidian vault
+  (`ROTEIRO-TREINADOR.md`).
+- **AI vs library**: decide with the coach whether the workout keeps being
+  rule-generated (deterministic, as today) or should be picked from a library
+  of validated workouts.
+- **Rest weeks / deload** every 3–4 weeks: evaluate automatic scheduling.
+- **Multi-sport (running)**: the original agent concept (vDOT, pace/km, HR,
+  running system prompt) lives in [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
+  as a future direction — not implemented.
 
 ## Notes / scaffold limitations
 
