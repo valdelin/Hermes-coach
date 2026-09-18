@@ -1,0 +1,90 @@
+# Changelog
+
+Todas as mudanças relevantes do **Hermes Coach**. O formato segue
+[Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e o versionamento,
+[SemVer](https://semver.org/lang/pt-BR/).
+
+As versões aqui correspondem às **tags** do repositório (git tag) e aos
+[releases publicados no GitHub](https://github.com/valdelin/Hermes-coach/releases).
+As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
+própria — foram agrupadas na tag/release v0.0.7.
+
+## [0.0.7] - 2026-09-18
+
+### Adicionado
+- `build` e `reconcile` agora imprimem a agenda de treinos em uso
+  (`Agenda: seg,ter,qua,qui,sex`) e avisam quando `TRAINING_DAYS` não está
+  definido no `.env` (usa o padrão).
+
+## [0.0.6] - 2026-09-18
+
+### Corrigido
+- `scripts/daily_reconcile.sh`: `set -e` era desativado dentro do bloco
+  `{ ...; } || { ...; }` (contexto condicional) — uma falha no `reconcile`
+  não parava o fluxo nem notificava. Cada passo agora roda via `step()`, que
+  loga, emite `notify-send` no desktop e sai com código != 0 na primeira falha.
+
+## [0.0.5] - 2026-09-18
+
+### Corrigido
+- `_reduce_next_hard` reduz o mesmo limite (ex.: Limiar) no máximo uma vez por
+  `reconcile`: o guard `reduced_ids` é compartilhado entre treinos perdidos e
+  treinos extras, evitando dupla-redução quando dois eventos caem na mesma
+  janela.
+
+## [0.0.4] - 2026-09-18
+
+### Adicionado
+- O `reconcile` detecta **treinos extras fora do plano** (eventos com
+  `paired_activity_id` e `external_id` não-hermes) na janela dos últimos 7 dias.
+  Se a soma da carga chegar a um treino cheio (`>= cap_diario`, via `tss` ou
+  fallback `icu_training_load`), o próximo dia de treino vira recuperação e o
+  próximo Limiar é reduzido 5%. Trabalho leve não altera o plano.
+- Testes cobrindo a detecção de extras e a recuperação inserida.
+
+## [0.0.3] - 2026-09-18
+
+### Adicionado
+- Agenda de treinos **configurável** via `TRAINING_DAYS` no `.env`
+  (nomes em pt `seg,ter,...` ou en `mon,tue,...`; padrão seg-sex). O foco do
+  dia segue a posição na agenda.
+- Testes de agenda parcial e mensagens explicativas em ambos os idiomas.
+
+## [0.0.2] - 2026-09-16
+
+### Adicionado
+- Arquivo `VERSION` (passa a gerar versões explícitas).
+- **Mensagens explicativas** (`cue text` + intervalos flat) publicadas em cada
+  treino no Intervals — o aquecimento explica a zona e cada intervalo recebe
+  "Agora voce vai entrar em X minutos a Y por cento do seu FTP".
+- `CUE_LANG` no `.env` (`pt`|`en`) controla o idioma das mensagens.
+
+## [0.0.1] - 2026-09-15
+
+### Adicionado
+- Baseline do projeto (`zwift-coach` → **hermes-coach**): agente opencode
+  `cycling-coach`, skill do Hermes, clientes `intervals_client.py`,
+  `coach.py` (TSB → foco → carga) e CLI `training_plan.py`
+  (`info`/`build`/`reconcile`/`push`/`all`).
+- Plano semanal por TSB, orçamento de carga (TSS 7 dias ≤ `cap_diario × 7`),
+  upsert por `external_id` (sem duplicar eventos), publicacao no calendário do
+  Intervals.icu e README em pt/en.
+- CI: GitHub Actions roda `unittest` (Python 3.12) em todo push e PR — 50
+  testes, stdlib-only.
+
+---
+
+## Como manter
+
+Ao criar uma nova versão (bump de `VERSION`):
+
+1. Adicione a seção da versão sob **Unreleased**, ou mova o conteúdo de
+   `## [Unreleased]` para a nova tag.
+2. Crie a **tag** (`git tag v0.0.X`) e a **release** no GitHub
+   (`gh release create v0.0.X`).
+3. Linke a nova versão na seção de comparações ao final deste arquivo.
+
+## Comparações (links)
+
+- [v0.0.7…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.7...master)
+- [v0.0.2…v0.0.7](https://github.com/valdelin/Hermes-coach/compare/v0.0.2...v0.0.7)
