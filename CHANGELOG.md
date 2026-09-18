@@ -113,5 +113,6 @@ Ao criar uma nova versão (bump de `VERSION`):
 
 ## Comparações (links)
 
+- [v0.0.8…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.8...master)
 - [v0.0.7…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.7...master)
 - [v0.0.2…v0.0.7](https://github.com/valdelin/Hermes-coach/compare/v0.0.2...v0.0.7)
