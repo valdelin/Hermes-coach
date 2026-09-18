@@ -187,6 +187,10 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   watts e sem verificação de %FTP). Proposta: detectar ausência de potência,
   configurar `FTHR` (FC de limiar) no `.env`, estimar carga por FC
   (`hrTSS`) e prescrever alvos em %FTHR/RPE nos dias outdoor.
+- **Sync de wellness** (issue [#4](https://github.com/valdelin/Hermes-coach/issues/4)):
+  ativar Garmin Connect → Intervals.icu (RHR, sono, Body Battery) — hoje os
+  registros de wellness estão vazios, limitando a avaliação de recuperação ao
+  TSB. Avaliar HRV (Forerunner 935 não tem HRV status overnight).
 
 ## Notas / limitacoes do scaffold
 

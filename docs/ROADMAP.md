@@ -15,17 +15,21 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 1 | bug | Limpeza de "fantasmas" (atividades MANUAL criadas pelo Intervals ao parear treino) | [#1](https://github.com/valdelin/Hermes-coach/issues/1) | 0 |
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
-| 4 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
-| 5 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
+| 4 | feature | Ativar sync de wellness (RHR, sono, Body Battery via Garmin; avaliar HRV) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 |
+| 5 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
+| 6 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
 
 ## Fases
 
-### Fase 0 — Higiene de dados (issue #1)
+### Fase 0 — Higiene de dados (issues #1 e #4)
 - Limpeza de fantasmas no fluxo `reconcile`/`push` (ou `daily_reconcile.sh`):
   detectar atividade `MANUAL` órfã com nome de evento `hermes-plan*` e duração
   = planejada; confirmar atividade real pareada; excluir via
   `DELETE /api/v1/activity/{id}`.
 - Regras: `--dry-run` antes de excluir; testes obrigatórios.
+- **Wellness (issue #4)**: ativar sync Garmin Connect → Intervals (RHR, sono,
+  Body Battery; HRV avaliar — FR935 não tem HRV status overnight); expor
+  HRV/sono no `info`/relatório diário quando disponíveis.
 
 ### Fase 1 — Comunicação (issue #2)
 - Resumo do treino (foco + TSB + TSS previsto/real + avisos do reconcile) via

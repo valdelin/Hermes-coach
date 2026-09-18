@@ -30,6 +30,11 @@ própria — foram agrupadas na tag/release v0.0.7.
 - `docs/ROADMAP.md`: plano consolidado das próximas implementações (fases
   0-4, issues #1-#3 + produto estilo Runna + multi-atleta); README agora
   aponta para o roadmap.
+- **TODO registrado** (issue
+  [#4](https://github.com/valdelin/Hermes-coach/issues/4)): **ativar sync de
+  wellness** (Garmin Connect → Intervals.icu: RHR, sono, Body Battery;
+  avaliar HRV para o futuro) — adicionado às **Direções futuras** do README e
+  ao roadmap (Fase 0).
 
 ## [0.0.8] - 2026-09-18
 
