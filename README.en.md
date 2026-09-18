@@ -25,8 +25,9 @@ hermes-coach/
 ├── src/
 │   ├── intervals_client.py            # Intervals.icu API client
 │   ├── coach.py                       # TSB -> focus -> load (TSS)
+│   ├── impulse_response.py            # local Banister engine (CTL/ATL/TSB)
 │   ├── plan.py                        # weekly plan (build/reconcile)
-│   └── training_plan.py               # plan CLI (info/build/reconcile/push)
+│   └── training_plan.py               # plan CLI (info/model/build/reconcile/push)
 └── tests/                             # tests (stdlib unittest)
 ```
 
@@ -77,11 +78,18 @@ hermes-coach/
 Adaptive training plan (history -> Intervals calendar):
 ```
 python3 src/training_plan.py info                        # current TSB/CTL/ATL
+python3 src/training_plan.py model                       # local Banister engine + plan forecast
 python3 src/training_plan.py build --days 60 --days-plan 14   # generate plan
 python3 src/training_plan.py reconcile --show         # detect missed workouts
 python3 src/training_plan.py push --start 2026-09-16  # publish to Intervals (upsert)
 python3 src/training_plan.py all                      # full flow
 ```
+The `model` command runs the **impulse-response load engine** (Banister,
+`src/impulse_response.py`): it computes CTL/ATL/TSB locally from the daily TSS
+in the window, compares it with Intervals, and forecasts the form of following
+the current plan (`plan.json`). The trusted day-to-day reference remains
+Intervals; the local engine shines at **forecasting** (e.g. "following the
+plan drops TSB to X in 2 weeks").
 The `external_id` is the upsert key: running again does not duplicate events
 on Intervals. `push` also automatically removes `hermes-plan*` events that are
 no longer in the plan (e.g. dates that changed on a rebuild). Today's workouts
@@ -100,7 +108,7 @@ Tests:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(50 tests, stdlib-only — CI runs the same suite on every push/PR.)
+(64 tests, stdlib-only — CI runs the same suite on every push/PR.)
 
 ## Daily automation (optional)
 

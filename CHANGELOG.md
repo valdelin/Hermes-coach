@@ -9,18 +9,32 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
-## [Unreleased]
+## [0.0.8] - 2026-09-18
 
 ### Adicionado
 
+- **Motor de carga fisiológica (Banister Impulse-Response)** — `src/impulse_response.py`,
+  implementando o spec da seção 1 do `docs/ARQUITETURA.md`:
+  - `ImpulseResponseEngine.calculate_tss(duration, avg_intensity, threshold)` — TSS padrão
+    `IF² × horas × 100` (retorna 0 para threshold ≤ 0);
+  - `ImpulseResponseEngine.compute_metrics(daily_tss_history, initial_ctl, initial_atl)` —
+    suavização exponencial com constantes 42/7 dias (CTL/ATL/TSB);
+  - `daily_tss_series(events)` — série diária de TSS dos eventos do Intervals
+    (`tss`/`icu_training_load`), mesmo critério de carga do reconcile.
+- CLI `python3 src/training_plan.py model`: métricas do motor local vs
+  Intervals.icu (com diferença) e **projeção** do TSB ao seguir o `plan.json`.
+- 14 testes novos (64 no total); docs atualizadas (README pt/en, `docs/ARQUITETURA.md`).
+
+### Documentação (entrou após v0.0.7)
+
 - `docs/ARQUITETURA.md`: conceito original do agente (motor
   Impulse-Response/Banister, schema de estado do atleta, system prompt de
-  corrida) marcado como **não implementado**/direção futura multi-esporte,
-  sincronizado com o vault do Obsidian, incluindo a tabela de diferenças para
-  a implementação atual (v0.0.7) e notas de design aproveitáveis (rampagem
+  corrida) sincronizado com o vault do Obsidian, com a tabela de diferenças
+  para a implementação atual e notas de design aproveitáveis (rampagem
   +10%, teto de TSB, periodização por fases).
 - README pt/en: seções **Documentação** (link para o spec) e **Direções
   futuras** (multi-atleta, modo solo, IA vs biblioteca, deload, corrida).
+- `.gitignore` ignora `.env.bak` / `.env.*.bak`.
 
 ## [0.0.7] - 2026-09-18
 

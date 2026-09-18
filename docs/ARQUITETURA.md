@@ -1,9 +1,10 @@
 # Arquitetura — conceito original do Hermes (referência / direção futura)
 
-> **Status: conceito, NÃO implementado.** Este documento é o spec de design do
-> agente "Hermes" original, orientado a **corrida de alto rendimento** e
-> multi-esporte. A implementação atual é o **agente de ciclismo indoor** (este
-> repo, v0.0.7) — consulte o [README](../README.md) para o que roda hoje.
+> **Status: parcialmente implementado.** A seção 1 (motor Impulse-Response)
+> foi implementada em `src/impulse_response.py` (v0.0.8, CLI `model`). O
+> restante (schema de estado e system prompt de corrida) continua como
+> **conceito/direção futura** multi-esporte (corrida) — consulte o
+> [README](../README.md) para o que roda hoje.
 >
 > Mantido em sincronia com o vault do Obsidian
 > (`01-Projetos/hermes-coach/hermes_coach_arquitetura_e_implementa_o.md`).
@@ -11,18 +12,23 @@
 
 ---
 
-## Diferenças para o código atual (v0.0.7)
+## Diferenças para o código atual (v0.0.8)
 
 | Conceito do spec                                   | Implementação atual                                    |
 |----------------------------------------------------|--------------------------------------------------------|
-| Motor local Impulse-Response (Banister) em Python  | CTL/ATL/TSB vêm prontos do Intervals.icu (`src/coach.py::latest_metrics`) |
-| TSS padrão: `IF² × horas × 100`                    | Estimativa aproximada `seg × fração³ / 36` (`src/plan.py::estimate_tss`) |
-| Schema JSON de estado do atleta (`HermesAthleteState`) | Estado vive em `.env` + `plan.json` (sem schema dedicado) |
-| System prompt de corrida (vDOT, pace/km, FC)       | Agente opencode `cycling-coach` (`.opencode/agent/cycling-coach.md`), ciclismo indoor (FTP em watts) |
+| Motor local Impulse-Response (Banister) em Python  | **Implementado** em `src/impulse_response.py` (CLI `model`); o fluxo principal (build/reconcile/push) continua usando CTL/ATL/TSB do Intervals.icu |
+| TSS padrão: `IF² × horas × 100`                    | Motor usa a fórmula padrão; **o `plan.py` segue** com a estimativa aproximada `seg × fração³ / 36` para orçar o plano |
+| Schema JSON de estado do atleta (`HermesAthleteState`) | Estado vive em `.env` + `plan.json` (sem schema dedicado) — seção 2 não implementada |
+| System prompt de corrida (vDOT, pace/km, FC)       | Agente opencode `cycling-coach` (`.opencode/agent/cycling-coach.md`), ciclismo indoor (FTP em watts) — seção 3 não implementada |
 
 ---
 
 ## 1. Motor de Carga Fisiológica (Banister Impulse-Response)
+
+**Status: IMPLEMENTADO** em `src/impulse_response.py` (v0.0.8, comando
+`python3 src/training_plan.py model`). A implementação segue o código abaixo
+fielmente e adiciona `daily_tss_series(events)` para montar a série diária de
+TSS a partir dos eventos do Intervals (campo `tss` ou `icu_training_load`).
 
 Implementação em Python para o cálculo de TSS (Training Stress Score) e
 atualização contínua de Fitness (CTL), Fadiga (ATL) e Forma (TSB).

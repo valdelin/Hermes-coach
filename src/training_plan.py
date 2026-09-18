@@ -9,6 +9,7 @@ if __package__ in (None, ""):
 
 from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS)
 from intervals_client import IntervalsClient
+from impulse_response import ImpulseResponseEngine, daily_tss_series
 from plan import (build_plan, event_payload, load_plan, reconcile, save_plan,
                   orphan_external_ids, parse_training_days, FOCUS_LABELS_PT,
                   REST, DEFAULT_FTP, CUE_LANGS)
@@ -86,6 +87,42 @@ def cmd_ftp_check(args):
     if sug.due:
         print("Sugestao: agende um Ramp Test no app Zwift em um dia descansado;")
         print("depois informe o novo FTP para atualizar o .env e o plano.")
+
+
+def cmd_model(args):
+    client = get_client()
+    newest = date.today()
+    oldest = newest - timedelta(days=args.days)
+    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
+    series = daily_tss_series(events, window_days=args.days)
+    engine = ImpulseResponseEngine()
+    local = engine.compute_metrics(series)
+    api = latest_metrics(events)
+    print(f"eventos na janela: {len(events)} | dias com TSS: {len(series)}")
+    print(f"Motor local (Banister): CTL {local['ctl_fitness']} / "
+          f"ATL {local['atl_fatigue']} / TSB {local['tsb_form']}")
+    if api and api.ctl is not None and api.atl is not None:
+        print(f"Intervals.icu        : CTL {api.ctl:.1f} / "
+              f"ATL {api.atl:.1f} / TSB {api.tsb:.1f}")
+        print(f"Diferenca            : CTL {local['ctl_fitness'] - api.ctl:+.1f} / "
+              f"ATL {local['atl_fatigue'] - api.atl:+.1f} / "
+              f"TSB {local['tsb_form'] - api.tsb:+.1f}")
+    else:
+        print("Intervals.icu: metricas nao disponiveis na janela.")
+    try:
+        plan = load_plan(PLAN_FILE)
+    except FileNotFoundError:
+        plan = []
+    if plan and api and api.ctl is not None and api.atl is not None:
+        plan_tss = [w["tss"] for w in plan]
+        last_day = plan[-1]["day"]
+        end = engine.compute_metrics(plan_tss, initial_ctl=api.ctl,
+                                     initial_atl=api.atl)
+        print(f"Projecao seguindo o plano ate {last_day}: "
+              f"CTL {end['ctl_fitness']} / ATL {end['atl_fatigue']} / "
+              f"TSB {end['tsb_form']}")
+    else:
+        print("Projecao: sem plan.json ou metricas da API para projetar.")
 
 
 def cmd_build(args):
@@ -201,6 +238,13 @@ def main(argv=None):
     p_ftp.add_argument("--weeks", type=int, default=8,
                        help="Janela em semanas entre testes")
     p_ftp.set_defaults(func=cmd_ftp_check)
+
+    p_model = sub.add_parser(
+        "model",
+        help="Metricas do motor Banister local vs Intervals + projecao do plano")
+    p_model.add_argument("--days", type=int, default=60,
+                         help="Janela de historico de TSS (dias)")
+    p_model.set_defaults(func=cmd_model)
 
     p_build = sub.add_parser("build", help="Gera o plano a partir do historico")
     p_build.add_argument("--days", type=int, default=60,

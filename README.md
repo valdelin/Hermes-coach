@@ -24,8 +24,9 @@ hermes-coach/
 ├── src/
 │   ├── intervals_client.py            # cliente da API do Intervals.icu
 │   ├── coach.py                       # TSB -> foco -> carga (TSS)
+│   ├── impulse_response.py            # motor Banister local (CTL/ATL/TSB)
 │   ├── plan.py                        # plano semanal (build/reconcile)
-│   └── training_plan.py               # CLI do plano (info/build/reconcile/push)
+│   └── training_plan.py               # CLI do plano (info/model/build/reconcile/push)
 └── tests/                             # testes (stdlib unittest)
 ```
 
@@ -76,11 +77,18 @@ hermes-coach/
 Plano de treinos adaptativo (historico -> calendario do Intervals):
 ```
 python3 src/training_plan.py info                        # TSB/CTL/ATL atuais
+python3 src/training_plan.py model                       # motor Banister local + projecao do plano
 python3 src/training_plan.py build --days 60 --days-plan 14   # gera plano
 python3 src/training_plan.py reconcile --show         # detecta treinos perdidos
 python3 src/training_plan.py push --start 2026-09-16  # publica no Intervals (upsert)
 python3 src/training_plan.py all                      # fluxo completo
 ```
+O comando `model` roda o **motor de carga Impulse-Response** (Banister,
+`src/impulse_response.py`): calcula CTL/ATL/TSB localmente a partir do TSS
+diario da janela, compara com o Intervals e projeta a forma ao seguir o plano
+atual (`plan.json`). Referencia confiavel para o dia a dia continua sendo o
+Intervals; o motor local brilha na **projecao** (ex.: "seguir o plano derruba
+o TSB para X em 2 semanas").
 O `external_id` e usado como chave de upsert: rodar de novo nao duplica eventos
 no Intervals. O `push` tambem remove automaticamente eventos `hermes-plan*`
 que nao constam mais no plano (ex.: datas que mudaram em um rebuild). Treinos
@@ -99,7 +107,7 @@ Testes:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(50 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+(64 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
 
 ## Automacao diaria (opcional)
 
