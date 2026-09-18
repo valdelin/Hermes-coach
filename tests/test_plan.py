@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from src.plan import (build_plan, event_payload, reconcile, templates,
                       weekly_template, workout_text, orphan_external_ids,
                       parse_training_days, _next_training_day,
+                      _reduce_next_hard,
                       DEFAULT_TRAINING_DAYS,
                       REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2)
 
@@ -167,6 +168,24 @@ class ReconcileTest(unittest.TestCase):
                    "start_date_local": "2026-09-28T07:00:00"}]
         plan, missed = reconcile(plan, events, ftp=182)
         self.assertNotIn(plan[0]["day"], [m["day"] for m in missed])
+
+    def test_duas_perdas_nao_reduzem_o_mesmo_limiar_duas_vezes(self):
+        from src.plan import _reduce_next_hard
+        from src.coach import WorkoutParams
+        base = WorkoutParams(focus=FOCUS_THRESHOLD, on_sec=480, on_power=0.98)
+        params = dict(base.__dict__)
+        plan = [
+            {"day": "2026-09-23", "focus": FOCUS_THRESHOLD,
+             "planned_duration": 2400, "name": "2026-09-23 - Treino de Limiar FTP",
+             "params": params, "tss": 30.0,
+             "external_id": "hermes-plan-2026-09-23"},
+        ]
+        reduced_ids = set()
+        p1 = _reduce_next_hard(plan, "2026-09-21", 182, reduced_ids)
+        p2 = _reduce_next_hard(p1, "2026-09-22", 182, reduced_ids)
+        self.assertEqual(p2[0]["params"]["on_power"],
+                         round(0.98 * 0.95, 3),
+                         "o mesmo Limiar deve ser reduzido uma unica vez")
 
     def test_extra_pesado_insere_recuperacao_no_proximo_dia(self):
         today = date.today()

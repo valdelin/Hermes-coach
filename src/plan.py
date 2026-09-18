@@ -417,14 +417,16 @@ def _zone(frac):
 def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS):
     today = date.today()
     done_ids, extras = _done_and_extra(events)
+    reduced_ids = set()
     missed = [w for w in plan
               if w["day"] < today.isoformat() and w["external_id"] not in done_ids]
     if missed:
         for m in missed:
             plan = _insert_recovery(plan, m["day"], ftp, training_days)
-            plan = _reduce_next_hard(plan, m["day"], ftp)
+            plan = _reduce_next_hard(plan, m["day"], ftp, reduced_ids)
     plan = _adjust_for_extra_workouts(plan, extras, ftp, training_days,
-                                      cap=daily_tss_cap(avg_load(events)))
+                                      cap=daily_tss_cap(avg_load(events)),
+                                      reduced_ids=reduced_ids)
     return plan, missed
 
 
@@ -450,7 +452,8 @@ def _done_and_extra(events):
 
 def _adjust_for_extra_workouts(plan, extras, ftp,
                                training_days=DEFAULT_TRAINING_DAYS,
-                               extra_window_days=7, cap=None):
+                               extra_window_days=7, cap=None,
+                               reduced_ids=None):
     """Treino feito fora do plano soma carga no atleta. Se a carga extra nos
     ultimos `extra_window_days` dias chegar a um treino cheio (>= cap diario),
     insere recuperacao no proximo dia de treino e reduz o proximo Limiar.
@@ -475,7 +478,7 @@ def _adjust_for_extra_workouts(plan, extras, ftp,
     if any(w["day"] == target and "Recuperacao" in w["name"] for w in plan):
         return plan  # recuperacao ja programada (ex.: treino perdido)
     plan = _insert_recovery(plan, target, ftp, training_days, on=target)
-    plan = _reduce_next_hard(plan, target, ftp)
+    plan = _reduce_next_hard(plan, target, ftp, reduced_ids)
     return plan
 
 
@@ -494,11 +497,13 @@ def _insert_recovery(plan, day, ftp, training_days=DEFAULT_TRAINING_DAYS, on=Non
     return [w for w in plan if w["day"] != next_day] + [_as_dict(recovery)]
 
 
-def _reduce_next_hard(plan, day, ftp):
+def _reduce_next_hard(plan, day, ftp, reduced_ids=None):
     out = []
-    reduced = False
+    reduced_ids = reduced_ids if reduced_ids is not None else set()
+    reduced_this_call = False
     for w in sorted(plan, key=lambda x: x["day"]):
-        if not reduced and w["day"] > day and w["focus"] == FOCUS_THRESHOLD:
+        if (not reduced_this_call and w["external_id"] not in reduced_ids
+                and w["day"] > day and w["focus"] == FOCUS_THRESHOLD):
             params = dict(w["params"])
             params["on_power"] = round(params["on_power"] * 0.95, 3)
             tss = estimate_tss(WorkoutParams(**params), ftp)
@@ -507,7 +512,8 @@ def _reduce_next_hard(plan, day, ftp):
                                name=w["name"], params=params,
                                tss=float(tss), external_id=w["external_id"])
             w = _as_dict(w)
-            reduced = True
+            reduced_ids.add(w["external_id"])
+            reduced_this_call = True
         out.append(w)
     return out
 
