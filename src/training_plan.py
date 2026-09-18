@@ -48,6 +48,18 @@ def get_training_days():
     return parse_training_days(value)
 
 
+def describe_training_days(training_days=None, env_value=None):
+    """Texto curto da agenda em uso (para build/reconcile printarem)."""
+    if training_days is None:
+        training_days = get_training_days()
+    names = {0: "seg", 1: "ter", 2: "qua", 3: "qui", 4: "sex",
+             5: "sab", 6: "dom"}
+    seq = ",".join(names[d] for d in training_days)
+    if env_value is None or not str(env_value).strip():
+        return f"Agenda: {seq} (TRAINING_DAYS ausente -> padrao)"
+    return f"Agenda: {seq} (TRAINING_DAYS={env_value})"
+
+
 def cmd_info(args):
     client = get_client()
     ftp = get_ftp()
@@ -91,6 +103,7 @@ def cmd_build(args):
     plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
                       existing=existing, training_days=get_training_days())
     save_plan(plan, PLAN_FILE)
+    print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     print(f"Plano gerado: {len(plan)} treinos | TSB atual {tsb:.1f} | FTP {ftp}W")
     for w in plan:
         print(f"  {w['day']} {w['name']:<30} {w['planned_duration'] // 60:>3}m TSS {w['tss']:.0f}")
@@ -107,6 +120,7 @@ def cmd_reconcile(args):
     plan, missed = reconcile(plan, events, ftp=ftp,
                              training_days=get_training_days())
     save_plan(plan, PLAN_FILE)
+    print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
         print("Plano ajustado: recuperacao inserida e proximo limiar reduzido.")
