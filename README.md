@@ -165,6 +165,8 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
 
 ## Direções futuras (em validação)
 
+> Visão consolidada com escopo, fases e status: **[docs/ROADMAP.md](docs/ROADMAP.md)**.
+
 - **Produto**: vender para treinadores (**multi-atleta**) com **modo solo**
   (sem treinador) como opção — roteiro de entrevista no vault do Obsidian
   (`ROTEIRO-TREINADOR.md`).

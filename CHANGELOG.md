@@ -27,6 +27,9 @@ própria — foram agrupadas na tag/release v0.0.7.
   sem medidor de potência** (outdoor/FC) — detectar ausência de potência,
   `FTHR` no `.env`, carga por FC (`hrTSS`) e alvos %FTHR/RPE — adicionado às
   **Direções futuras** do README.
+- `docs/ROADMAP.md`: plano consolidado das próximas implementações (fases
+  0-4, issues #1-#3 + produto estilo Runna + multi-atleta); README agora
+  aponta para o roadmap.
 
 ## [0.0.8] - 2026-09-18
 
