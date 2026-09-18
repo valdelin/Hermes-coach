@@ -1,5 +1,7 @@
 # Hermes Coach — indoor cycling training agent
 
+[![CI](https://github.com/valdelin/Hermes-coach/actions/workflows/test.yml/badge.svg)](https://github.com/valdelin/Hermes-coach/actions/workflows/test.yml)
+
 > **Versão em português:** [README.md](README.md)
 
 Agent that queries the **Intervals.icu** API, computes the **TSB** (fitness
@@ -88,6 +90,18 @@ Tests:
 ```
 python3 -m unittest discover -s tests -v
 ```
+(50 tests, stdlib-only — CI runs the same suite on every push/PR.)
+
+## Daily automation (optional)
+
+The whole flow can run automatically at midnight, without depending on
+Hermes/opencode:
+- The **systemd timer** `cycling-coach-daily.timer` fires
+  `scripts/daily_reconcile.sh` (reconcile + push for the day).
+- Logs live in `logs/daily_reconcile.log`.
+- **Failure alert:** if any step fails, the script sends a desktop
+  notification (`notify-send`) and exits with a non-zero code — so a silent
+  failure does not go unnoticed.
 
 ## TSB decision rules
 
@@ -107,7 +121,15 @@ reconcile step considers the load of those workouts (events with
 `paired_activity_id` and a non-hermes `external_id`) over the last 7 days. If
 their sum reaches a full training day (`>= daily_cap`, computed from the real
 load), the next training day becomes a recovery and the next threshold workout
-is reduced by 5%. Light work does not change the plan.
+is reduced by 5%. Light work does not change the plan. The same applies to
+**missed workouts** (planned but not completed): the next threshold is reduced
+at most once per reconcile — the `reduced_ids` guard prevents two events in
+the same window from reducing the same workout twice, and recovery is never
+inserted on past days.
+
+The schedule in use is printed by `build` and `reconcile`
+(`Agenda: seg,ter,qua,qui,sex`), with a warning when `TRAINING_DAYS` is not
+set in `.env`.
 
 Each event name in Intervals carries the date in front:
 `YYYY-MM-DD - Treino de <Focus>` (e.g. `2026-09-21 - Treino de Zona 2`).
