@@ -187,6 +187,77 @@ class ReconcileTest(unittest.TestCase):
                          round(0.98 * 0.95, 3),
                          "o mesmo Limiar deve ser reduzido uma unica vez")
 
+    def test_reconcile_mix_realista_eventos(self):
+        """Golden-path do reconcile: treinos hermes passados feitos, um perdido,
+        extra pesado na janela de 7d (carga >= cap) e extra leve. Recuperacao
+        para o perdido + para o extra pesado; o plano nao muda de tamanho."""
+        today = date.today()
+        start = today - timedelta(days=3)
+        plan = build_plan([], 0, ftp=182, days=12, start=start)
+        past = [w for w in plan if w["day"] < today.isoformat()]
+        self.assertGreaterEqual(len(past), 2,
+                                "fixture precisa de pelo menos 2 dias passados")
+        missed_one = past[1]  # apenas 1 perdido
+        done = [w for w in past if w["day"] != missed_one["day"]]
+        events = [{"external_id": w["external_id"], "paired_activity_id": "555",
+                   "start_date_local": f"{w['day']}T10:00:00",
+                   "icu_training_load": 45.0}
+                  for w in done]
+        anchor = today - timedelta(days=2)
+        events += [
+            {"external_id": None, "paired_activity_id": "777",
+             "start_date_local": f"{anchor.isoformat()}T10:00:00",
+             "icu_training_load": 100.0},
+            {"external_id": None, "paired_activity_id": "888",
+             "start_date_local": f"{anchor.isoformat()}T12:00:00",
+             "icu_training_load": 10.0},
+        ]
+        plan2, missed = reconcile(plan, events, ftp=182)
+        self.assertEqual([m["external_id"] for m in missed],
+                         [missed_one["external_id"]],
+                         "exatamente um treino perdido")
+        nomes = [w["name"] for w in plan2 if "Recuperacao" in w["name"]]
+        self.assertGreaterEqual(len(nomes), 2,
+                                "perdido e extra pesado devem gerar recuperacao")
+        self.assertEqual(len(plan2), len(plan),
+                         "reconcile nao muda o tamanho do plano (substitui dias)")
+
+    def test_reconcile_sem_extra_pesado_mantem_plano(self):
+        """Sem treino extra esforcado na janela (e tudo feito em dia passado),
+        o plano permanece intacto."""
+        today = date.today()
+        start = today - timedelta(days=4)
+        plan = build_plan([], 0, ftp=182, days=12, start=start)
+        past = [w for w in plan if w["day"] < today.isoformat()]
+        events = [{"external_id": w["external_id"], "paired_activity_id": "555",
+                   "start_date_local": f"{w['day']}T10:00:00",
+                   "icu_training_load": 45.0}
+                  for w in past]
+        anchor = today - timedelta(days=1)
+        events += [{"external_id": None, "paired_activity_id": "999",
+                    "start_date_local": f"{anchor.isoformat()}T10:00:00",
+                    "icu_training_load": 8.0}]  # leve, bem abaixo do cap
+        plan2, missed = reconcile(plan, events, ftp=182)
+        self.assertFalse(missed, "tudo feito em dia passado -> nada perdido")
+        self.assertEqual(plan2, plan,
+                         "extra leve nao pode alterar o plano")
+        from src.plan import _reduce_next_hard
+        from src.coach import WorkoutParams
+        base = WorkoutParams(focus=FOCUS_THRESHOLD, on_sec=480, on_power=0.98)
+        params = dict(base.__dict__)
+        plan = [
+            {"day": "2026-09-23", "focus": FOCUS_THRESHOLD,
+             "planned_duration": 2400, "name": "2026-09-23 - Treino de Limiar FTP",
+             "params": params, "tss": 30.0,
+             "external_id": "hermes-plan-2026-09-23"},
+        ]
+        reduced_ids = set()
+        p1 = _reduce_next_hard(plan, "2026-09-21", 182, reduced_ids)
+        p2 = _reduce_next_hard(p1, "2026-09-22", 182, reduced_ids)
+        self.assertEqual(p2[0]["params"]["on_power"],
+                         round(0.98 * 0.95, 3),
+                         "o mesmo Limiar deve ser reduzido uma unica vez")
+
     def test_extra_pesado_insere_recuperacao_no_proximo_dia(self):
         today = date.today()
         plan = build_plan([], 0, ftp=182, days=10,
