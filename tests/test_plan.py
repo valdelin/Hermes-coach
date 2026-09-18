@@ -32,6 +32,19 @@ class BuildPlanTest(unittest.TestCase):
                 self.assertLessEqual(weekday, 4,
                                      f"{w['day']} caiu no fim de semana (tsb {tsb})")
 
+    def test_build_preserva_treino_de_hoje_do_plano_atual(self):
+        today = date.today()
+        if today.weekday() >= 5:
+            self.skipTest("hoje e fim de semana")
+        existing = [{"day": today.isoformat(), "focus": "zone2",
+                     "planned_duration": 2400,
+                     "name": f"{today} - Recuperacao (plano ajustado)",
+                     "params": {"on_sec": 1200}, "tss": 14.0,
+                     "external_id": f"hermes-plan-{today}"}]
+        plan = build_plan([], -7, ftp=182, days=5, existing=existing)
+        self.assertEqual(plan[0]["day"], today.isoformat())
+        self.assertIn("Recuperacao (plano ajustado)", plan[0]["name"])
+
     def test_preenche_todos_os_dias_de_semana(self):
         plan = build_plan([], 0, ftp=182, days=14,
                           start=date(2026, 9, 14))  # segunda, 2 semanas

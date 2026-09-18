@@ -97,8 +97,17 @@ def weekly_budget(avg):
     return daily_tss_cap(avg) * 7
 
 
-def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None):
-    start = start or date.today() + timedelta(days=1)
+def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None):
+    today = date.today()
+    if start is None:
+        start = today + timedelta(days=1)
+        if existing and today.weekday() < 5:
+            kept = [w for w in existing if w["day"] == today.isoformat()]
+            if kept:
+                plan = [kept[0]]
+                recent = [(today, kept[0]["tss"])]
+                return plan + build_plan(events, tsb, ftp=ftp, days=days,
+                                         start=start)
     base = templates()
     weekly = weekly_template(tsb)
     cap = daily_tss_cap(avg_load(events))

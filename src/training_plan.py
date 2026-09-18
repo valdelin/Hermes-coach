@@ -78,7 +78,12 @@ def cmd_build(args):
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
     metrics = latest_metrics(events)
     tsb = metrics.tsb if metrics else 0.0
-    plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan)
+    try:
+        existing = load_plan(PLAN_FILE)
+    except FileNotFoundError:
+        existing = None
+    plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
+                      existing=existing)
     save_plan(plan, PLAN_FILE)
     print(f"Plano gerado: {len(plan)} treinos | TSB atual {tsb:.1f} | FTP {ftp}W")
     for w in plan:
