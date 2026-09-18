@@ -18,6 +18,10 @@ própria — foram agrupadas na tag/release v0.0.7.
   materializa o evento `hermes-plan*` como atividade MANUAL "fantasma" ao
   sincronizar o treino (sem endpoint de merge na API; proposta de limpeza
   automática registrada para o futuro).
+- **TODO registrado** (issue
+  [#2](https://github.com/valdelin/Hermes-coach/issues/2)): enviar resumo do
+  treino por **e-mail, WhatsApp ou Telegram** (foco + TSB + TSS previsto/real +
+  avisos do reconcile) — adicionado às **Direções futuras** do README.
 
 ## [0.0.8] - 2026-09-18
 

@@ -176,6 +176,10 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
 - **Multi-esporte (corrida)**: o conceito original do agente (vDOT, pace/km,
   FC, sistema prompt de corrida) está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
   como direção futura — não implementado.
+- **Notificações do treino** (issue [#2](https://github.com/valdelin/Hermes-coach/issues/2)):
+  enviar resumo do treino por **e-mail, WhatsApp ou Telegram** (foco + TSB +
+  TSS previsto/real + avisos do reconcile). Proposta: começar por Telegram e
+  manter interface extensível; envio assíncrono para não quebrar o fluxo diário.
 
 ## Notas / limitacoes do scaffold
 
