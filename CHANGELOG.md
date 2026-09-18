@@ -9,6 +9,16 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [Unreleased]
+
+### Adicionado
+
+- `docs/KNOWN_ISSUES.md`: rastreio de bugs conhecidos do projeto. Registrada a
+  issue [#1](https://github.com/valdelin/Hermes-coach/issues/1) — o Intervals
+  materializa o evento `hermes-plan*` como atividade MANUAL "fantasma" ao
+  sincronizar o treino (sem endpoint de merge na API; proposta de limpeza
+  automática registrada para o futuro).
+
 ## [0.0.8] - 2026-09-18
 
 ### Adicionado
