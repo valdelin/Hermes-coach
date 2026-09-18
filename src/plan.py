@@ -15,6 +15,29 @@ REST = "rest"
 DEFAULT_FTP = 182
 EXTERNAL_ID_PREFIX = "hermes-plan"
 
+# Dias de treino padrao (seg-sex). Configuravel via TRAINING_DAYS no .env.
+DEFAULT_TRAINING_DAYS = (0, 1, 2, 3, 4)  # date.weekday(): seg=0 .. sex=4
+
+DAY_NAMES = {
+    "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6,
+    "seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "dom": 6,
+}
+
+
+def parse_training_days(value):
+    """Converte TRAINING_DAYS ('mon,tue,...' ou 'seg,ter,...') em tupla de
+    weekday (date.weekday()). Vazio/ausente ou invalido -> default seg-sex."""
+    if not value:
+        return DEFAULT_TRAINING_DAYS
+    days = []
+    for token in str(value).split(","):
+        token = token.strip().lower()
+        if token in DAY_NAMES:
+            days.append(DAY_NAMES[token])
+        else:
+            return DEFAULT_TRAINING_DAYS
+    return tuple(sorted(set(days))) or DEFAULT_TRAINING_DAYS
+
 
 @dataclasses.dataclass(frozen=True)
 class PlannedWorkout:
@@ -45,9 +68,9 @@ def _block(repeats, on_sec, off_sec, on_power):
     }
 
 
-# Indice = dia da semana (seg=0 .. sex=4). Sabado/domingo nunca treinam;
-# informar o Hermes para agendar por fora. Barra de carga e aplicada apos
-# (ver build_plan / weekly_budget).
+# Indice = posicao do dia dentro da agenda de treino (build_plan). O template
+# de 5 focos e cortado/cirado ao tamanho da agenda configurada (TRAINING_DAYS,
+# default seg-sex). A carga e aplicada apos (ver build_plan / weekly_budget).
 WEEKLY_BY_TSB = [
     (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT]),
     (0, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_VO2]),
@@ -97,28 +120,30 @@ def weekly_budget(avg):
     return daily_tss_cap(avg) * 7
 
 
-def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None):
+def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
+               training_days=DEFAULT_TRAINING_DAYS):
     today = date.today()
     if start is None:
         start = today + timedelta(days=1)
-        if existing and today.weekday() < 5:
+        if existing and today.weekday() in training_days:
             kept = [w for w in existing if w["day"] == today.isoformat()]
             if kept:
                 plan = [kept[0]]
                 recent = [(today, kept[0]["tss"])]
                 return plan + build_plan(events, tsb, ftp=ftp, days=days,
-                                         start=start)
+                                         start=start, training_days=training_days)
     base = templates()
     weekly = weekly_template(tsb)
+    slots = sorted(training_days)
     cap = daily_tss_cap(avg_load(events))
     budget = weekly_budget(avg_load(events))
     plan = []
     recent = []  # (day, tss) dos ultimos 7 dias
     for i in range(days):
         day = start + timedelta(days=i)
-        if day.weekday() >= 5:
+        if day.weekday() not in training_days:
             continue
-        focus = weekly[day.weekday()]
+        focus = weekly[slots.index(day.weekday()) % len(weekly)]
         params = WorkoutParams(focus=focus, **base[focus])
         tss = estimate_tss(params, ftp)
         if tss > cap:
@@ -389,7 +414,7 @@ def _zone(frac):
     return "Z1"
 
 
-def reconcile(plan, events, ftp=DEFAULT_FTP):
+def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS):
     done_ids = set()
     for item in events:
         eid = item.get("external_id")
@@ -400,13 +425,13 @@ def reconcile(plan, events, ftp=DEFAULT_FTP):
               if w["day"] < today and w["external_id"] not in done_ids]
     if missed:
         for m in missed:
-            plan = _insert_recovery(plan, m["day"], ftp)
+            plan = _insert_recovery(plan, m["day"], ftp, training_days)
             plan = _reduce_next_hard(plan, m["day"], ftp)
     return plan, missed
 
 
-def _insert_recovery(plan, day, ftp):
-    next_day = _next_weekday(day)
+def _insert_recovery(plan, day, ftp, training_days=DEFAULT_TRAINING_DAYS):
+    next_day = _next_training_day(day, training_days)
     base = templates()[FOCUS_ZONE2]
     params = WorkoutParams(focus=FOCUS_ZONE2, **dict(base, on_sec=1200, on_power=0.60))
     duration = sum((params.warmup_sec, params.repeats * (params.on_sec + params.off_sec),
@@ -438,9 +463,9 @@ def _reduce_next_hard(plan, day, ftp):
     return out
 
 
-def _next_weekday(day):
+def _next_training_day(day, training_days=DEFAULT_TRAINING_DAYS):
     d = date.fromisoformat(day) + timedelta(days=1)
-    while d.weekday() >= 5:
+    while d.weekday() not in training_days:
         d += timedelta(days=1)
     return d.isoformat()
 

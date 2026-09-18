@@ -3,7 +3,9 @@ from datetime import date, timedelta
 
 from src.plan import (build_plan, event_payload, reconcile, templates,
                       weekly_template, workout_text, orphan_external_ids,
-                      REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD)
+                      parse_training_days, _next_training_day,
+                      DEFAULT_TRAINING_DAYS,
+                      REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2)
 
 
 class BuildPlanTest(unittest.TestCase):
@@ -75,6 +77,77 @@ class BuildPlanTest(unittest.TestCase):
         p2, tss2 = _fit_budget(p, tss, recent, budget=160, ftp=182)
         self.assertLess(estimate_tss(p2, 182), tss,
                         "carga deveria cair para caber no orcamento")
+
+
+class TrainingDaysTest(unittest.TestCase):
+    def test_parse_nomes_ingles(self):
+        self.assertEqual(parse_training_days("mon,tue,wed,thu,fri"),
+                         DEFAULT_TRAINING_DAYS)
+        self.assertEqual(parse_training_days("sun,mon"),
+                         (0, 6))
+
+    def test_parse_nomes_portugues(self):
+        self.assertEqual(parse_training_days("seg,ter,qua,qui,sex"),
+                         DEFAULT_TRAINING_DAYS)
+        self.assertEqual(parse_training_days("seg,qua,sex"), (0, 2, 4))
+
+    def test_parse_ausente_ou_invalido_usa_default(self):
+        self.assertEqual(parse_training_days(""), DEFAULT_TRAINING_DAYS)
+        self.assertEqual(parse_training_days(None), DEFAULT_TRAINING_DAYS)
+        self.assertEqual(parse_training_days("seg,quarta,sex"),
+                         DEFAULT_TRAINING_DAYS)
+
+    def test_parse_deduplica_e_ordena(self):
+        self.assertEqual(parse_training_days("fri,mon,fri"), (0, 4))
+
+    def test_agenda_custom_so_treina_nos_dias_configurados(self):
+        plan = build_plan([], 0, ftp=182, days=14,
+                          start=date(2026, 9, 14),  # segunda
+                          training_days=(0, 2, 4))  # seg, qua, sex
+        days = [date.fromisoformat(w["day"]) for w in plan]
+        self.assertEqual(len(days), 6)  # 2 semanas x 3 dias
+        self.assertTrue(all(d.weekday() in (0, 2, 4) for d in days))
+
+    def test_agenda_com_fim_de_semana_incluido(self):
+        plan = build_plan([], 0, ftp=182, days=14,
+                          start=date(2026, 9, 14),  # segunda
+                          training_days=(0, 6))  # seg e domingo
+        days = [date.fromisoformat(w["day"]) for w in plan]
+        self.assertTrue(all(d.weekday() in (0, 6) for d in days))
+        self.assertEqual(len(days), 4)  # 2 segundas + 2 domingos
+
+    def test_foco_usa_posicao_da_agenda_nao_dia_da_semana(self):
+        weekly = weekly_template(0)  # [Z2, SS, Z2, SS, VO2]
+        plan = build_plan([], 0, ftp=182, days=7,
+                          start=date(2026, 9, 14),  # segunda
+                          training_days=(0, 2, 4))
+        # seg=pos0->Z2, qua=pos1->SS, sex=pos2->Z2 (agenda de 3 dias)
+        by_day = {w["day"]: w["focus"] for w in plan}
+        self.assertEqual(by_day["2026-09-14"], weekly[0])
+        self.assertEqual(by_day["2026-09-16"], weekly[1])
+        self.assertEqual(by_day["2026-09-18"], weekly[2])
+
+    def test_next_training_day_respeita_agenda(self):
+        self.assertEqual(_next_training_day("2026-09-25", (0, 2, 4)),
+                         "2026-09-28")  # sex -> seg (fim de semana fora)
+        self.assertEqual(_next_training_day("2026-09-23", (0, 2, 4)),
+                         "2026-09-25")  # qua -> sex
+        self.assertEqual(_next_training_day("2026-09-25",
+                                            DEFAULT_TRAINING_DAYS),
+                         "2026-09-28")
+
+    def test_build_prorroga_treino_de_hoje_fim_de_semana(self):
+        existing = [{"day": "2026-09-13", "focus": "zone2",
+                     "planned_duration": 2400,
+                     "name": "2026-09-13 - Treino de Zona 2",
+                     "params": {"on_sec": 1200}, "tss": 14.0,
+                     "external_id": "hermes-plan-2026-09-13"}]
+        plan = build_plan([], 0, ftp=182, days=5, existing=existing,
+                          start=date(2026, 9, 28),
+                          training_days=(0, 6))  # domingo treina
+        days = [w["day"] for w in plan]
+        # dia nao treinado nao entra nem quando estava no plano anterior
+        self.assertNotIn("2026-09-13", days)
 
 
 class ReconcileTest(unittest.TestCase):

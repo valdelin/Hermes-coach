@@ -1,7 +1,7 @@
 ---
 name: cycling-coach
-description: "Gera/monitora o treino de ciclismo do dia e o plano semanal (seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
-version: 2.2.0
+description: "Gera/monitora o treino de ciclismo do dia e o plano semanal nos dias de treino configurados (padrao seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
+version: 2.3.0
 author: Hermes Agent -> opencode
 license: MIT
 platforms: [linux]
@@ -26,10 +26,19 @@ curtos e a consulta/geracao de treinos nao consome credito de modelo.
 - `.env` do projeto configurado com `INTERVALS_ATHLETE_ID`, `INTERVALS_API_KEY`,
   `FTP` e (opcional) `CUE_LANG` (`pt` padrao | `en`) para o idioma das mensagens.
 
+## Agenda de treinos (TRAINING_DAYS)
+
+- Padrao: **segunda a sexta**. Para outra agenda, configure `TRAINING_DAYS` no
+  `.env` com a lista de dias (nomes em pt `seg,ter,...` ou en `mon,tue,...`).
+  Ausente/invalido -> seg-sex. O foco de cada dia acompanha a posicao na agenda.
+- **Primeiro uso:** se o agente for gerar o plano e o `.env` nao tiver
+  `TRAINING_DAYS`, ele pergunta no chat os dias ideais de treino da semana e
+  grava a resposta no `.env` antes de continuar. Nao assuma a agenda do atleta.
+
 ## Regras de agendamento (passadas ao agente)
 
-- Semana-base = **segunda a sexta**: todos os dias uteis tem treino; sabado e
-  domingo sao descanso (treino de fim de semana so por pedido explicito).
+- Os dias de treino sao os configurados em `TRAINING_DAYS` (padrao seg-sex);
+  domingos (ou dias fora da agenda) sao descanso, exceto por pedido explicito.
 - Carga semanal respeitada via orcamento rolante de 7 dias (TSS): se estourar,
   reduz o `on_sec`/`on_power` do dia e a folga passa aos dias subsequentes.
 - Treino de hoje a tarde, quando solicitado: gera respeitando o ciclo do dia e a

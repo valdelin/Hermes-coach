@@ -37,6 +37,14 @@ hermes-coach/
    ```
    (A API do Intervals.icu usa HTTP Basic Auth com usuario = senha = API_KEY.)
 
+2. Defina sua agenda de treinos no `.env` (opcional):
+   ```
+   TRAINING_DAYS=seg,ter,qua,qui,sex
+   ```
+   Aceita nomes em portugues (`seg,ter,...`) ou ingles (`mon,tue,...`).
+   Ausente ou invalido -> seg-sex como padrao. Pode ser configurado no chat
+   com o agente no primeiro uso.
+
 2. Instale o agente no opencode (ja linkado em `~/.config/opencode/agent/`):
    ```
    mkdir -p ~/.config/opencode/agent
@@ -82,17 +90,20 @@ python3 -m unittest discover -s tests -v
 
 ## Regras de decisao (TSB)
 
-Treinos planejados de **segunda a sexta, todos os dias uteis preenchidos**;
-sabado e domingo sao descanso (treino de fim de semana so por pedido ao
-Hermes). A carga respeita um **orcamento semanal**: a soma rolante de TSS dos
-ultimos 7 dias nao estoura `cap_diario * 7`; se estourar, o treino do dia e
-reduzido (encurta `on_sec` >= 120s, depois `on_power` >= 55%) e os dias
-subsequentes herdam a folga.
+Treinos planejados apenas nos dias configurados em `TRAINING_DAYS` (padrao:
+**segunda a sexta**); os demais dias sao descanso (treino fora da agenda so por
+pedido ao Hermes). O foco de cada dia acompanha a **posicao** na agenda (a
+tabela abaixo assume a semana completa de 5 dias; com uma agenda menor, os
+primeiros focos do ciclo sao usados). A carga respeita um **orcamento semanal**:
+a soma rolante de TSS dos ultimos 7 dias nao estoura `cap_diario * 7`; se
+estourar, o treino do dia e reduzido (encurta `on_sec` >= 120s, depois
+`on_power` >= 55%) e os dias subsequentes herdam a folga. Ao regerar o plano,
+o treino de hoje ja existente no `plan.json` e preservado.
 
 O nome de cada evento no Intervals leva a data na frente:
 `YYYY-MM-DD - Treino de <Foco>` (ex.: `2026-09-21 - Treino de Zona 2`).
 
-| TSB          | Ciclo semanal (seg-sex)                       |
+| TSB          | Ciclo semanal (5 dias de treino)               |
 |--------------|-----------------------------------------------|
 | < -15        | Z2, Z2, Sweet Spot, Z2, Sweet Spot            |
 | -15 a 0      | Z2, Sweet Spot, Z2, Sweet Spot, VO2 Max       |

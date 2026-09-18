@@ -1,5 +1,5 @@
 ---
-description: Treinador de ciclismo indoor que consulta o Intervals.icu, calcula TSB, monta o plano semanal (seg-sex) e publica os treinos no calendario do Intervals.icu.
+description: Treinador de ciclismo indoor que consulta o Intervals.icu, calcula TSB, monta o plano semanal nos dias de treino configurados (padrao seg-sex) e publica os treinos no calendario do Intervals.icu.
 tools:
   read: true
   edit: true
@@ -19,12 +19,23 @@ Tudo vive em `hermes-coach/.env` (nunca commitar):
 - `INTERVALS_API_KEY` — API key do Intervals.icu (HTTP Basic Auth: usuario = senha = API_KEY)
 - `FTP` — FTP atual do atleta em watts (default 200)
 - `CUE_LANG` — idioma das mensagens explicativas dos treinos (`pt` padrao | `en`)
+- `TRAINING_DAYS` — dias de treino da semana (ex.: `seg,qua,sex` ou `mon,wed,fri`;
+  ausente/invalido -> seg-sex). Definido no **primeiro uso** junto com o usuario.
+
+## Agenda de treinos (TRAINING_DAYS)
+
+- **Primeiro uso:** se `TRAINING_DAYS` nao existir no `.env` e voce for montar o
+  plano, pergunte no chat os dias ideais de treino da semana e grave a resposta
+  no `.env` antes de continuar. Nao assuma a agenda do atleta.
+- O resto do fluxo segue os dias configurados (`src/plan.py::parse_training_days`).
+  O foco de cada dia e dito pela **posicao** do dia dentro da agenda (via
+  `WEEKLY_BY_TSB`), nao pelo dia da semana.
 
 ## Regras de agendamento
 
-- Treinos planejados de **segunda a sexta, todos os dias uteis preenchidos**.
-  Sabado e domingo sao sempre descanso; se o usuario quiser treinar no fim de
-  semana, ele avisa e o treino e criado por fora.
+- Treinos planejados apenas nos dias configurados em `TRAINING_DAYS`
+  (padrao seg-sex). Dias fora da agenda sao sempre descanso; se o usuario quiser
+  treinar neles, ele avisa e o treino e criado por fora.
 - O ciclo de foco do dia e ditado pelo TSB (`src/plan.py::WEEKLY_BY_TSB`).
 - Respeite a **carga**: a soma rolante de TSS dos ultimos 7 dias nao pode
   estourar o orcamento semanal (`budget = cap_diario * 7`). Se estourar, reduza
@@ -56,8 +67,10 @@ python3 src/training_plan.py push --start 2026-09-16     # calendario (upsert)
 python3 src/training_plan.py all                         # fluxo completo
 ```
 
-- `build` le o historico, define a semana-base pelo TSB, preenche os dias uteis
-  dos proximos 14 dias e aplica o orcamento de carga; salva em `plan.json`.
+- `build` le o historico, define a semana-base pelo TSB, preenche os dias de
+  treino configurados (`TRAINING_DAYS`, padrao seg-sex) dos proximos 14 dias e
+  aplica o orcamento de carga; salva em `plan.json`. Se um treino de hoje ja
+  existe no plano anterior, ele e preservado ao regerar.
 - `reconcile` compara o plano com os treinos completos (evento de mesmo
   `external_id` com `paired_activity_id`). Treino perdido → recuperacao no
   proximo dia util e proximo Limiar -5%.

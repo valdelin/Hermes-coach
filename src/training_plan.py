@@ -10,8 +10,8 @@ if __package__ in (None, ""):
 from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS)
 from intervals_client import IntervalsClient
 from plan import (build_plan, event_payload, load_plan, reconcile, save_plan,
-                  orphan_external_ids, FOCUS_LABELS_PT, REST, DEFAULT_FTP,
-                  CUE_LANGS)
+                  orphan_external_ids, parse_training_days, FOCUS_LABELS_PT,
+                  REST, DEFAULT_FTP, CUE_LANGS)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -40,6 +40,12 @@ def get_client():
 def get_ftp():
     load_env(PROJECT_ROOT / ".env")
     return int(os.environ.get("FTP", DEFAULT_FTP))
+
+
+def get_training_days():
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("TRAINING_DAYS", "")
+    return parse_training_days(value)
 
 
 def cmd_info(args):
@@ -83,7 +89,7 @@ def cmd_build(args):
     except FileNotFoundError:
         existing = None
     plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
-                      existing=existing)
+                      existing=existing, training_days=get_training_days())
     save_plan(plan, PLAN_FILE)
     print(f"Plano gerado: {len(plan)} treinos | TSB atual {tsb:.1f} | FTP {ftp}W")
     for w in plan:
@@ -98,7 +104,8 @@ def cmd_reconcile(args):
     newest = date.today() + timedelta(days=1)
     oldest = newest - timedelta(days=args.days)
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
-    plan, missed = reconcile(plan, events, ftp=ftp)
+    plan, missed = reconcile(plan, events, ftp=ftp,
+                             training_days=get_training_days())
     save_plan(plan, PLAN_FILE)
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
