@@ -162,6 +162,32 @@ def estimate_tss(params, ftp):
 FTP_TEST_KEYWORDS = ("ramp", "ftp", "teste", "test", "prova")
 DEFAULT_FTP_TEST_WEEKS = 8
 
+# Janela de reteste do FTP conforme o tipo de plano (GOAL): faz mais sentido
+# testar ao final de cada bloco (FTP Builder = blocos de 6 semanas) ou com
+# intensidade alta (TT/Climbing = 4 semanas); manutencao/off-season pode
+# esperar mais.
+FTP_TEST_WEEKS_BY_GOAL = {
+    None: 8,
+    "back-to-fitness": 8,
+    "ftp-builder": 6,
+    "gran-fondo": 6,
+    "time-trial": 4,
+    "climbing": 4,
+    "active-off-season": 8,
+    "race": 4,
+}
+
+FTP_TEST_WEEKS_NOTE = {
+    None: "",
+    "back-to-fitness": " (progressao lenta pos-pausa)",
+    "ftp-builder": " — ao final do bloco do FTP Builder",
+    "gran-fondo": " — ao final do bloco de volume",
+    "time-trial": " — intensidade alta (TT)",
+    "climbing": " — intensidade alta (subidas)",
+    "active-off-season": " — manutencao leve",
+    "race": " — fase de especializacao para a prova",
+}
+
 
 @dataclass(frozen=True)
 class FtpTestSuggestion:
@@ -187,10 +213,19 @@ def last_ftp_test(events):
     return best
 
 
-def suggest_ftp_test(events, ftp, weeks=DEFAULT_FTP_TEST_WEEKS, today=None):
+def suggest_ftp_test(events, ftp, weeks=DEFAULT_FTP_TEST_WEEKS, today=None, goal=None):
     """Indica se esta na hora de (re)fazer um teste de FTP (Ramp Test do app
-    Zwift). A janela padrao e 8 semanas de treino estimado."""
+    Zwift). A janela segue o tipo de plano ativo (`FTP_TEST_WEEKS_BY_GOAL`):
+    FTP Builder testa ao final de cada bloco (~6 semanas), TT/Climbing a cada
+    4 semanas, off-season pode esperar; sem plano, 8 semanas."""
+    if goal is not None:
+        weeks = FTP_TEST_WEEKS_BY_GOAL.get(goal, DEFAULT_FTP_TEST_WEEKS)
+    note = FTP_TEST_WEEKS_NOTE.get(goal, "")
     today = today or date.today()
+
+    def _reason(msg):
+        return f"{msg}{note}"
+
     last = last_ftp_test(events)
     days_since = None
     if last:
@@ -202,16 +237,16 @@ def suggest_ftp_test(events, ftp, weeks=DEFAULT_FTP_TEST_WEEKS, today=None):
         days = [d for d in days if d]
         if len(days) < 2 or not days:
             return FtpTestSuggestion(False, None, None,
-                                     "historico curto demais para calibrar o FTP")
+                                     _reason("historico curto demais para calibrar o FTP"))
         first = date.fromisoformat(min(days))
         if (today - first).days < weeks * 7:
             return FtpTestSuggestion(False, None, None,
-                                     f"sem teste registrado, mas ainda com menos de {weeks} "
-                                     "semanas de historico; sem pressa")
+                                     _reason(f"sem teste registrado, mas ainda com menos de {weeks} "
+                                             "semanas de historico; sem pressa"))
         return FtpTestSuggestion(True, None, None,
-                                 f"nenhum teste de FTP registrado em {weeks}+ semanas de treino")
+                                 _reason(f"nenhum teste de FTP registrado em {weeks}+ semanas de treino"))
     if days_since >= weeks * 7:
         return FtpTestSuggestion(True, last, days_since,
-                                 f"ultimo teste ha {days_since} dias (janela de {weeks} semanas)")
+                                 f"ultimo teste ha {days_since} dias (janela de {weeks} semanas){note}")
     return FtpTestSuggestion(False, last, days_since,
-                             f"ultimo teste ha {days_since} dias; dentro da janela de {weeks} semanas")
+                             f"ultimo teste ha {days_since} dias; dentro da janela de {weeks} semanas{note}")

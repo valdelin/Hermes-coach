@@ -130,11 +130,14 @@ def cmd_info(args):
 def cmd_ftp_check(args):
     client = get_client()
     ftp = get_ftp()
+    goal = get_goal()
     newest = date.today()
     oldest = newest - timedelta(days=args.days)
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
-    sug = suggest_ftp_test(events, ftp, weeks=args.weeks)
+    sug = suggest_ftp_test(events, ftp, weeks=args.weeks, goal=goal)
     print(f"FTP atual: {ftp}W")
+    if goal:
+        print(f"Plano ativo: {GOAL_LABELS.get(goal, goal)} (janela de reteste pelo tipo de plano)")
     print(f"Ultimo teste de FTP: {sug.last_test or 'nenhum detectado'}"
           + (f" ({sug.days_since} dias)" if sug.days_since else ""))
     print(f"Reteste devido: {'SIM' if sug.due else 'nao'}  |  {sug.reason}")

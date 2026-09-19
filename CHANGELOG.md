@@ -65,6 +65,10 @@ própria — foram agrupadas na tag/release v0.0.7.
     "workouts"}`); `load_plan` continua devolvendo a lista (compatível com o
     formato antigo);
   - 24 testes novos (88 no total); docs atualizadas (README, ROADMAP).
+- **Janela de reteste do FTP segue o tipo de plano** (`ftp-check`): ao final
+  de cada bloco — `ftp-builder`/`gran-fondo` **6 semanas**, `time-trial`/
+  `climbing`/`race` **4 semanas**, `back-to-fitness`/`active-off-season`
+  **8 semanas**; sem `GOAL` mantém 8 semanas. 5 testes novos (93 no total).
 
 ### Alterado
 

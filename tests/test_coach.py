@@ -86,6 +86,41 @@ class FtpTestSuggestionTest(unittest.TestCase):
         sug = suggest_ftp_test(events, 200, weeks=8, today=date(2026, 9, 1))
         self.assertTrue(sug.due)
 
+    def test_janela_ftp_builder_seis_semanas(self):
+        events = [{"name": "Ramp Test", "start_date_local": "2026-08-01T07:00:00"}]
+        sug = suggest_ftp_test(events, 200, today=date(2026, 9, 1), goal="ftp-builder")
+        self.assertFalse(sug.due)  # 31 dias < 42 (6 semanas)
+        self.assertIn("janela de 6 semanas", sug.reason)
+        # ao final do bloco (>= 6 semanas) sugere
+        events = [{"name": "Ramp Test", "start_date_local": "2026-07-20T07:00:00"}]
+        sug = suggest_ftp_test(events, 200, today=date(2026, 9, 1), goal="ftp-builder")
+        self.assertTrue(sug.due)  # 43 dias >= 42
+        self.assertIn("6 semanas", sug.reason)
+
+    def test_janela_time_trial_quatro_semanas(self):
+        events = [{"name": "Ramp Test", "start_date_local": "2026-08-10T07:00:00"}]
+        sug = suggest_ftp_test(events, 200, today=date(2026, 9, 1), goal="time-trial")
+        self.assertFalse(sug.due)  # 22 dias < 28 (4 semanas)
+        self.assertIn("janela de 4 semanas", sug.reason)
+
+    def test_janela_time_trial_quatro_semanas_due(self):
+        events = [{"name": "Ramp Test", "start_date_local": "2026-08-01T07:00:00"}]
+        sug = suggest_ftp_test(events, 200, today=date(2026, 9, 1), goal="time-trial")
+        self.assertTrue(sug.due)  # 31 dias >= 28
+        self.assertIn("4 semanas", sug.reason)
+
+    def test_sem_goal_mantem_oito_semanas(self):
+        events = [{"name": "Ramp Test", "start_date_local": "2026-07-10T07:00:00"}]
+        sug = suggest_ftp_test(events, 200, today=date(2026, 9, 1))  # goal=None
+        self.assertFalse(sug.due)  # 53 dias < 56 (8 semanas)
+        self.assertIn("janela de 8 semanas", sug.reason)
+
+    def test_sem_goal_mantem_oito_semanas_due(self):
+        events = [{"name": "Ramp Test", "start_date_local": "2026-07-01T07:00:00"}]
+        sug = suggest_ftp_test(events, 200, today=date(2026, 9, 1))  # goal=None
+        self.assertTrue(sug.due)  # 62 dias >= 56
+        self.assertIn("8 semanas", sug.reason)
+
 
 if __name__ == "__main__":
     unittest.main()
