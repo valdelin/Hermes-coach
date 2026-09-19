@@ -16,7 +16,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
 | 4 | feature | Ativar sync de wellness (RHR, sono, Body Battery via Garmin; avaliar HRV) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 |
-| 5 | feature | Objetivo de treino configurável (`GOAL`): FTP, endurance, 100 km, granfondo | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 |
+| 5 | feature | Tipos de plano de treino (`GOAL`): back-to-fitness, ftp-builder, gran-fondo, time-trial, climbing, active-off-season, race (+`RACE_DATE`/tapper) | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 |
 | 6 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
 | 7 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
 
@@ -38,15 +38,17 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   config `NOTIFY_CHANNEL`/token/chat id no `.env`.
 - Regra: envio **assíncrono e não-bloqueante** (não derruba o timer diário).
 
-### Fase 2 — Dados incompletos (issue #3) + objetivo de treino (#5)
+### Fase 2 — Dados incompletos (issue #3) + tipos de plano (#5)
 - Detectar ausência de potência; configurar `FTHR` no `.env`;
   `hrTSS = seg × IF_hr² × 100 / 3600`; prescrever %FTHR (ou RPE) em dias
   outdoor; sinalizar "sem potência — carga por FC" no resumo.
-- **Objetivo de treino (issue #5)**: `GOAL` no `.env` (`ftp`/`endurance`/
-  `100km`/`granfondo`) muda a distribuição de focos no `build` (ex.: FTP →
-  mais Limiar/VO2; endurance → Sweet Spot + volume; 100km/granfondo → blocos
-  longos zona 2/3 + pacing); `plan.json` guarda o objetivo; complementa o
-  onboarding por objetivo da Fase 3.
+- **Tipos de plano (issue #5)**: `GOAL` no `.env` seleciona o tipo —
+  `back-to-fitness` (pós-pausa: base z2, volume +5-10%/sem), `ftp-builder`
+  (Limiar/Sweet Spot + VO2 curto), `gran-fondo` (volume alto + longão),
+  `time-trial` (esforços limiar/super-limiar), `climbing` (repetições 3-15min),
+  `active-off-season` (z1-2 leve), `race` (exige `RACE_DATE`; base →
+  construção → especialização → **tapper**). `plan.json` guarda o tipo;
+  complementa o onboarding por objetivo da Fase 3.
 
 ### Fase 3 — Produto (casca estilo Runna, ADR-003)
 - PWA + onboarding por objetivo → `build` → calendário → Zwift (`.zwo`) +

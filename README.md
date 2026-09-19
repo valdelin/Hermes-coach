@@ -194,12 +194,12 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   ativar Garmin Connect → Intervals.icu (RHR, sono, Body Battery) — hoje os
   registros de wellness estão vazios, limitando a avaliação de recuperação ao
   TSB. Avaliar HRV (Forerunner 935 não tem HRV status overnight).
-- **Objetivo de treino** (issue [#5](https://github.com/valdelin/Hermes-coach/issues/5)):
-  o usuário informa o objetivo (`GOAL` no `.env` — ex.: `ftp`, `endurance`,
-  `100km`, `granfondo`) e o plano é montado conforme ele (FTP → mais
-  Limiar/VO2; endurance → Sweet Spot + volume; 100km/granfondo → blocos longos
-  zona 2/3 + pacing). É o passo que aproxima o hermes do onboarding por
-  objetivo do ADR-003.
+- **Tipos de plano de treino** (issue [#5](https://github.com/valdelin/Hermes-coach/issues/5)):
+  o usuário informa o tipo de plano (`GOAL` no `.env`) e o treino é montado
+  conforme ele: `back-to-fitness` (pós-pausa), `ftp-builder` (aumentar FTP),
+  `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race`
+  (prova agendada com `RACE_DATE` + tapper). É o passo que aproxima o hermes
+  do onboarding por objetivo do ADR-003 ("Runna do ciclismo indoor").
 
 ## Notas / limitacoes do scaffold
 

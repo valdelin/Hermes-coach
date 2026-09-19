@@ -41,12 +41,11 @@ própria — foram agrupadas na tag/release v0.0.7.
   atividades, wellness, treinos planejados e regras anti-duplicatas; link na
   seção Documentação do README.
 - **TODO registrado** (issue
-  [#5](https://github.com/valdelin/Hermes-coach/issues/5)): **objetivo de
-  treino configurável** (`GOAL` no `.env` — `ftp`, `endurance`, `100km`,
-  `granfondo`) muda a distribuição de focos no `build` conforme o objetivo
-  (FTP → Limiar/VO2; endurance → Sweet Spot + volume; 100km/granfondo →
-  blocos longos zona 2/3 + pacing) — adicionado às **Direções futuras** do
-  README e ao roadmap (Fase 2).
+  [#5](https://github.com/valdelin/Hermes-coach/issues/5)): **tipos de plano
+  de treino** (`GOAL` no `.env`): `back-to-fitness`, `ftp-builder`,
+  `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race` (com
+  `RACE_DATE` + tapper) — muda a distribuição de focos no `build` conforme o
+  tipo; adicionado às **Direções futuras** do README e ao roadmap (Fase 2).
 
 ### Alterado
 
