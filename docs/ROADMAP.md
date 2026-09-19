@@ -54,8 +54,10 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   ftp-builder ≈250-260, gran-fondo ≈177-290, time-trial ≈391,
   active-off-season ≈447, race 216-398 — sujeito a TSB + cap diário); a
   **prescrição é própria** do hermes (periodização clássica, validação com
-  treinador), sem replicar workouts do Zwift. `plan.json` guarda o tipo;
-  complementa o onboarding por objetivo da Fase 3.
+  treinador) e a coleção de workouts do Zwift inspira apenas **variedade de
+  formato** (o `build` varia estruturas dentro do mesmo tipo de plano - sem
+  replicar workouts do Zwift). `plan.json` guarda o tipo; complementa o
+  onboarding por objetivo da Fase 3.
 
 ### Fase 3 — Produto (casca estilo Runna, ADR-003)
 - PWA + onboarding por objetivo → `build` → calendário → Zwift (`.zwo`) +
