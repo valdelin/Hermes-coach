@@ -35,6 +35,11 @@ própria — foram agrupadas na tag/release v0.0.7.
   wellness** (Garmin Connect → Intervals.icu: RHR, sono, Body Battery;
   avaliar HRV para o futuro) — adicionado às **Direções futuras** do README e
   ao roadmap (Fase 0).
+- `docs/SYNC-PLATAFORMAS.md`: guia de sincronização de **cada plataforma
+  compatível** com o Intervals.icu (Garmin, Zwift, Wahoo, Strava, Polar,
+  COROS, Suunto, Amazfit, Huawei, Dropbox, Oura/WHOOP, Apple Health) —
+  atividades, wellness, treinos planejados e regras anti-duplicatas; link na
+  seção Documentação do README.
 
 ### Alterado
 

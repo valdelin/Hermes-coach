@@ -39,6 +39,9 @@ hermes-coach/
   Obsidian.
 - Roteiro de validação com treinador (ciência do treino + produto
   multi-atleta/modo solo): `ROTEIRO-TREINADOR.md` no vault do Obsidian.
+- [docs/SYNC-PLATAFORMAS.md](docs/SYNC-PLATAFORMAS.md) — como conectar cada
+  plataforma (Garmin, Zwift, Wahoo, Strava, Polar, COROS, Suunto, Oura/WHOOP
+  etc.) ao Intervals.icu (atividades, wellness e treinos planejados).
 
 ## Setup
 
