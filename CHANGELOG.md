@@ -36,6 +36,16 @@ própria — foram agrupadas na tag/release v0.0.7.
   avaliar HRV para o futuro) — adicionado às **Direções futuras** do README e
   ao roadmap (Fase 0).
 
+### Alterado
+
+- **Intervals.icu (conta do atleta):** `indoor_ftp` **210 → 182W** via API
+  (`PUT /sport-settings/{id}`), alinhando o FTP indoor ao ramp test de
+  2026-09-10 (`.env` = 182). Motivo: pausa de ~2 anos sem treinar —
+  o 210 era o FTP da época; o 182 reflete a condição atual. **Histórico
+  preservado**: atividades antigas mantêm `icu_ftp=210` congelado (sem
+  recálculo retroativo); o novo valor vale para rides virtuais a partir de
+  2026-09-19.
+
 ## [0.0.8] - 2026-09-18
 
 ### Adicionado
