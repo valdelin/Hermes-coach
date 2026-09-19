@@ -16,7 +16,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
 | 4 | feature | Ativar sync de wellness (RHR, sono, Body Battery via Garmin; avaliar HRV) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 |
-| 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado** — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
+| 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado e issue fechada** (v0.0.9) — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
 | 6 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
 | 7 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
 
