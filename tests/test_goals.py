@@ -172,7 +172,18 @@ class PlanMetaTest(unittest.TestCase):
             self.assertEqual(load_plan(path), plan,
                              "load_plan deve continuar devolvendo a lista")
             self.assertEqual(load_plan_meta(path),
-                             {"goal": "ftp-builder", "race_date": None})
+                             {"goal": "ftp-builder", "race_date": None,
+                              "ftp_test_date": None})
+
+    def test_save_load_com_teste_ftp(self):
+        plan = self._sample_plan()
+        with tempfile.TemporaryDirectory() as t:
+            path = str(Path(t) / "plan.json")
+            save_plan(plan, path, goal="ftp-builder", race_date=None,
+                      ftp_test_date="2026-10-22")
+            self.assertEqual(load_plan_meta(path),
+                             {"goal": "ftp-builder", "race_date": None,
+                              "ftp_test_date": "2026-10-22"})
 
     def test_save_load_formato_antigo(self):
         plan = self._sample_plan()
@@ -181,13 +192,15 @@ class PlanMetaTest(unittest.TestCase):
             save_plan(plan, path)  # sem GOAL -> lista pura
             self.assertEqual(load_plan(path), plan)
             self.assertEqual(load_plan_meta(path),
-                             {"goal": None, "race_date": None})
+                             {"goal": None, "race_date": None,
+                              "ftp_test_date": None})
 
     def test_load_meta_arquivo_inexistente(self):
         with tempfile.TemporaryDirectory() as t:
             path = str(Path(t) / "nada.json")
             self.assertEqual(load_plan_meta(path),
-                             {"goal": None, "race_date": None})
+                             {"goal": None, "race_date": None,
+                              "ftp_test_date": None})
 
 
 class PromptRaceDateTest(unittest.TestCase):
@@ -222,6 +235,72 @@ class PromptRaceDateTest(unittest.TestCase):
         self.assertEqual(result, "2027-06-10")
         self.assertEqual(saved, [("RACE_DATE", "2027-06-10")],
                          "so salva depois de uma data futura valida")
+
+
+class FtpTestPrepTest(unittest.TestCase):
+    """Preparacao previa do teste de FTP (consenso dos treinadores): as 48h
+    antes sao protegidas (D-2 facil, D-1 spin), o dia do teste recebe o evento
+    do Ramp Test e o dia seguinte vira recuperacao."""
+
+    START = date(2026, 9, 21)  # segunda; agenda default seg-sex
+
+    def _days(self, plan):
+        return [w["day"] for w in plan]
+
+    def test_sem_data_de_teste_nao_muda_nada(self):
+        base = build_plan([], 4, ftp=182, days=14, start=self.START,
+                          goal="ftp-builder")
+        self.assertNotIn("Ramp Test (FTP)", " ".join(w["name"] for w in base))
+
+    def test_protege_48h_antes_e_cria_evento_do_teste(self):
+        # teste na sexta 25/09: D-2 = qua (Recuperacao), D-1 = qui (Spin),
+        # D0 = Ramp Test, D+1 = sab (fora da agenda -> descanso natural)
+        plan = build_plan([], 4, ftp=182, days=14, start=self.START,
+                          goal="ftp-builder", ftp_test_date="2026-09-25")
+        by_day = {w["day"]: w for w in plan}
+        self.assertEqual(by_day["2026-09-23"]["name"], "2026-09-23 - Recuperacao (pre-teste FTP)")
+        self.assertEqual(by_day["2026-09-24"]["name"], "2026-09-24 - Spin facil (pre-teste FTP)")
+        self.assertEqual(by_day["2026-09-25"]["name"], "2026-09-25 - Ramp Test (FTP)")
+        # nenhum treino duro nas 48h antes do teste (focus != limiar/vo2)
+        for d in ("2026-09-23", "2026-09-24"):
+            self.assertNotIn(by_day[d]["focus"], (FOCUS_THRESHOLD, FOCUS_VO2))
+            self.assertLess(by_day[d]["tss"], 25)
+
+    def test_teste_fora_da_agenda_entra_mesmo_assim(self):
+        # teste no sabado 26/09 (fora da agenda): D-2 = qui (Spin? nao,
+        # D-2 = qui -> Recuperacao), D-1 = sex (Spin), D0 = sab (evento),
+        # D+1 = dom (descanso natural, nada criado)
+        plan = build_plan([], 4, ftp=182, days=14, start=self.START,
+                          goal="ftp-builder", ftp_test_date="2026-09-26")
+        by_day = {w["day"]: w for w in plan}
+        self.assertEqual(by_day["2026-09-26"]["name"], "2026-09-26 - Ramp Test (FTP)")
+        self.assertEqual(by_day["2026-09-25"]["name"], "2026-09-25 - Spin facil (pre-teste FTP)")
+        self.assertNotIn("2026-09-27", by_day, "domingo = descanso natural")
+
+    def test_teste_fora_do_horizonte_ignorado(self):
+        # teste a 30 dias: fora dos 14 dias do plano -> nada muda
+        base = build_plan([], 4, ftp=182, days=14, start=self.START, goal="ftp-builder")
+        plan = build_plan([], 4, ftp=182, days=14, start=self.START,
+                          goal="ftp-builder", ftp_test_date="2026-10-21")
+        self.assertEqual([w["day"] for w in plan],
+                         [w["day"] for w in base])
+        self.assertNotIn("Ramp Test", " ".join(w["name"] for w in plan))
+
+    def test_data_invalida_ignorada(self):
+        plan = build_plan([], 4, ftp=182, days=14, start=self.START,
+                          goal="ftp-builder", ftp_test_date="nao-e-data")
+        self.assertNotIn("Ramp Test", " ".join(w["name"] for w in plan))
+
+    def test_meta_inclui_data_do_teste(self):
+        from unittest import mock
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+        import training_plan as tp
+        with mock.patch.object(tp, "_env_set",
+                               side_effect=lambda k, v, **kw: None), \
+             mock.patch("builtins.input", return_value="2026-10-22"):
+            result = tp.prompt_ftp_test_date()
+        self.assertEqual(result, "2026-10-22")
 
 
 if __name__ == "__main__":

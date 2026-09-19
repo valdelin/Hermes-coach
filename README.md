@@ -73,6 +73,13 @@ hermes-coach/
    Ausente ou invalido -> comportamento padrao por TSB. O `build` mostra o
    plano ativo e o `plan.json` guarda `goal`/`race_date`.
 
+2. (Opcional) **Agende um teste de FTP**: quando o `ftp-check` indicar
+   reteste devido, rode `build --ftp-test YYYY-MM-DD` (ou defina no `.env`
+   `FTP_TEST_DATE=YYYY-MM-DD`). O plano protege as **48h antes** do teste
+   (D-2 recuperação, D-1 spin fácil), cria o evento `Ramp Test (FTP)` no dia
+   e a recuperação no dia seguinte — nada de VO2/Limiar com fadiga acumulada
+   antes de testar.
+
 2. Instale o agente no opencode (ja linkado em `~/.config/opencode/agent/`):
    ```
    mkdir -p ~/.config/opencode/agent

@@ -69,6 +69,13 @@ própria — foram agrupadas na tag/release v0.0.7.
   de cada bloco — `ftp-builder`/`gran-fondo` **6 semanas**, `time-trial`/
   `climbing`/`race` **4 semanas**, `back-to-fitness`/`active-off-season`
   **8 semanas**; sem `GOAL` mantém 8 semanas. 5 testes novos (93 no total).
+- **Preparação prévia do teste de FTP** (consenso dos treinadores: teste =
+  "mini dia de prova", sem fadiga acumulada): `build --ftp-test YYYY-MM-DD`
+  (ou `FTP_TEST_DATE` no `.env`) protege as **48h antes** — D-2 vira
+  Recuperação, D-1 vira Spin fácil (<65% FTP), D0 recebe o evento
+  `Ramp Test (FTP)` (mesmo fora da agenda, como lembrete) e D+1
+  Recuperação pós-teste; dias de descanso natural não são tocados.
+  `plan.json` guarda `ftp_test_date`. 7 testes novos (100 no total).
 
 ### Alterado
 

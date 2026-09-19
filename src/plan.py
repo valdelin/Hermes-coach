@@ -200,6 +200,17 @@ def parse_goal(value):
     goal = str(value).strip().lower().replace("_", "-")
     return goal if goal in GOALS else None
 
+
+def parse_ftp_test_date(value):
+    """Converte FTP_TEST_DATE ('YYYY-MM-DD') em date, ou None se ausente/
+    invalido."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError:
+        return None
+
 FOCUS_LABELS_PT = {
     REST: "Descanso",
     FOCUS_ZONE2: "Zona 2",
@@ -244,7 +255,8 @@ def weekly_budget(avg):
 
 
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
-               training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None):
+               training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
+               ftp_test_date=None):
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -257,7 +269,8 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                 recent = [(today, kept[0]["tss"])]
                 return plan + build_plan(events, tsb, ftp=ftp, days=days,
                                          start=start, training_days=training_days,
-                                         goal=goal, race_date=race_date)
+                                         goal=goal, race_date=race_date,
+                                         ftp_test_date=ftp_test_date)
     weekly = weekly_template(tsb, goal)
     slots = sorted(training_days)
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
@@ -298,7 +311,12 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         recent.append((day, tss))
         while recent and day - recent[0][0] >= timedelta(days=7):
             recent.pop(0)
-    return [_as_dict(w) for w in plan]
+    plan = [_as_dict(w) for w in plan]
+    # Preparacao do teste de FTP: o ciclo do dia manda no teste, nao no
+    # template. Protege as 48h antes (D-2 facil, D-1 spin), cria o evento do
+    # teste (D0) e a recuperacao pos-teste (D+1).
+    return _protect_ftp_test(plan, ftp_test_date, training_days,
+                             start, days, ftp)
 
 
 def _block_for(focus, slot, goal):
@@ -327,6 +345,63 @@ def _taper_focus(goal, day, race_date):
                                cadence=90, cadence_rest=90)
         return FOCUS_ZONE2, params
     return None
+
+
+def _prep_workout(day, kind, ftp):
+    """Workout leve ao redor do teste de FTP (consenso dos treinadores):
+    - d-2: recuperacao facil (sem treino duro nas 48h antes do teste)
+    - d-1: spin muito facil (<65% FTP) — o dia antes importa mais que o teste
+    - d0 : evento do proprio Ramp Test (app Zwift), so warmup/instrucao
+    - d+1: recuperacao pos-teste
+    Retorna um PlannedWorkout do dia."""
+    zones = {
+        "d-2": ("Recuperacao (pre-teste FTP)", 2400, 0.55),
+        "d-1": ("Spin facil (pre-teste FTP)", 1800, 0.50),
+        "d0": ("Ramp Test (FTP)", 1800, 0.55),
+        "d+1": ("Recuperacao (pos-teste FTP)", 1800, 0.55),
+    }
+    name, on_sec, on_power = zones[kind]
+    params = WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=on_sec,
+                           off_sec=0, on_power=on_power, off_power=on_power,
+                           cadence=90, cadence_rest=90)
+    tss = estimate_tss(params, ftp)
+    duration = (params.warmup_sec
+                + params.repeats * (params.on_sec + params.off_sec)
+                + params.cooldown_sec)
+    return PlannedWorkout(
+        day=day.isoformat(), focus=FOCUS_ZONE2,
+        planned_duration=duration,
+        name=f"{day.isoformat()} - {name}",
+        params=_params_dict(params), tss=float(tss),
+        external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
+    )
+
+
+def _protect_ftp_test(plan, ftp_test_date, training_days, start, days, ftp):
+    """Protege os dias ao redor de um teste de FTP agendado: D-2 e D-1 viram
+    treino facil (nada de VO2/Limiar nas 48h antes), D0 recebe o evento do
+    teste (sempre, mesmo fora da agenda — e um lembrete) e D+1 recuperacao.
+    Dias de descanso natural (fora da agenda) ficam como estao."""
+    test = parse_ftp_test_date(ftp_test_date)
+    if test is None:
+        return plan
+    horizon_start = start
+    horizon_end = start + timedelta(days=days)
+    if test < horizon_start or test >= horizon_end:
+        return plan  # teste fora do horizonte do plano: nada a fazer
+    preps = {test - timedelta(days=2): "d-2",
+             test - timedelta(days=1): "d-1",
+             test: "d0",
+             test + timedelta(days=1): "d+1"}
+    kept = [w for w in plan if date.fromisoformat(w["day"]) not in preps]
+    for d, kind in sorted(preps.items()):
+        if d < horizon_start or d >= horizon_end:
+            continue
+        if d != test and d.weekday() not in training_days:
+            continue  # descanso natural do dia fora da agenda: nada a criar
+        kept.append(_as_dict(_prep_workout(d, kind, ftp)))
+    kept.sort(key=lambda w: w["day"])
+    return kept
 
 
 def _fit_budget(params, tss, recent, budget, ftp):
@@ -701,13 +776,15 @@ def orphan_external_ids(plan, events, start=None):
             and e["external_id"] not in keep]
 
 
-def save_plan(plan, path="plan.json", goal=None, race_date=None):
+def save_plan(plan, path="plan.json", goal=None, race_date=None,
+              ftp_test_date=None):
     """Salva o plano. Com GOAL configurado, guarda a meta junto
-    (plan.json passa a ser {'goal', 'race_date', 'workouts'}); sem GOAL,
-    mantem o formato antigo (lista pura) para compatibilidade."""
+    (plan.json passa a ser {'goal', 'race_date', 'ftp_test_date', 'workouts'});
+    sem GOAL, mantem o formato antigo (lista pura) para compatibilidade."""
     data = plan
     if goal is not None:
-        data = {"goal": goal, "race_date": race_date, "workouts": plan}
+        data = {"goal": goal, "race_date": race_date,
+                "ftp_test_date": ftp_test_date, "workouts": plan}
     out = pathlib.Path(path)
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
@@ -725,12 +802,14 @@ def load_plan(path="plan.json"):
 
 
 def load_plan_meta(path="plan.json"):
-    """Meta (goal, race_date) salva junto com o plano, ou None quando ausente."""
+    """Meta (goal, race_date, ftp_test_date) salva junto com o plano, ou None
+    quando ausente."""
     try:
         with open(pathlib.Path(path), "r", encoding="utf-8") as fh:
             data = json.load(fh)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"goal": None, "race_date": None}
+        return {"goal": None, "race_date": None, "ftp_test_date": None}
     if isinstance(data, dict) and "workouts" in data:
-        return {"goal": data.get("goal"), "race_date": data.get("race_date")}
-    return {"goal": None, "race_date": None}
+        return {"goal": data.get("goal"), "race_date": data.get("race_date"),
+                "ftp_test_date": data.get("ftp_test_date")}
+    return {"goal": None, "race_date": None, "ftp_test_date": None}

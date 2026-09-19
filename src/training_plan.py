@@ -73,6 +73,20 @@ def get_race_date():
         return None
 
 
+def get_ftp_test_date():
+    """FTP_TEST_DATE do .env (YYYY-MM-DD, futura) ou None. Quando definida, o
+    build protege as 48h antes do teste e cria o evento do Ramp Test."""
+    load_env(PROJECT_ROOT / ".env")
+    raw = os.environ.get("FTP_TEST_DATE", "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw).isoformat()
+    except ValueError:
+        print(f"aviso: FTP_TEST_DATE={raw!r} invalido; use YYYY-MM-DD")
+        return None
+
+
 def _env_set(key, value):
     """Grava/atualiza `key=value` no .env do projeto (sem tocar nas demais
     linhas; nunca expoe a API key)."""
@@ -101,6 +115,24 @@ def prompt_race_date():
             continue
         _env_set("RACE_DATE", race.isoformat())
         return race.isoformat()
+
+
+def prompt_ftp_test_date():
+    """Agenda o teste de FTP: pergunta a data (futura), valida e salva em
+    `FTP_TEST_DATE` no .env. Usada quando o ftp-check indica reteste e o
+    atleta aceita preparar os dias anteriores."""
+    while True:
+        raw = input("Qual a data do Ramp Test (FTP)? (YYYY-MM-DD) ").strip()
+        try:
+            test = date.fromisoformat(raw)
+        except ValueError:
+            print(f"  data invalida: {raw!r} — use YYYY-MM-DD (ex.: 2026-10-22)")
+            continue
+        if test <= date.today():
+            print("  o teste precisa ser numa data futura.")
+            continue
+        _env_set("FTP_TEST_DATE", test.isoformat())
+        return test.isoformat()
 
 
 def describe_training_days(training_days=None, env_value=None):
@@ -143,7 +175,8 @@ def cmd_ftp_check(args):
     print(f"Reteste devido: {'SIM' if sug.due else 'nao'}  |  {sug.reason}")
     if sug.due:
         print("Sugestao: agende um Ramp Test no app Zwift em um dia descansado;")
-        print("depois informe o novo FTP para atualizar o .env e o plano.")
+        print("  rode `build --ftp-test YYYY-MM-DD` para proteger as 48h antes")
+        print("  (D-2 facil, D-1 spin) e publicar o evento do teste no plano.")
 
 
 def cmd_model(args):
@@ -187,6 +220,20 @@ def cmd_build(args):
     ftp = get_ftp()
     goal = get_goal()
     race_date = get_race_date()
+    if args.ftp_test:
+        # --ftp-test YYYY-MM-DD: agenda o teste (valida futuro) e salva no .env
+        try:
+            test = date.fromisoformat(args.ftp_test)
+        except ValueError:
+            print(f"erro: --ftp-test={args.ftp_test!r} invalido; use YYYY-MM-DD")
+            return None
+        if test <= date.today():
+            print("erro: --ftp-test precisa ser numa data futura.")
+            return None
+        _env_set("FTP_TEST_DATE", test.isoformat())
+        ftp_test_date = test.isoformat()
+    else:
+        ftp_test_date = get_ftp_test_date()
     if goal == "race" and not race_date:
         # Regra da issue #5: plano race SEMPRE pergunta a data alvo antes de
         # montar o plano — nunca assume default nem deixa em branco.
@@ -202,15 +249,19 @@ def cmd_build(args):
         existing = None
     plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
                       existing=existing, training_days=get_training_days(),
-                      goal=goal, race_date=race_date)
-    save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date)
+                      goal=goal, race_date=race_date, ftp_test_date=ftp_test_date)
+    save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date,
+              ftp_test_date=ftp_test_date)
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     plano_label = GOAL_LABELS.get(goal, goal or "TSB (padrao)")
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
-    print(f"Plano: {plano_label}{race_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
+    test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""
+    print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
     est_tss = sum(w["tss"] for w in plan)
     print(f"Plano gerado: {len(plan)} treinos | TSS estimado {est_tss:.0f}"
-          + (" (inclui tapper pre-prova)" if goal == "race" and race_date else ""))
+          + (f" | preparacao p/ teste em {ftp_test_date}"
+             if ftp_test_date and any("FTP" in w["name"] or "pre-teste" in w["name"]
+                                      for w in plan) else ""))
     for w in plan:
         print(f"  {w['day']} {w['name']:<30} {w['planned_duration'] // 60:>3}m TSS {w['tss']:.0f}")
     return plan
@@ -320,6 +371,8 @@ def main(argv=None):
                          help="Janela de historico (dias)")
     p_build.add_argument("--days-plan", type=int, default=14,
                          help="Quantos dias olhar para frente")
+    p_build.add_argument("--ftp-test", metavar="YYYY-MM-DD",
+                         help="Agenda o Ramp Test (FTP) e protege as 48h antes")
     p_build.set_defaults(func=cmd_build)
 
     p_rec = sub.add_parser("reconcile",
@@ -337,6 +390,8 @@ def main(argv=None):
                            help="build + reconcile + push (calendario)")
     p_all.add_argument("--days", type=int, default=60)
     p_all.add_argument("--days-plan", type=int, default=14)
+    p_all.add_argument("--ftp-test", metavar="YYYY-MM-DD",
+                       help="Agenda o Ramp Test (FTP) e protege as 48h antes")
     p_all.set_defaults(func=cmd_all)
 
     args = parser.parse_args(argv)
