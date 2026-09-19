@@ -78,6 +78,128 @@ WEEKLY_BY_TSB = [
     (10**9, [FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2]),
 ]
 
+# Tipos de plano (GOAL no .env). Cada tipo define a distribuicao de focos por
+# TSB (weekly templates) e uma escala do orcamento semanal (budget_scale) para
+# calibrar volume/carga conforme o tipo — os numeros de TSS/sem alvo sao
+# inspirados nos planos oficiais do Zwift (whatsonzwift.com), usados apenas
+# como calibracao, sem replicar workouts deles. A prescricao e propria.
+GOALS = ("back-to-fitness", "ftp-builder", "gran-fondo", "time-trial",
+         "climbing", "active-off-season", "race")
+
+ENDURANCE = "endurance"
+
+GOAL_TEMPLATES = {
+    None: WEEKLY_BY_TSB,
+    "back-to-fitness": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT]),
+        (0, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT]),
+        (10**9, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2]),
+    ],
+    "ftp-builder": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT]),
+        (0, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_THRESHOLD]),
+        (5, [FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2]),
+        (10**9, [FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2]),
+    ],
+    "gran-fondo": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, ENDURANCE]),
+        (0, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT, ENDURANCE]),
+        (5, [FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, ENDURANCE]),
+        (10**9, [FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, ENDURANCE]),
+    ],
+    "time-trial": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT]),
+        (0, [FOCUS_ZONE2, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2]),
+        (5, [FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_THRESHOLD]),
+        (10**9, [FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_THRESHOLD]),
+    ],
+    "climbing": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT]),
+        (0, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_VO2, FOCUS_SWEETSPOT, FOCUS_VO2]),
+        (5, [FOCUS_SWEETSPOT, FOCUS_VO2, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_VO2]),
+        (10**9, [FOCUS_VO2, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_VO2, FOCUS_THRESHOLD]),
+    ],
+    "active-off-season": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2]),
+        (0, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_ZONE2]),
+        (10**9, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2]),
+    ],
+    "race": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT]),
+        (0, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_THRESHOLD]),
+        (5, [FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2]),
+        (10**9, [FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2]),
+    ],
+}
+
+# Escala do orcamento semanal por tipo (1.0 = comportamento atual). Ex.:
+# back-to-fitness/off-season bem mais leves que tt-builder/race.
+GOAL_BUDGET_SCALE = {
+    None: 1.0,
+    "back-to-fitness": 0.60,
+    "ftp-builder": 1.0,
+    "gran-fondo": 1.15,
+    "time-trial": 1.15,
+    "climbing": 1.10,
+    "active-off-season": 0.60,
+    "race": 1.20,
+}
+
+GOAL_LABELS = {
+    None: "TSB (padrao)",
+    "back-to-fitness": "Back to Fitness",
+    "ftp-builder": "FTP Builder",
+    "gran-fondo": "Gran Fondo",
+    "time-trial": "Time Trial",
+    "climbing": "Climbing",
+    "active-off-season": "Active Off-Season",
+    "race": "Race",
+}
+
+# Variedade de formato por foco (o build rotaciona as variantes quando um
+# GOAL esta ativo, para o plano nao ficar monotonico). A variante 0 de cada
+# foco e identica ao template atual (comportamento sem GOAL preservado).
+BLOCK_VARIANTS = {
+    FOCUS_ZONE2: [
+        {"repeats": 1, "on_sec": 1800, "off_sec": 0, "on_power": 0.70},
+        {"repeats": 2, "on_sec": 810, "off_sec": 180, "on_power": 0.75},
+        {"repeats": 3, "on_sec": 540, "off_sec": 120, "on_power": 0.72},
+    ],
+    FOCUS_SWEETSPOT: [
+        {"repeats": 3, "on_sec": 480, "off_sec": 240, "on_power": 0.88},
+        {"repeats": 2, "on_sec": 720, "off_sec": 180, "on_power": 0.88},
+        {"repeats": 4, "on_sec": 360, "off_sec": 180, "on_power": 0.90},
+    ],
+    FOCUS_THRESHOLD: [
+        {"repeats": 3, "on_sec": 480, "off_sec": 240, "on_power": 0.98},
+        {"repeats": 2, "on_sec": 840, "off_sec": 300, "on_power": 0.97},
+        {"repeats": 4, "on_sec": 300, "off_sec": 180, "on_power": 1.00},
+    ],
+    FOCUS_VO2: [
+        {"repeats": 4, "on_sec": 180, "off_sec": 180, "on_power": 1.15},
+        {"repeats": 5, "on_sec": 150, "off_sec": 150, "on_power": 1.14},
+        {"repeats": 3, "on_sec": 240, "off_sec": 240, "on_power": 1.12},
+    ],
+    ENDURANCE: [
+        {"repeats": 1, "on_sec": 3600, "off_sec": 0, "on_power": 0.75},
+        {"repeats": 2, "on_sec": 1500, "off_sec": 180, "on_power": 0.75},
+        {"repeats": 3, "on_sec": 1020, "off_sec": 120, "on_power": 0.72},
+    ],
+}
+
+# Janela de tapper antes da prova (GOAL=race): os treinos dentro destes dias
+# antes de RACE_DATE viram recuperacao leve.
+TAPER_DAYS = 7
+
+
+def parse_goal(value):
+    """Converte GOAL do .env ('ftp-builder', etc.) em chave valida. Ausente ou
+    invalido -> None (comportamento padrao por TSB)."""
+    if not value:
+        return None
+    goal = str(value).strip().lower().replace("_", "-")
+    return goal if goal in GOALS else None
+
 FOCUS_LABELS_PT = {
     REST: "Descanso",
     FOCUS_ZONE2: "Zona 2",
@@ -93,11 +215,12 @@ def workout_name(day, focus):
     return f"{day} - Treino de {FOCUS_LABELS_PT[focus]}"
 
 
-def weekly_template(tsb):
-    for threshold, template in WEEKLY_BY_TSB:
+def weekly_template(tsb, goal=None):
+    templates = GOAL_TEMPLATES.get(goal, WEEKLY_BY_TSB)
+    for threshold, template in templates:
         if tsb < threshold:
             return template
-    return WEEKLY_BY_TSB[-1][1]
+    return templates[-1][1]
 
 
 def avg_load(events, window_days=60):
@@ -121,8 +244,10 @@ def weekly_budget(avg):
 
 
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
-               training_days=DEFAULT_TRAINING_DAYS):
+               training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None):
     today = date.today()
+    if isinstance(existing, dict) and "workouts" in existing:
+        existing = existing["workouts"]
     if start is None:
         start = today + timedelta(days=1)
         if existing and today.weekday() in training_days:
@@ -131,12 +256,14 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                 plan = [kept[0]]
                 recent = [(today, kept[0]["tss"])]
                 return plan + build_plan(events, tsb, ftp=ftp, days=days,
-                                         start=start, training_days=training_days)
-    base = templates()
-    weekly = weekly_template(tsb)
+                                         start=start, training_days=training_days,
+                                         goal=goal, race_date=race_date)
+    weekly = weekly_template(tsb, goal)
     slots = sorted(training_days)
-    cap = daily_tss_cap(avg_load(events))
-    budget = weekly_budget(avg_load(events))
+    scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
+    avg = avg_load(events)
+    cap = max(1, int(daily_tss_cap(avg) * scale))
+    budget = cap * 7
     plan = []
     recent = []  # (day, tss) dos ultimos 7 dias
     for i in range(days):
@@ -144,7 +271,13 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         if day.weekday() not in training_days:
             continue
         focus = weekly[slots.index(day.weekday()) % len(weekly)]
-        params = WorkoutParams(focus=focus, **base[focus])
+        taper = _taper_focus(goal, day, race_date)
+        if taper is not None:
+            focus, params = taper
+            day_name = f"{day.isoformat()} - Taper (pre-prova)"
+        else:
+            params = WorkoutParams(focus=focus, **_block_for(focus, i, goal))
+            day_name = workout_name(day.isoformat(), focus)
         tss = estimate_tss(params, ftp)
         if tss > cap:
             factor = max(0.4, cap / tss)
@@ -158,7 +291,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         plan.append(PlannedWorkout(
             day=day.isoformat(), focus=focus,
             planned_duration=duration,
-            name=workout_name(day.isoformat(), focus),
+            name=day_name,
             params=_params_dict(params), tss=float(tss),
             external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
         ))
@@ -166,6 +299,34 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         while recent and day - recent[0][0] >= timedelta(days=7):
             recent.pop(0)
     return [_as_dict(w) for w in plan]
+
+
+def _block_for(focus, slot, goal):
+    """Bloco do foco. Com GOAL ativo, rotaciona as variantes de formato para o
+    plano nao ficar monotonico; sem GOAL, usa o template atual."""
+    if goal is None:
+        return templates()[focus]
+    variants = BLOCK_VARIANTS.get(focus, [templates()[focus]])
+    return variants[slot % len(variants)]
+
+
+def _taper_focus(goal, day, race_date):
+    """GOAL=race com prova proxima: últimos TAPER_DAYS antes de RACE_DATE viram
+    recuperacao leve (Z2 curto). Retorna (focus, params) ou None."""
+    if goal != "race" or not race_date:
+        return None
+    try:
+        race = date.fromisoformat(race_date)
+    except (TypeError, ValueError):
+        return None
+    if (race - day).days < 0:
+        return None  # prova ja passou: volta ao template normal
+    if (race - day).days < TAPER_DAYS:
+        params = WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=1200,
+                               off_sec=0, on_power=0.60, off_power=0.55,
+                               cadence=90, cadence_rest=90)
+        return FOCUS_ZONE2, params
+    return None
 
 
 def _fit_budget(params, tss, recent, budget, ftp):
@@ -251,6 +412,10 @@ FOCUS_ZONE_HINT = {
         "pt": "a zona de VO2 Max fica acima de 105 por cento do FTP",
         "en": "the VO2 Max zone sits above 105 percent of FTP",
     },
+    ENDURANCE: {
+        "pt": "a endurance (resistencia longa) fica entre 65 e 85 por cento do FTP",
+        "en": "the endurance band sits between 65 and 85 percent of FTP",
+    },
 }
 
 FOCUS_LABELS_EN = {
@@ -258,6 +423,7 @@ FOCUS_LABELS_EN = {
     FOCUS_SWEETSPOT: "sweet spot",
     FOCUS_THRESHOLD: "threshold",
     FOCUS_VO2: "VO2 Max",
+    ENDURANCE: "endurance",
 }
 
 
@@ -535,13 +701,36 @@ def orphan_external_ids(plan, events, start=None):
             and e["external_id"] not in keep]
 
 
-def save_plan(plan, path="plan.json"):
+def save_plan(plan, path="plan.json", goal=None, race_date=None):
+    """Salva o plano. Com GOAL configurado, guarda a meta junto
+    (plan.json passa a ser {'goal', 'race_date', 'workouts'}); sem GOAL,
+    mantem o formato antigo (lista pura) para compatibilidade."""
+    data = plan
+    if goal is not None:
+        data = {"goal": goal, "race_date": race_date, "workouts": plan}
     out = pathlib.Path(path)
     with open(out, "w", encoding="utf-8") as fh:
-        json.dump(plan, fh, ensure_ascii=False, indent=2)
+        json.dump(data, fh, ensure_ascii=False, indent=2)
     return out
 
 
 def load_plan(path="plan.json"):
+    """Retorna a lista de workouts do plan.json (tolera o formato novo com
+    meta e o antigo de lista pura)."""
     with open(pathlib.Path(path), "r", encoding="utf-8") as fh:
-        return json.load(fh)
+        data = json.load(fh)
+    if isinstance(data, dict) and "workouts" in data:
+        return data["workouts"]
+    return data
+
+
+def load_plan_meta(path="plan.json"):
+    """Meta (goal, race_date) salva junto com o plano, ou None quando ausente."""
+    try:
+        with open(pathlib.Path(path), "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"goal": None, "race_date": None}
+    if isinstance(data, dict) and "workouts" in data:
+        return {"goal": data.get("goal"), "race_date": data.get("race_date")}
+    return {"goal": None, "race_date": None}

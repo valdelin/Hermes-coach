@@ -61,6 +61,18 @@ hermes-coach/
    Ausente ou invalido -> seg-sex como padrao. Pode ser configurado no chat
    com o agente no primeiro uso.
 
+2. Defina o **tipo de plano** (opcional):
+   ```
+   GOAL=back-to-fitness   # ou ftp-builder | gran-fondo | time-trial |
+                          # climbing | active-off-season | race
+   ```
+   Com `GOAL=race`, defina a data alvo (o `build` **pergunta** se faltar):
+   ```
+   RACE_DATE=2026-12-01
+   ```
+   Ausente ou invalido -> comportamento padrao por TSB. O `build` mostra o
+   plano ativo e o `plan.json` guarda `goal`/`race_date`.
+
 2. Instale o agente no opencode (ja linkado em `~/.config/opencode/agent/`):
    ```
    mkdir -p ~/.config/opencode/agent
@@ -149,6 +161,25 @@ A agenda em uso e impressa no `build` e no `reconcile`
 (`Agenda: seg,ter,qua,qui,sex`), com aviso quando `TRAINING_DAYS` nao esta
 definido no `.env`.
 
+O **tipo de plano** (`GOAL`) muda a distribuição de focos e a escala de carga
+do `build` (via `GOAL_TEMPLATES`/`GOAL_BUDGET_SCALE` em `src/plan.py`):
+
+| `GOAL` | Comportamento |
+|---|---|
+| *(ausente)* | Padrão por TSB (como antes) |
+| `back-to-fitness` | Volta de pausa longa: base zona 2, carga ~60% |
+| `ftp-builder` | Mais Limiar/Sweet Spot + VO2 curto; carga padrão |
+| `gran-fondo` | Endurance longo na semana + volume maior |
+| `time-trial` | Ênfase em Limiar/super-limiar; carga alta |
+| `climbing` | VO2/Limiar em repetições; carga alta |
+| `active-off-season` | Quase tudo zona 2; carga ~60% |
+| `race` | Exige `RACE_DATE`; nos últimos 7 dias antes da prova os treinos viram **Taper (pre-prova)** |
+
+Com `GOAL` ativo o `build` também **varia os formatos** dos treinos do mesmo
+foco (séries curtas/longas, over-unders, contínuos) para o plano não ficar
+monótono — a prescrição é própria do hermes (periodização clássica), não uma
+replicação de planos prontos.
+
 O nome de cada evento no Intervals leva a data na frente:
 `YYYY-MM-DD - Treino de <Foco>` (ex.: `2026-09-21 - Treino de Zona 2`).
 
@@ -195,11 +226,11 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   registros de wellness estão vazios, limitando a avaliação de recuperação ao
   TSB. Avaliar HRV (Forerunner 935 não tem HRV status overnight).
 - **Tipos de plano de treino** (issue [#5](https://github.com/valdelin/Hermes-coach/issues/5)):
-  o usuário informa o tipo de plano (`GOAL` no `.env`) e o treino é montado
-  conforme ele: `back-to-fitness` (pós-pausa), `ftp-builder` (aumentar FTP),
-  `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race`
-  (prova agendada com `RACE_DATE` + tapper). É o passo que aproxima o hermes
-  do onboarding por objetivo do ADR-003 ("Runna do ciclismo indoor").
+  **implementado** — `GOAL` no `.env` (`back-to-fitness`, `ftp-builder`,
+  `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race` com
+  `RACE_DATE` + tapper pre-prova). Próximos passos em aberto: validar a
+  prescrição por tipo com treinador (ROTEIRO-TREINADOR) e usar o catálogo na
+  tela de seleção do onboarding (Fase 3, ADR-003 "Runna do ciclismo indoor").
 
 ## Notas / limitacoes do scaffold
 

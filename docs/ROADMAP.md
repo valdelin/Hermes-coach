@@ -16,7 +16,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
 | 4 | feature | Ativar sync de wellness (RHR, sono, Body Battery via Garmin; avaliar HRV) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 |
-| 5 | feature | Tipos de plano de treino (`GOAL`): back-to-fitness, ftp-builder, gran-fondo, time-trial, climbing, active-off-season, race (+`RACE_DATE`/tapper) | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 |
+| 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado** — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
 | 6 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
 | 7 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
 
@@ -42,21 +42,20 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 - Detectar ausência de potência; configurar `FTHR` no `.env`;
   `hrTSS = seg × IF_hr² × 100 / 3600`; prescrever %FTHR (ou RPE) em dias
   outdoor; sinalizar "sem potência — carga por FC" no resumo.
-- **Tipos de plano (issue #5)**: `GOAL` no `.env` seleciona o tipo —
-  `back-to-fitness` (pós-pausa: base z2, volume +5-10%/sem), `ftp-builder`
-  (Limiar/Sweet Spot + VO2 curto), `gran-fondo` (volume alto + longão),
-  `time-trial` (esforços limiar/super-limiar), `climbing` (repetições 3-15min),
-  `active-off-season` (z1-2 leve), `race` (exige `RACE_DATE`; base →
-  construção → especialização → **tapper**). ⚠️ **`race` sempre pergunta a
-  data alvo (dia da prova) antes de montar o plano** — sem default/campo
-  vazio. 📊 **Benchmark (whatsonzwift.com)**: valores do Zwift usados **só
-  como calibração de volume/carga** (TSS/sem por tipo: back-to-fitness ≈84,
-  ftp-builder ≈250-260, gran-fondo ≈177-290, time-trial ≈391,
-  active-off-season ≈447, race 216-398 — sujeito a TSB + cap diário); a
-  **prescrição é própria** do hermes (periodização clássica, validação com
-  treinador) e a coleção de workouts do Zwift inspira apenas **variedade de
-  formato** (o `build` varia estruturas dentro do mesmo tipo de plano - sem
-  replicar workouts do Zwift). `plan.json` guarda o tipo; complementa o
+- **Tipos de plano (issue #5) — ✅ implementado** (reste: validação da
+  prescrição com treinador). `GOAL` no `.env` seleciona o tipo —
+  `back-to-fitness` (pós-pausa: base z2, carga ~60%), `ftp-builder`
+  (Limiar/Sweet Spot + VO2 curto), `gran-fondo` (endurance longo + volume),
+  `time-trial` (esforços limiar/super-limiar), `climbing` (repetições
+  3-15min), `active-off-season` (z1-2 leve, ~60%), `race` (exige `RACE_DATE`;
+  **últimos 7 dias = Taper pre-prova**). ⚠️ **`race` sempre pergunta a data
+  alvo (dia da prova) antes de montar o plano** — sem default/campo vazio.
+  📊 **Benchmark (whatsonzwift.com)**: valores do Zwift usados **só como
+  calibração de volume/carga** (TSS/sem por tipo — sujeito a TSB + cap
+  diário); prescrição **própria** do hermes (periodização clássica,
+  validação com treinador pendente); coleção de workouts inspira apenas
+  **variedade de formato** (o `build` alterna estruturas - sem replicar
+  workouts do Zwift). `plan.json` guarda `goal`/`race_date`; complementa o
   onboarding por objetivo da Fase 3.
 
 ### Fase 3 — Produto (casca estilo Runna, ADR-003)

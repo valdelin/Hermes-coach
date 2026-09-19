@@ -45,7 +45,26 @@ própria — foram agrupadas na tag/release v0.0.7.
   de treino** (`GOAL` no `.env`): `back-to-fitness`, `ftp-builder`,
   `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race` (com
   `RACE_DATE` + tapper) — muda a distribuição de focos no `build` conforme o
-  tipo; adicionado às **Direções futuras** do README e ao roadmap (Fase 2).
+  tipo; **`race` sempre pergunta a data alvo (dia da prova)** antes de montar
+  o plano (sem default/campo vazio); adicionado às **Direções futuras** do
+  README e ao roadmap (Fase 2).
+- **Tipos de plano implementados** (issue
+  [#5](https://github.com/valdelin/Hermes-coach/issues/5), Fase 2):
+  - `GOAL` no `.env` — `back-to-fitness`, `ftp-builder`, `gran-fondo`,
+    `time-trial`, `climbing`, `active-off-season` e `race`; ausente/inválido
+    mantém o comportamento padrão por TSB (fallback seguro);
+  - `GOAL_TEMPLATES` (distribuição de focos por TSB e por tipo) e
+    `GOAL_BUDGET_SCALE` (calibração de carga: off-season ~60% vs race ~120%);
+  - **variedade de formato**: com `GOAL` ativo o `build` alterna estruturas
+    do mesmo foco (séries curtas/longas, contínuos) — plano não monótono;
+    sem `GOAL`, o template atual é preservado;
+  - `race` **sempre pergunta a data alvo** (`RACE_DATE`, futura) antes de
+    montar o plano e salva no `.env`; nos últimos 7 dias antes da prova os
+    treinos viram **Taper (pre-prova)** (zona 2, TSS baixo);
+  - `plan.json` guarda `goal`/`race_date` (formato `{"goal", "race_date",
+    "workouts"}`); `load_plan` continua devolvendo a lista (compatível com o
+    formato antigo);
+  - 24 testes novos (88 no total); docs atualizadas (README, ROADMAP).
 
 ### Alterado
 

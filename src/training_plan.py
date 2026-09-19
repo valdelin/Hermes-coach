@@ -10,9 +10,10 @@ if __package__ in (None, ""):
 from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS)
 from intervals_client import IntervalsClient
 from impulse_response import ImpulseResponseEngine, daily_tss_series
-from plan import (build_plan, event_payload, load_plan, reconcile, save_plan,
-                  orphan_external_ids, parse_training_days, FOCUS_LABELS_PT,
-                  REST, DEFAULT_FTP, CUE_LANGS)
+from plan import (build_plan, event_payload, load_plan, load_plan_meta,
+                  reconcile, save_plan, orphan_external_ids, parse_training_days,
+                  parse_goal, GOAL_LABELS, FOCUS_LABELS_PT, REST, DEFAULT_FTP,
+                  CUE_LANGS, GOALS)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -47,6 +48,59 @@ def get_training_days():
     load_env(PROJECT_ROOT / ".env")
     value = os.environ.get("TRAINING_DAYS", "")
     return parse_training_days(value)
+
+
+def get_goal():
+    """GOAL do .env (tipo de plano) ou None (comportamento padrao por TSB)."""
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("GOAL", "")
+    goal = parse_goal(value)
+    if value.strip() and goal is None:
+        print(f"aviso: GOAL={value!r} invalido; valores: {', '.join(GOALS)}")
+    return goal
+
+
+def get_race_date():
+    """RACE_DATE do .env (YYYY-MM-DD) ou None. Necessaria para GOAL=race."""
+    load_env(PROJECT_ROOT / ".env")
+    raw = os.environ.get("RACE_DATE", "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw).isoformat()
+    except ValueError:
+        print(f"aviso: RACE_DATE={raw!r} invalido; use YYYY-MM-DD")
+        return None
+
+
+def _env_set(key, value):
+    """Grava/atualiza `key=value` no .env do projeto (sem tocar nas demais
+    linhas; nunca expoe a API key)."""
+    env_path = PROJECT_ROOT / ".env"
+    key_line = f"{key}={value}"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.is_file() else []
+    kept = [line for line in lines
+            if not line.startswith(f"{key}=") and line.strip()]
+    kept.append(key_line)
+    env_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    os.environ[key] = value
+
+
+def prompt_race_date():
+    """GOAL=race exige a data alvo (dia da prova): sempre pergunta — nunca
+    assume default nem deixa em branco — e salva no .env."""
+    while True:
+        raw = input("Qual a data alvo (dia da prova)? (YYYY-MM-DD) ").strip()
+        try:
+            race = date.fromisoformat(raw)
+        except ValueError:
+            print(f"  data invalida: {raw!r} — use YYYY-MM-DD (ex.: 2026-12-01)")
+            continue
+        if race <= date.today():
+            print("  a prova precisa ser numa data futura.")
+            continue
+        _env_set("RACE_DATE", race.isoformat())
+        return race.isoformat()
 
 
 def describe_training_days(training_days=None, env_value=None):
@@ -128,6 +182,12 @@ def cmd_model(args):
 def cmd_build(args):
     client = get_client()
     ftp = get_ftp()
+    goal = get_goal()
+    race_date = get_race_date()
+    if goal == "race" and not race_date:
+        # Regra da issue #5: plano race SEMPRE pergunta a data alvo antes de
+        # montar o plano — nunca assume default nem deixa em branco.
+        race_date = prompt_race_date()
     newest = date.today()
     oldest = newest - timedelta(days=args.days)
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
@@ -138,10 +198,16 @@ def cmd_build(args):
     except FileNotFoundError:
         existing = None
     plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
-                      existing=existing, training_days=get_training_days())
-    save_plan(plan, PLAN_FILE)
+                      existing=existing, training_days=get_training_days(),
+                      goal=goal, race_date=race_date)
+    save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date)
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
-    print(f"Plano gerado: {len(plan)} treinos | TSB atual {tsb:.1f} | FTP {ftp}W")
+    plano_label = GOAL_LABELS.get(goal, goal or "TSB (padrao)")
+    race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
+    print(f"Plano: {plano_label}{race_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
+    est_tss = sum(w["tss"] for w in plan)
+    print(f"Plano gerado: {len(plan)} treinos | TSS estimado {est_tss:.0f}"
+          + (" (inclui tapper pre-prova)" if goal == "race" and race_date else ""))
     for w in plan:
         print(f"  {w['day']} {w['name']:<30} {w['planned_duration'] // 60:>3}m TSS {w['tss']:.0f}")
     return plan
