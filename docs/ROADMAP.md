@@ -47,8 +47,13 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   (Limiar/Sweet Spot + VO2 curto), `gran-fondo` (volume alto + longão),
   `time-trial` (esforços limiar/super-limiar), `climbing` (repetições 3-15min),
   `active-off-season` (z1-2 leve), `race` (exige `RACE_DATE`; base →
-  construção → especialização → **tapper**). `plan.json` guarda o tipo;
-  complementa o onboarding por objetivo da Fase 3.
+  construção → especialização → **tapper**). ⚠️ **`race` sempre pergunta a
+  data alvo (dia da prova) antes de montar o plano** — sem default/campo
+  vazio. 📊 **Benchmark oficial (whatsonzwift.com)**: alvo de TSS/semana por
+  tipo (ex.: back-to-fitness ≈84, ftp-builder ≈253-260, gran-fondo ≈177-290,
+  time-trial ≈391, active-off-season ≈447, race 216-398) — sujeito a TSB +
+  cap diário. `plan.json` guarda o tipo; complementa o onboarding por objetivo
+  da Fase 3.
 
 ### Fase 3 — Produto (casca estilo Runna, ADR-003)
 - PWA + onboarding por objetivo → `build` → calendário → Zwift (`.zwo`) +
