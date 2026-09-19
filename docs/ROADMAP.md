@@ -15,7 +15,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 1 | bug | Limpeza de "fantasmas" (atividades MANUAL criadas pelo Intervals ao parear treino) | [#1](https://github.com/valdelin/Hermes-coach/issues/1) | 0 |
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
-| 4 | feature | Ativar sync de wellness (RHR, sono, Body Battery via Garmin; avaliar HRV) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 |
+| 4 | feature | ~~Ativar sync de wellness~~ **implementado e issue fechada** (RHR/sono no `info`; HRV sem suporte no FR935) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 ✅ |
 | 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado e issue fechada** (v0.0.9) — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
 | 6 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
 | 7 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
@@ -28,9 +28,11 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   = planejada; confirmar atividade real pareada; excluir via
   `DELETE /api/v1/activity/{id}`.
 - Regras: `--dry-run` antes de excluir; testes obrigatórios.
-- **Wellness (issue #4)**: ativar sync Garmin Connect → Intervals (RHR, sono,
-  Body Battery; HRV avaliar — FR935 não tem HRV status overnight); expor
-  HRV/sono no `info`/relatório diário quando disponíveis.
+- **Wellness (issue #4) — ✅ implementado**: o Garmin Connect → Intervals já
+  entrega RHR/sono reais (dados confirmados na conta, 2026-09-19); o `info`
+  exibe `Wellness:` (RHR atual/média 7d, sono, passos, HRV quando existir);
+  HRV Status overnight não suportado pelo FR935 (Elevate Gen 3+) — decisão
+  documentada; Oura/WHOOP/novo relógio fica no backlog.
 
 ### Fase 1 — Comunicação (issue #2)
 - Resumo do treino (foco + TSB + TSS previsto/real + avisos do reconcile) via

@@ -189,6 +189,84 @@ FTP_TEST_WEEKS_NOTE = {
 }
 
 
+def wellness_summary(records, days=7):
+    """Resumo de wellness (issue #4) a partir dos registros do
+    `/wellness` do Intervals.icu. Campos sincronizados do Garmin:
+    `restingHR`, `sleepSecs`, `steps`, `hrv`/`hrvSDNN`, `stress`,
+    `sleepScore`, `readiness`. Retorna dict com o ultimo valor e a media
+    dos ultimos `days` registros (chave `id` = data), ou None sem dados."""
+    if not records:
+        return None
+    rows = []
+    for rec in records:
+        day = str(rec.get("id") or rec.get("day") or "")[:10]
+        rows.append((day, rec))
+    rows = [r for r in rows if r[0]]
+    rows.sort()
+    if not rows:
+        return None
+    recent = rows[-days:]
+
+    def _avg(key):
+        vals = [r.get(key) for _, r in recent
+                if isinstance(r.get(key), (int, float))]
+        return (sum(vals) / len(vals)) if vals else None
+
+    def _last(key):
+        for _, r in reversed(rows):
+            v = r.get(key)
+            if isinstance(v, (int, float)):
+                return v
+        return None
+
+    def _hours(secs):
+        return round(secs / 3600, 1) if secs is not None else None
+
+    sleep_last = _last("sleepSecs")
+    sleep_avg = _avg("sleepSecs")
+    return {
+        "days": len(recent),
+        "resting_hr_last": _last("restingHR"),
+        "resting_hr_avg": _avg("restingHR"),
+        "sleep_hours_last": _hours(sleep_last),
+        "sleep_hours_avg": _hours(sleep_avg),
+        "hrv_last": _last("hrv"),
+        "hrv_sdnn_last": _last("hrvSDNN"),
+        "stress_last": _last("stress"),
+        "sleep_score_last": _last("sleepScore"),
+        "readiness_last": _last("readiness"),
+        "steps_last": _last("steps"),
+    }
+
+
+def format_wellness(summary, lang="pt"):
+    """Texto curto do resumo de wellness para o `info`/relatorio diario."""
+    if not summary:
+        return "sem dados (sync Garmin -> Intervals pendente)"
+    parts = []
+    if summary["resting_hr_last"] is not None:
+        text = f"RHR {summary['resting_hr_last']:.0f} bpm"
+        if summary["resting_hr_avg"] is not None:
+            text += f" (media {summary['resting_hr_avg']:.1f})"
+        parts.append(text)
+    if summary["sleep_hours_last"] is not None:
+        text = f"sono {summary['sleep_hours_last']:.1f}h"
+        if summary["sleep_hours_avg"] is not None:
+            text += f" (media {summary['sleep_hours_avg']:.1f}h)"
+        parts.append(text)
+    if summary["hrv_last"] is not None:
+        parts.append(f"HRV {summary['hrv_last']:.0f}ms")
+    if summary["sleep_score_last"] is not None:
+        parts.append(f"score sono {summary['sleep_score_last']:.0f}")
+    if summary["stress_last"] is not None:
+        parts.append(f"stress {summary['stress_last']:.0f}")
+    if summary["steps_last"] is not None:
+        parts.append(f"passos {summary['steps_last']:.0f}")
+    if summary["hrv_last"] is None and summary["days"]:
+        parts.append("HRV sem dados (FR935)")
+    return " | ".join(parts) if parts else "sem dados (sync pendente)"
+
+
 @dataclass(frozen=True)
 class FtpTestSuggestion:
     due: bool

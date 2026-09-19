@@ -7,7 +7,8 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS)
+from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
+                   wellness_summary, format_wellness)
 from intervals_client import IntervalsClient
 from impulse_response import ImpulseResponseEngine, daily_tss_series
 from plan import (build_plan, event_payload, load_plan, load_plan_meta,
@@ -157,6 +158,9 @@ def cmd_info(args):
     print(f"eventos na janela: {len(events)}")
     if metrics:
         print(f"TSB {metrics.tsb:.1f} (CTL {metrics.ctl:.1f} / ATL {metrics.atl:.1f})")
+    wellness = client.wellness(oldest=oldest.isoformat(), newest=newest.isoformat())
+    summary = wellness_summary(wellness, days=7)
+    print(f"Wellness: {format_wellness(summary)}")
 
 
 def cmd_ftp_check(args):

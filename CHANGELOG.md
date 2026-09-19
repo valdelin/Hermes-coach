@@ -11,7 +11,15 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
-_Nada ainda._
+### Adicionado
+
+- **Wellness implementado** (issue
+  [#4](https://github.com/valdelin/Hermes-coach/issues/4)): o sync Garmin
+  Connect → Intervals.icu já entrega RHR/sono reais; `info` agora exibe
+  `Wellness:` — RHR atual + média 7d, sono (h), passos e HRV quando houver
+  (`wellness_summary`/`format_wellness`). **Decisão HRV (FR935)**: sem HRV
+  Status overnight (requer Elevate Gen 3+); monitorar via Oura/WHOOP ou novo
+  relógio fica no backlog. 5 testes novos (105 no total).
 
 ## [0.0.9] - 2026-09-19
 

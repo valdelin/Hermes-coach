@@ -3,6 +3,7 @@ from datetime import date
 
 from src.coach import (build_workout, decide_focus, estimate_tss,
                        last_ftp_test, latest_metrics, suggest_ftp_test,
+                       wellness_summary, format_wellness,
                        FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2,
                        FOCUS_ZONE2, Metrics)
 
@@ -120,6 +121,51 @@ class FtpTestSuggestionTest(unittest.TestCase):
         sug = suggest_ftp_test(events, 200, today=date(2026, 9, 1))  # goal=None
         self.assertTrue(sug.due)  # 62 dias >= 56
         self.assertIn("8 semanas", sug.reason)
+
+
+class WellnessSummaryTest(unittest.TestCase):
+    """Issue #4: expor RHR/sono/HRV do sync Garmin -> Intervals no info."""
+
+    def _records(self):
+        return [
+            {"id": "2026-09-12", "restingHR": 50, "sleepSecs": 28740, "steps": 9060},
+            {"id": "2026-09-13", "restingHR": 49, "sleepSecs": 30600, "steps": 4828},
+            {"id": "2026-09-14", "restingHR": 51, "sleepSecs": 18360, "steps": 3483},
+            {"id": "2026-09-15", "restingHR": 54, "sleepSecs": 20040, "steps": 4551},
+            {"id": "2026-09-16", "restingHR": 54, "sleepSecs": 18180, "steps": 6790},
+            {"id": "2026-09-17", "restingHR": 55, "sleepSecs": 27120, "steps": 1548},
+        ]
+
+    def test_valores_ultimo_e_media(self):
+        s = wellness_summary(self._records(), days=7)
+        self.assertIsNotNone(s)
+        self.assertEqual(s["resting_hr_last"], 55.0)
+        self.assertEqual(s["resting_hr_avg"], 52.166666666666664)
+        self.assertEqual(s["sleep_hours_last"], 7.5)   # 27120s / 3600
+        self.assertEqual(s["steps_last"], 1548.0)
+
+    def test_hrv_ausente_fica_none(self):
+        s = wellness_summary(self._records())
+        self.assertIsNone(s["hrv_last"])
+        self.assertIn("HRV sem dados (FR935)", format_wellness(s))
+
+    def test_hrv_presente_quando_dado_existe(self):
+        recs = self._records() + [{"id": "2026-09-18", "hrv": 62, "hrvSDNN": 45}]
+        s = wellness_summary(recs)
+        self.assertEqual(s["hrv_last"], 62.0)
+        self.assertIn("HRV 62ms", format_wellness(s))
+
+    def test_vazio_retorna_none(self):
+        self.assertIsNone(wellness_summary([]))
+        self.assertIsNone(wellness_summary([{"x": 1}]))
+        self.assertEqual(format_wellness(None),
+                         "sem dados (sync Garmin -> Intervals pendente)")
+
+    def test_respeita_janela_de_dias(self):
+        s = wellness_summary(self._records(), days=3)
+        self.assertEqual(s["days"], 3)
+        self.assertEqual(s["resting_hr_last"], 55.0)
+        self.assertEqual(s["resting_hr_avg"], 54.333333333333336)  # 54,54,55
 
 
 if __name__ == "__main__":

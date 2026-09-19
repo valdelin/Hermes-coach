@@ -229,9 +229,11 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   configurar `FTHR` (FC de limiar) no `.env`, estimar carga por FC
   (`hrTSS`) e prescrever alvos em %FTHR/RPE nos dias outdoor.
 - **Sync de wellness** (issue [#4](https://github.com/valdelin/Hermes-coach/issues/4)):
-  ativar Garmin Connect → Intervals.icu (RHR, sono, Body Battery) — hoje os
-  registros de wellness estão vazios, limitando a avaliação de recuperação ao
-  TSB. Avaliar HRV (Forerunner 935 não tem HRV status overnight).
+  **implementado** — o Garmin Connect → Intervals.icu já entrega RHR e sono
+  reais; o `info` agora exibe `Wellness:` (RHR atual/média 7d, sono, passos,
+  HRV quando disponível). **Decisão HRV (FR935):** sem HRV Status overnight
+  (exige Elevate Gen 3+); monitorar via Oura/WHOOP ou novo relógio fica em
+  aberto no backlog.
 - **Tipos de plano de treino** (issue [#5](https://github.com/valdelin/Hermes-coach/issues/5)):
   **implementado** — `GOAL` no `.env` (`back-to-fitness`, `ftp-builder`,
   `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race` com
