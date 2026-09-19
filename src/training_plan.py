@@ -259,9 +259,9 @@ def cmd_build(args):
     print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
     est_tss = sum(w["tss"] for w in plan)
     print(f"Plano gerado: {len(plan)} treinos | TSS estimado {est_tss:.0f}"
-          + (f" | preparacao p/ teste em {ftp_test_date}"
-             if ftp_test_date and any("FTP" in w["name"] or "pre-teste" in w["name"]
-                                      for w in plan) else ""))
+          + (" | preparacao p/ teste em " + ftp_test_date
+             if ftp_test_date and any("Ramp Test (FTP)" in w["name"] for w in plan)
+             else ""))
     for w in plan:
         print(f"  {w['day']} {w['name']:<30} {w['planned_duration'] // 60:>3}m TSS {w['tss']:.0f}")
     return plan

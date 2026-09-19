@@ -11,6 +11,10 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+_Nada ainda._
+
+## [0.0.9] - 2026-09-19
+
 ### Adicionado
 
 - `docs/KNOWN_ISSUES.md`: rastreio de bugs conhecidos do projeto. Registrada a
@@ -191,6 +195,7 @@ Ao criar uma nova versão (bump de `VERSION`):
 
 ## Comparações (links)
 
+- [v0.0.9…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.9...master)
 - [v0.0.8…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.8...master)
 - [v0.0.7…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.7...master)
 - [v0.0.2…v0.0.7](https://github.com/valdelin/Hermes-coach/compare/v0.0.2...v0.0.7)
