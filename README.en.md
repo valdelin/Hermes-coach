@@ -62,14 +62,14 @@ hermes-coach/
 2. Install the agent in opencode (already linked in `~/.config/opencode/agent/`):
    ```
    mkdir -p ~/.config/opencode/agent
-   ln -s /home/valdelin/Work/hermes-coach/.opencode/agent/cycling-coach.md \
+   ln -s <USERHOME>/Work/hermes-coach/.opencode/agent/cycling-coach.md \
          ~/.config/opencode/agent/cycling-coach.md
    ```
 
 3. Install the skill in Hermes (already linked in `~/.hermes/skills/`):
    ```
    mkdir -p ~/.hermes/skills
-   ln -s /home/valdelin/Work/hermes-coach/hermes/skills/cycling-coach \
+   ln -s <USERHOME>/Work/hermes-coach/hermes/skills/cycling-coach \
          ~/.hermes/skills/cycling-coach
    ```
 
