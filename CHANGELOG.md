@@ -11,6 +11,14 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+### Adicionado
+
+- **`docs/ROTEIRO-TESTES.md`** — roteiro de testes manual/semi-automático para a
+  sessão de validação: baseline de regressão, onboarding, info/wellness, build e
+  disponibilidade (`WEEKLY_HOURS`/`LONG_DAY`), reconcile, push/calendário,
+  troca de objetivo, teste de FTP, timer diário, segurança, áreas de risco para
+  caça a bugs e template de reporte.
+
 ### Corrigido
 
 - **`test_reconcile_mix_realista_eventos` dependente do dia da semana**: o

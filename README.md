@@ -42,6 +42,9 @@ hermes-coach/
 - [docs/SYNC-PLATAFORMAS.md](docs/SYNC-PLATAFORMAS.md) — como conectar cada
   plataforma (Garmin, Zwift, Wahoo, Strava, Polar, COROS, Suunto, Oura/WHOOP
   etc.) ao Intervals.icu (atividades, wellness e treinos planejados).
+- [docs/ROTEIRO-TESTES.md](docs/ROTEIRO-TESTES.md) — roteiro de testes
+  manual/semi-automático (CLI, agente, calendário, reconciliação, onboarding,
+  disponibilidade, FTP) com checklist, caça a bugs e template de reporte.
 
 ## Setup
 

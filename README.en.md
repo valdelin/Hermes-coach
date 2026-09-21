@@ -40,6 +40,9 @@ hermes-coach/
   Obsidian vault.
 - Coach-validation script (training science + multi-athlete/solo product):
   `ROTEIRO-TREINADOR.md` in the Obsidian vault.
+- [docs/ROTEIRO-TESTES.md](docs/ROTEIRO-TESTES.md) — manual/semi-automated test
+  script (CLI, agent, calendar, reconciliation, onboarding, availability, FTP)
+  with checklist, bug-hunt areas and a bug report template.
 
 ## Setup
 
