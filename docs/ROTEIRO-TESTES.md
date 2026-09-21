@@ -1,7 +1,7 @@
 # Roteiro de Testes — Hermes Coach
 
 - **Preparado em:** 2026-09-20 (após a v0.0.12)
-- **Execução prevista:** 2026-09-21 (segunda-feira)
+- **Execução prevista:** 2026-09-22 (terça-feira)
 - **Objetivo:** validar o fluxo completo (CLI, agente, calendário do
   Intervals.icu) e **caçar bugs novos** antes da próxima release.
 

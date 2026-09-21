@@ -11,6 +11,10 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+(Ainda não há mudanças não publicadas.)
+
+## [0.0.13] - 2026-09-21
+
 ### Adicionado
 
 - **`docs/ROTEIRO-TESTES.md`** — roteiro de testes manual/semi-automático para a
@@ -18,6 +22,15 @@ própria — foram agrupadas na tag/release v0.0.7.
   disponibilidade (`WEEKLY_HOURS`/`LONG_DAY`), reconcile, push/calendário,
   troca de objetivo, teste de FTP, timer diário, segurança, áreas de risco para
   caça a bugs e template de reporte.
+
+### Corrigido
+
+- **`test_treino_perdido_insere_recuperacao` dependente do dia da semana**:
+  com `start=hoje-2` e `days=5`, o plano não tinha nenhum dia passado de
+  segunda a sexta (só passava em sáb/dom). Fixture agora usa `start=hoje-7`,
+  que garante dias de treino passados em qualquer dia da semana.
+
+## [0.0.12] - 2026-09-20
 
 ### Corrigido
 

@@ -153,8 +153,10 @@ class TrainingDaysTest(unittest.TestCase):
 
 class ReconcileTest(unittest.TestCase):
     def test_treino_perdido_insere_recuperacao(self):
+        # start = hoje-7 garante dias de treino passados em QUALQUER dia da
+        # semana (start=hoje-2 deixava 0 dias passados de seg a sex).
         plan = build_plan([], 2, ftp=182, days=5,
-                          start=date.today() - timedelta(days=2))
+                          start=date.today() - timedelta(days=7))
         plan, missed = reconcile(plan, [], ftp=182)
         self.assertTrue(missed)
         nomes = [w["name"] for w in plan]
