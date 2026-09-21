@@ -41,6 +41,9 @@ própria — foram agrupadas na tag/release v0.0.7.
   +3%..+30%** (só propõe para cima; >+30% = anomalia). 16 testes sintéticos
   (suite: **138 passed**); validado com dados reais (treinos agendados
   reprovam/sem novidade, como esperado).
+- **`README.md`**: nova seção **"O que o cycling coach faz"** — inventário das
+  capacidades (plano/cargas, GOAL, FTP, automação, segurança) + contagem de
+  testes corrigida (138).
 
 ### Atualizado
 

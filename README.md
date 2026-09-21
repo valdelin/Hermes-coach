@@ -175,6 +175,52 @@ config fica em `~/.config/opencode/agent/` **dentro do WSL**.
 
 Acesso aos arquivos do Windows via `/mnt/c/Users/<voce>/...`.
 
+## O que o cycling coach faz
+
+O agente `cycling-coach` atua como treinador + automatizador: consulta o
+Intervals.icu, decide o foco do dia pelo TSB, monta o plano na agenda
+configurada (`TRAINING_DAYS`, padrao seg-sex), respeita o orcamento de carga
+(TSS de 7 dias), reage a treinos extras nao planejados e publica tudo no
+calendario.
+
+**Plano e cargas**
+- `info` — TSB/CTL/ATL atuais no Intervals.icu.
+- `build` — plano dos proximos 14 dias com ciclo de foco pelo TSB, orcamento de
+  TSS, preservacao do treino de hoje, escala por `WEEKLY_HOURS` e treino longo
+  em `LONG_DAY`.
+- `reconcile` — treino perdido vira recuperacao no proximo dia + proximo Limiar
+  -5%; treino **extra fora do plano** com carga cheia insere recuperacao e
+  reduz o Limiar.
+- `push` — upsert no calendario + limpeza automatica de eventos `hermes-plan*`
+  orfaos; `.zwo` baixado no app (sem geracao local).
+- `model` — motor Impulse-Response (Banister) local: CTL/ATL/TSB e **projecao**
+  da forma seguindo o plano atual.
+- `all` — fluxo completo.
+- Nome dos treinos no padrao `YYYY-MM-DD - Treino de <Foco>`; descricao na
+  notacao nativa do workout builder (passos com mensagem explicativa, repeticoes
+  achatadas, idioma por `CUE_LANG`, comparativo `prev`).
+
+**Objetivos (GOAL)** — 7 tipos de plano: `back-to-fitness`, `ftp-builder`,
+`gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race` (exige
+`RACE_DATE`, com **taper** nos ultimos 7 dias). Troca de objetivo a qualquer
+momento preservando o treino de hoje; mudanca no meio do taper avisa e recalcula.
+
+**Teste de FTP**
+- `ftp-check` — ultimo teste de FTP no historico e se o reteste (janela de 8
+  semanas) e devido; quando devido, sugere o Ramp Test do Zwift (nunca agenda
+  por conta propria).
+- Em validacao (issue #6): estimar FTP de **pedais duros nao agendados**
+  (best-20min x 0,95 + gates de qualidade, `src/ftp_estimation.py`) e propor a
+  atualizacao **apenas com confirmacao do atleta**.
+
+**Automacao** — timer systemd `cycling-coach-daily` roda `reconcile + push` a
+meia-noite (`scripts/daily_reconcile.sh`, log em `logs/`); falha notifica no
+desktop via `notify-send`.
+
+**Seguranca/qualidade** — API key so no `.env` (nunca exposta/commitada); nunca
+inventa TSB se o Intervals falhar; suíte de testes obrigatoria antes de concluir
+(`python3 -m unittest discover -s tests -v`).
+
 ## Uso
 
 Plano de treinos adaptativo (historico -> calendario do Intervals):
@@ -210,7 +256,7 @@ Testes:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(64 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+(138 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
 
 ## Automacao diaria (opcional)
 
