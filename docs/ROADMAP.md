@@ -12,7 +12,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 
 | # | Tipo | Item | Issue | Fase |
 |---|---|---|---|---|
-| 1 | bug | Limpeza de "fantasmas" (atividades MANUAL criadas pelo Intervals ao parear treino) | [#1](https://github.com/valdelin/Hermes-coach/issues/1) | 0 |
+| 1 | bug | Limpeza de "fantasmas" (atividades MANUAL criadas pelo Intervals ao parear treino) — **prioridade baixa** (cosmético, bug do Intervals, não do agente) | [#1](https://github.com/valdelin/Hermes-coach/issues/1) | 0 |
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
 | 4 | feature | ~~Ativar sync de wellness~~ **implementado e issue fechada** (RHR/sono no `info`; HRV sem suporte no FR935) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 ✅ |
@@ -83,8 +83,9 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 
 Revisão dos itens em aberto (sessão de 21/09, com o #6 novo):
 
-- **Abertos (6):** #1 fantasmas (Fase 0 — bug, especificado em
-  `docs/KNOWN_ISSUES.md`; **próximo a atacar**, sessão de testes 22/09),
+- **Abertos (6):** #1 fantasmas (Fase 0 — bug especificado em
+  `docs/KNOWN_ISSUES.md`, **prioridade baixa**: cosmético, bug do Intervals,
+  não do agente — saiu do início da sessão de testes 22/09),
   #2 notificações (Fase 1), #3 treinos sem potência (Fase 2),
   #6 **FTP sugerido de treinos não agendados** (Fase 2 — issue registrada
   21/09; complementa o `ftp-check` da #5), #7 casca Runna (Fase 3 — onboarding

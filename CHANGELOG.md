@@ -33,6 +33,10 @@ própria — foram agrupadas na tag/release v0.0.7.
 - **`docs/ROADMAP.md`** sincronizado: novo item #6 no backlog (FTP sugerido);
   **renumeração** — a casca Runna virou **#7** e multi-atleta **#8**, para a
   coluna `#` acompanhar os números reais das issues do GitHub.
+- **Prioridade da #1 reduzida** (decisão 2026-09-21): a "fantasma" é
+  **cosmética** e é comportamento do **Intervals**, não do agente —
+  label `priority: low` criado no repo e aplicado à issue; documentado em
+  `docs/KNOWN_ISSUES.md`; #1 saiu do início da sessão de testes de 22/09.
 
 ## [0.0.14] - 2026-09-21
 

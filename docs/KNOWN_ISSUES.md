@@ -10,6 +10,8 @@ solução.
 
 **GitHub:** [valdelin/Hermes-coach#1](https://github.com/valdelin/Hermes-coach/issues/1)
 **Status:** aberto (aceito; não bloqueia o fluxo) · **Severidade:** cosmética/baixa
+· **Prioridade:** baixa (`priority: low`, decisão 2026-09-21 — cosmético, comportamento
+do Intervals, não do agente)
 
 ### Sintoma
 
@@ -60,3 +62,7 @@ Etapa de **limpeza de fantasmas** no fluxo `reconcile`/`push` (ou no
   (`hermes-plan-2026-09-18`) pareado com `i188054492` (Zwift, UPLOAD, load 18)
   e fantasma `i188054507` (Ride 07:30, MANUAL, load 23, 2400s).
 - 2026-09-18: registrado como issue #1 no GitHub.
+- 2026-09-21: **prioridade reduzida** pelo atleta — é cosmético e é bug do
+  Intervals, não do agente; label `priority: low`; deixa de ser o primeiro item
+  da sessão de testes de 22/09 (segue como melhoria de qualidade de dados,
+  podendo entrar junto da Fase 1/notificações ou quando houver folga).
