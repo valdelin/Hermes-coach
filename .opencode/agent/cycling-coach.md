@@ -21,6 +21,10 @@ Tudo vive em `hermes-coach/.env` (nunca commitar):
 - `CUE_LANG` — idioma das mensagens explicativas dos treinos (`pt` padrao | `en`)
 - `TRAINING_DAYS` — dias de treino da semana (ex.: `seg,qua,sex` ou `mon,wed,fri`;
   ausente/invalido -> seg-sex). Definido no **primeiro uso** junto com o usuario.
+- `WEEKLY_HOURS` — horas disponiveis por semana para treinar (ex.: `5`); o build
+  ajusta a duracao dos treinos para caber nessas horas (default: sem ajuste).
+- `LONG_DAY` — dia preferido para treinos longos (ex.: `dom`/`sun`); o build
+  coloca o treino longo/endurance da semana nesse dia (default: sem preferencia).
 
 ## Onboarding (primeiro uso)
 
@@ -41,13 +45,23 @@ Ao montar o primeiro plano, siga esta ordem — **não assuma nada**:
    API Key é secreta — nunca exibir, nunca commitar; fica só no `.env`.
    Configure `INTERVALS_ATHLETE_ID`/`INTERVALS_API_KEY` em `hermes-coach/.env`
    e **valide a conexão** (ex.: rodar `info`) antes de seguir.
-3. **Perfil** — pergunte `TRAINING_DAYS` (dias ideais), `CUE_LANG`, `FTP` (se
-   não souber: sugerir o Ramp Test do Zwift e usar 200 até lá) e o objetivo —
-   apresente o **menu de GOAL** (abaixo) com a descrição de cada plano.
+3. **Perfil e disponibilidade** — antes de montar o plano, pergunte **sempre**:
+   - **Quantos dias** da semana o atleta tem disponíveis para treinar;
+   - **Quantas horas** por semana dá para treinar (grave `WEEKLY_HOURS`);
+   - **Qual o melhor dia para treinos longos** (grave `LONG_DAY`). Se responder
+     "não tenho tempo para treinos longos no fim de semana", tudo bem: use o
+     melhor dia que ele disser e ajuste o plano para isso — o treino longo vai
+     para o dia mais próximo dentro da agenda dele, sem forçar fim de semana;
+   - Confirme os dias específicos (`TRAINING_DAYS` — sugira a partir do nº de
+     dias + dia longo, ex.: "com 3 dias e domingo para o longo, sugiro
+     seg/qua/dom; confirma?");
+   - `CUE_LANG`, `FTP` (se não souber: sugerir o Ramp Test do Zwift e usar 200
+     até lá) e o objetivo — apresente o **menu de GOAL** (abaixo) com a
+     descrição de cada plano.
 4. **Primeiro plano** — se a conta for nova, avise que o **TSB está zerado**
    (sem histórico) e calibra em ~2 semanas; depois `info` → `build` →
-   `reconcile` → `push`; feche com resumo (agenda, objetivo, carga da semana,
-   treino de hoje e o reteste de FTP em ~8 semanas).
+   `reconcile` → `push`; feche com resumo (agenda, disponibilidade em horas,
+   objetivo, carga da semana, treino de hoje e o reteste de FTP em ~8 semanas).
 
 ## Menu de objetivos (GOAL)
 
@@ -136,6 +150,14 @@ python3 src/training_plan.py all                         # fluxo completo
   treino configurados (`TRAINING_DAYS`, padrao seg-sex) dos proximos 14 dias e
   aplica o orcamento de carga; salva em `plan.json`. Se um treino de hoje ja
   existe no plano anterior, ele e preservado ao regerar.
+- **Disponibilidade** — se `WEEKLY_HOURS` estiver no `.env`, o `build` escala a
+  duracao dos treinos (minimo 120s por esforco) para a semana caber nas horas
+  disponiveis, antes de aplicar o orcamento de TSS (que continua mandando). Se
+  `LONG_DAY` estiver definido, o treino longo/endurance do ciclo cai nesse dia
+  (ou no dia de treino mais proximo, se ele nao treinar no dia preferido). Ao
+  gerar um novo plano, confira com o usuario se a carga parece razoavel para a
+  rotina dele e ofereca ajustar `WEEKLY_HOURS` se a realidade difere do valor
+  gravado.
 - `reconcile` compara o plano com os treinos completos (evento de mesmo
   `external_id` com `paired_activity_id`). Treino perdido → recuperacao no
   proximo dia util e proximo Limiar -5%. **Treino extra fora do plano**

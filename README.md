@@ -62,6 +62,19 @@ hermes-coach/
    Ausente ou invalido -> seg-sex como padrao. Pode ser configurado no chat
    com o agente no primeiro uso.
 
+2a. (Opcional) **Disponibilidade semanal** — o agente pergunta no primeiro uso
+    e grava no `.env`:
+   ```
+   WEEKLY_HOURS=5   # horas disponiveis por semana; o build ajusta as duracoes
+   LONG_DAY=dom     # dia preferido para treinos longos (seg..dom ou mon..sun)
+   ```
+   Com `WEEKLY_HOURS`, o `build` escala a duração dos treinos (mínimo 120s por
+   esforço) para a semana caber nas horas disponíveis — o orçamento de TSS
+   continua mandando. Com `LONG_DAY`, o treino longo/endurance do ciclo cai no
+   dia preferido (ou no dia de treino mais próximo, se você não treinar no dia
+   preferido). Se você não tem tempo para treinos longos no fim de semana,
+   informe o melhor dia — o plano se adapta.
+
 3. Defina o **tipo de plano** (opcional):
    ```
    GOAL=back-to-fitness   # ou ftp-builder | gran-fondo | time-trial |
@@ -86,10 +99,12 @@ configuração no chat — confirma se você já tem conta no Intervals.icu (se 
 orienta criar conta gratuita e conectar suas plataformas via
 **Settings → Connections**; guia em `docs/SYNC-PLATAFORMAS.md`), coleta a
 API Key (**Settings → Developer Settings**, nunca compartilhe), pergunta sua
-agenda, FTP e objetivo (menu com os 7 tipos de plano e a descrição de cada) e
-gera o plano. Trocar o objetivo no meio do plano: basta pedir em linguagem
-natural (ex.: "quero treinar pra prova de dezembro") — o agente ajusta o plano
-(preservando o treino de hoje) e pede confirmação antes de publicar.
+**disponibilidade** (quantos dias e quantas horas por semana, e o melhor dia
+para treinos longos), agenda, FTP e objetivo (menu com os 7 tipos de plano e a
+descrição de cada) e gera o plano. Trocar o objetivo no meio do plano: basta
+pedir em linguagem natural (ex.: "quero treinar pra prova de dezembro") — o
+agente ajusta o plano (preservando o treino de hoje) e pede confirmação antes
+de publicar.
 
 ## Instalação do agente por sistema operacional
 

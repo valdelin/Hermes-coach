@@ -13,6 +13,25 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 (Ainda não há mudanças não publicadas.)
 
+## [0.0.11] - 2026-09-20
+
+### Adicionado
+
+- **Disponibilidade semanal do atleta** (antes de criar/regenerar o plano, o
+  agente pergunta): **quantos dias** por semana disponíveis, **quantas horas**
+  por semana (`WEEKLY_HOURS` no `.env`) e **melhor dia para treinos longos**
+  (`LONG_DAY` no `.env`). Se o atleta não tem tempo para treinos longos no fim
+  de semana, o agente aceita e adapta o plano para o melhor dia informado.
+  - `build` escala a duração dos treinos (mínimo 120s por esforço) para a semana
+    caber nas horas disponíveis — o orçamento de TSS continua mandando
+    (`plan.py::_volume_scale`/`_scale_duration`, fator 0.5x–1.5x);
+  - `build` rotaciona o ciclo semanal para o treino longo/endurance cair no dia
+    preferido (ou no dia de treino mais próximo, quando `LONG_DAY` não é dia de
+    treino — `plan.py::_place_long_day`);
+  - `parse_weekly_hours` (aceita `5`, `5.5`, `5h`, `300min`) e `parse_long_day`
+    (nomes em pt/en) com fallback seguro sem ajuste de volume/posição;
+  - 17 testes novos (122 no total).
+
 ## [0.0.10] - 2026-09-20
 
 ### Adicionado

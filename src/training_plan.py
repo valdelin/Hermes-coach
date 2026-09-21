@@ -13,8 +13,8 @@ from intervals_client import IntervalsClient
 from impulse_response import ImpulseResponseEngine, daily_tss_series
 from plan import (build_plan, event_payload, load_plan, load_plan_meta,
                   reconcile, save_plan, orphan_external_ids, parse_training_days,
-                  parse_goal, GOAL_LABELS, FOCUS_LABELS_PT, REST, DEFAULT_FTP,
-                  CUE_LANGS, GOALS)
+                  parse_goal, parse_weekly_hours, parse_long_day, GOAL_LABELS,
+                  FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -72,6 +72,28 @@ def get_race_date():
     except ValueError:
         print(f"aviso: RACE_DATE={raw!r} invalido; use YYYY-MM-DD")
         return None
+
+
+def get_weekly_hours():
+    """WEEKLY_HOURS do .env (horas disponiveis por semana) ou None. O build
+    escala a duracao dos treinos para caber nessas horas."""
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("WEEKLY_HOURS", "")
+    hours = parse_weekly_hours(value)
+    if value.strip() and hours is None:
+        print(f"aviso: WEEKLY_HOURS={value!r} invalido; sem ajuste de volume")
+    return hours
+
+
+def get_long_day():
+    """LONG_DAY do .env (dia preferido para treinos longos, ex. 'dom'/'sun')
+    ou None."""
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("LONG_DAY", "")
+    day = parse_long_day(value)
+    if value.strip() and day is None:
+        print(f"aviso: LONG_DAY={value!r} invalido; dias: seg..dom / mon..sun")
+    return day
 
 
 def get_ftp_test_date():
@@ -224,6 +246,8 @@ def cmd_build(args):
     ftp = get_ftp()
     goal = get_goal()
     race_date = get_race_date()
+    weekly_hours = get_weekly_hours()
+    long_day = get_long_day()
     if args.ftp_test:
         # --ftp-test YYYY-MM-DD: agenda o teste (valida futuro) e salva no .env
         try:
@@ -253,10 +277,20 @@ def cmd_build(args):
         existing = None
     plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
                       existing=existing, training_days=get_training_days(),
-                      goal=goal, race_date=race_date, ftp_test_date=ftp_test_date)
+                      goal=goal, race_date=race_date, ftp_test_date=ftp_test_date,
+                      weekly_hours=weekly_hours, long_day=long_day)
     save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date,
               ftp_test_date=ftp_test_date)
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
+    avail = []
+    if weekly_hours:
+        avail.append(f"{weekly_hours:g}h/semana")
+    if long_day is not None:
+        day_names = {0: "seg", 1: "ter", 2: "qua", 3: "qui", 4: "sex",
+                     5: "sab", 6: "dom"}
+        avail.append(f"treino longo: {day_names[long_day]}")
+    if avail:
+        print("Disponibilidade: " + " | ".join(avail))
     plano_label = GOAL_LABELS.get(goal, goal or "TSB (padrao)")
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
     test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""

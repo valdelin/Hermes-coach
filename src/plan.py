@@ -39,6 +39,36 @@ def parse_training_days(value):
     return tuple(sorted(set(days))) or DEFAULT_TRAINING_DAYS
 
 
+def parse_weekly_hours(value):
+    """Converte WEEKLY_HOURS do .env em float (horas disponiveis por semana) ou
+    None se ausente/invalido. Aceita '5', '5.5', '5h' ou '300min'."""
+    if not value:
+        return None
+    raw = str(value).strip().lower().replace(" ", "")
+    if raw.endswith("h"):
+        raw = raw[:-1]
+    elif raw.endswith("min"):
+        try:
+            return round(float(raw[:-3]) / 60.0, 1)
+        except ValueError:
+            return None
+    try:
+        hours = float(raw)
+    except ValueError:
+        return None
+    if hours <= 0 or hours > 24 * 7:
+        return None
+    return hours
+
+
+def parse_long_day(value):
+    """Converte LONG_DAY do .env (dia preferido para treinos longos, ex. 'sun'
+    ou 'dom') em weekday (date.weekday()) ou None se ausente/invalido."""
+    if not value:
+        return None
+    return DAY_NAMES.get(str(value).strip().lower())
+
+
 @dataclasses.dataclass(frozen=True)
 class PlannedWorkout:
     day: str
@@ -66,6 +96,79 @@ def _block(repeats, on_sec, off_sec, on_power):
         "on_power": on_power, "off_power": 0.55, "cadence": 90,
         "cadence_rest": 85 if off_sec else 90,
     }
+
+
+# Disponibilidade semanal (perguntada no 1o uso e salva no .env):
+# - WEEKLY_HOURS: horas por semana disponiveis para treinar; o build escala a
+#   duracao dos treinos (on_sec) para caber nas horas, respeitando TSS budget.
+# - LONG_DAY: dia preferido para o treino longo (endurance/maior volume); o
+#   build rotaciona o ciclo semanal para esse treino cair no dia escolhido.
+VOLUME_SCALE_MIN = 0.5
+VOLUME_SCALE_MAX = 1.5
+
+
+def _workout_duration(block):
+    """Duracao total (s) de um bloco com warmup/cooldown padroes (600s cada)."""
+    return 600 + block["repeats"] * (block["on_sec"] + block["off_sec"]) + 600
+
+
+def _long_focus(weekly):
+    """Foco 'longo' do ciclo semanal: endurance quando presente; senao o foco
+    com maior duracao default (templates())."""
+    if ENDURANCE in weekly:
+        return ENDURANCE
+    best, best_dur = None, -1
+    for focus in weekly:
+        dur = _workout_duration(templates()[focus])
+        if dur > best_dur:
+            best, best_dur = focus, dur
+    return best
+
+
+def _closest_training_day(long_day, slots):
+    """Dia de treino mais proximo de long_day (distancia circular)."""
+    return min(slots, key=lambda wd: (wd - long_day) % 7)
+
+
+def _place_long_day(weekly, long_day, slots):
+    """Rotaciona o ciclo semanal para que o treino longo (endurance ou o foco
+    de maior volume) caia no slot do dia preferido (LONG_DAY). Se LONG_DAY nao
+    for dia de treino, usa o dia de treino mais proximo."""
+    if long_day is None or not slots or len(weekly) < 2:
+        return weekly
+    target = long_day if long_day in slots else _closest_training_day(long_day, slots)
+    target_pos = slots.index(target)
+    focus = _long_focus(weekly)
+    if focus is None:
+        return weekly
+    cur_pos = weekly.index(focus) % len(weekly)
+    shift = (cur_pos - target_pos) % len(weekly)
+    if shift == 0:
+        return weekly
+    return weekly[shift:] + weekly[:shift]
+
+
+def _volume_scale(weekly, weekly_hours, slots):
+    """Fator aplicado a on_sec dos treinos para a semana caber nas horas
+    disponiveis (WEEKLY_HOURS). Baseline = duracao da semana com os templates
+    default sobre os slots configurados. Retorna None (sem ajuste) quando
+    WEEKLY_HOURS ausente/invalido."""
+    if not weekly_hours or weekly_hours <= 0 or not slots:
+        return None
+    baseline = sum(_workout_duration(templates()[weekly[p % len(weekly)]])
+                   for p in range(len(slots)))
+    if baseline <= 0:
+        return None
+    scale = (weekly_hours * 3600) / baseline
+    return round(max(VOLUME_SCALE_MIN, min(VOLUME_SCALE_MAX, scale)), 3)
+
+
+def _scale_duration(params, scale):
+    """Aplica o fator de volume a on_sec (minimo 120s), mantendo o resto."""
+    if scale is None or abs(scale - 1.0) < 1e-9:
+        return params
+    return WorkoutParams(**{**params.__dict__,
+                            "on_sec": max(120, int(params.on_sec * scale))})
 
 
 # Indice = posicao do dia dentro da agenda de treino (build_plan). O template
@@ -256,7 +359,7 @@ def weekly_budget(avg):
 
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
-               ftp_test_date=None):
+               ftp_test_date=None, weekly_hours=None, long_day=None):
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -273,6 +376,8 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          ftp_test_date=ftp_test_date)
     weekly = weekly_template(tsb, goal)
     slots = sorted(training_days)
+    weekly = _place_long_day(weekly, long_day, slots)
+    volume_scale = _volume_scale(weekly, weekly_hours, slots)
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
     avg = avg_load(events)
     cap = max(1, int(daily_tss_cap(avg) * scale))
@@ -290,6 +395,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
             day_name = f"{day.isoformat()} - Taper (pre-prova)"
         else:
             params = WorkoutParams(focus=focus, **_block_for(focus, i, goal))
+            params = _scale_duration(params, volume_scale)
             day_name = workout_name(day.isoformat(), focus)
         tss = estimate_tss(params, ftp)
         if tss > cap:

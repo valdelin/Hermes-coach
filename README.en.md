@@ -60,15 +60,29 @@ hermes-coach/
    Missing or invalid -> Monday-Friday by default. It can also be configured
    by chatting with the agent on first use.
 
+2a. (Optional) **Weekly availability** — the agent asks on first use and stores
+    in `.env`:
+   ```
+   WEEKLY_HOURS=5   # available hours per week; build adjusts workout durations
+   LONG_DAY=dom     # preferred day for long rides (seg..dom or mon..sun)
+   ```
+   With `WEEKLY_HOURS`, `build` scales workout durations (min 120s per effort)
+   so the week fits your available hours — the TSS budget still applies. With
+   `LONG_DAY`, the week's long/endurance ride lands on your preferred day (or on
+   the closest training day if you don't train on the preferred day). No time
+   for long rides on weekends? Tell the agent your best day and the plan adapts.
+
 **First use (onboarding):** when building the first plan, the agent runs the
 setup through the chat — it checks whether you already have an Intervals.icu
 account (if not, it guides you through the free signup and connecting your
 platforms via **Settings → Connections**; guide in `docs/SYNC-PLATAFORMAS.md`),
 collects your API key (**Settings → Developer Settings**, never share it), asks
-your schedule, FTP and goal (menu with all 7 plan types and a description of
-each), then generates the plan. Changing the goal mid-plan: just ask in natural
-language (e.g. "I want to train for the December race") — the agent adjusts the
-plan (keeping today's workout) and asks for confirmation before publishing.
+your **availability** (how many days and hours per week, plus your best day for
+long rides), schedule, FTP and goal (menu with all 7 plan types and a
+description of each), then generates the plan. Changing the goal mid-plan: just
+ask in natural language (e.g. "I want to train for the December race") — the
+agent adjusts the plan (keeping today's workout) and asks for confirmation
+before publishing.
 
 ## Agent installation by operating system
 

@@ -1,7 +1,7 @@
 ---
 name: cycling-coach
 description: "Gera/monitora o treino de ciclismo do dia e o plano semanal nos dias de treino configurados (padrao seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal, reage a treinos extras nao-planejados, notifica falhas do fluxo diario e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
-version: 2.6.0
+version: 2.7.0
 author: Hermes Agent -> opencode
 license: MIT
 platforms: [linux]
@@ -48,10 +48,15 @@ delega — a interação acontece no turno do opencode). A ordem é:
 2. **Credenciais** — coleta **Athlete ID** e **API Key** (Settings →
    Developer Settings), configura o `.env` e valida a conexão. A API Key é
    secreta: nunca exibir/commitar.
-3. **Perfil** — pergunta `TRAINING_DAYS`, `CUE_LANG`, `FTP` (se não souber:
-   Ramp Test do Zwift, padrão 200) e o **objetivo**, apresentando o menu com os
-   7 planos de treino e a descrição de cada (`back-to-fitness`, `ftp-builder`,
-   `gran-fondo`, `time-trial`, `climbing`, `active-off-season`, `race`).
+3. **Perfil e disponibilidade** — pergunta **sempre** antes de montar o plano:
+   **quantos dias** da semana disponíveis, **quantas horas** por semana
+   (`WEEKLY_HOURS`) e **qual o melhor dia para treinos longos** (`LONG_DAY`).
+   Se o atleta disser "não tenho tempo no fim de semana", tudo bem — o treino
+   longo vai para o dia mais próximo dentro da agenda dele. Confirma os dias
+   específicos (`TRAINING_DAYS`), `CUE_LANG`, `FTP` (se não souber: Ramp Test do
+   Zwift, padrão 200) e o **objetivo**, apresentando o menu com os 7 planos e a
+   descrição de cada (`back-to-fitness`, `ftp-builder`, `gran-fondo`,
+   `time-trial`, `climbing`, `active-off-season`, `race`).
 4. **Plano** — conta nova: avisar que o TSB zerado calibra em ~2 semanas; depois
    `info` → `build` → `reconcile` → `push` e resumo.
 
@@ -66,6 +71,11 @@ confirmação antes do `push`. Trocar para objetivo não-`race` remove `RACE_DAT
   domingos (ou dias fora da agenda) sao descanso, exceto por pedido explicito.
 - Carga semanal respeitada via orcamento rolante de 7 dias (TSS): se estourar,
   reduz o `on_sec`/`on_power` do dia e a folga passa aos dias subsequentes.
+- **Disponibilidade:** com `WEEKLY_HOURS` no `.env`, o `build` escala a duracao
+  dos treinos (minimo 120s por esforco) para a semana caber nas horas
+  disponiveis — o orcamento de TSS continua mandando. Com `LONG_DAY`, o treino
+  longo/endurance do ciclo cai no dia preferido (ou no dia de treino mais
+  proximo, se ele nao treinar no dia preferido).
 - Treino de hoje a tarde, quando solicitado: gera respeitando o ciclo do dia e a
   carga da semana, adiciona ao `plan.json` e publica com `push --start <hoje>`.
 - Nome do evento no Intervals: `YYYY-MM-DD - Treino de <Foco>`.
