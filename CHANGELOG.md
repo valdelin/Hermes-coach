@@ -11,7 +11,14 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
-(Ainda não há mudanças não publicadas.)
+### Corrigido
+
+- **`test_reconcile_mix_realista_eventos` dependente do dia da semana**: o
+  fixture usava `missed=past[1]` + `anchor=today-2`, então os destinos das duas
+  recuperações coincidiam (e o reconcile deduplicava "recuperação já
+  programada") em seg/ter/qua/dom — o teste só passava em qui/sex/sáb. Novo
+  fixture é determinístico (`start=today-6`, perdido = treino passado mais
+  antigo, extra ancorado em `today-2`), validado para os 7 dias da semana.
 
 ## [0.0.11] - 2026-09-20
 

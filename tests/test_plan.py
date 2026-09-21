@@ -192,12 +192,19 @@ class ReconcileTest(unittest.TestCase):
         extra pesado na janela de 7d (carga >= cap) e extra leve. Recuperacao
         para o perdido + para o extra pesado; o plano nao muda de tamanho."""
         today = date.today()
-        start = today - timedelta(days=3)
+        # Fixture PICADA de forma deterministic (independe do dia da semana):
+        # - start=today-6 garante >= 2 dias de treino passados em qualquer dia;
+        # - perdido = past[0] (o mais antigo) => a recuperacao dele cai no
+        #   proximo dia de treino, mais cedo;
+        # - extra pesado ancorado em today-2 => a recuperacao do extra cai num
+        #   dia DIFERENTE (senao o reconcile deduplica 'recuperacao ja
+        #   programada' e o cenario so passava em qui/sex/sab).
+        start = today - timedelta(days=6)
         plan = build_plan([], 0, ftp=182, days=12, start=start)
         past = [w for w in plan if w["day"] < today.isoformat()]
         self.assertGreaterEqual(len(past), 2,
                                 "fixture precisa de pelo menos 2 dias passados")
-        missed_one = past[1]  # apenas 1 perdido
+        missed_one = past[0]  # apenas 1 perdido
         done = [w for w in past if w["day"] != missed_one["day"]]
         events = [{"external_id": w["external_id"], "paired_activity_id": "555",
                    "start_date_local": f"{w['day']}T10:00:00",
