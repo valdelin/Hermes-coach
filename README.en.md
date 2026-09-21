@@ -49,7 +49,8 @@ hermes-coach/
    # fill in INTERVALS_ATHLETE_ID, INTERVALS_API_KEY, FTP
    # optional: CUE_LANG=pt (default) or en — workout message language
    ```
-   (The Intervals.icu API uses HTTP Basic Auth with user = password = API_KEY.)
+   (The Intervals.icu API uses HTTP Basic Auth: fixed username `API_KEY`,
+   password = your API key.)
 
 2. Define your training schedule in `.env` (optional):
    ```
@@ -58,6 +59,16 @@ hermes-coach/
    Accepts Portuguese (`seg,ter,...`) or English (`mon,tue,...`) day names.
    Missing or invalid -> Monday-Friday by default. It can also be configured
    by chatting with the agent on first use.
+
+**First use (onboarding):** when building the first plan, the agent runs the
+setup through the chat — it checks whether you already have an Intervals.icu
+account (if not, it guides you through the free signup and connecting your
+platforms via **Settings → Connections**; guide in `docs/SYNC-PLATAFORMAS.md`),
+collects your API key (**Settings → Developer Settings**, never share it), asks
+your schedule, FTP and goal (menu with all 7 plan types and a description of
+each), then generates the plan. Changing the goal mid-plan: just ask in natural
+language (e.g. "I want to train for the December race") — the agent adjusts the
+plan (keeping today's workout) and asks for confirmation before publishing.
 
 ## Agent installation by operating system
 

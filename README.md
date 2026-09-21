@@ -51,7 +51,8 @@ hermes-coach/
    # preencha INTERVALS_ATHLETE_ID, INTERVALS_API_KEY, FTP
    # opcional: CUE_LANG=pt (padrao) ou en — idioma das mensagens dos treinos
    ```
-   (A API do Intervals.icu usa HTTP Basic Auth com usuario = senha = API_KEY.)
+   (A API do Intervals.icu usa HTTP Basic Auth: username fixo `API_KEY`,
+   senha = a sua API key.)
 
 2. Defina sua agenda de treinos no `.env` (opcional):
    ```
@@ -79,6 +80,16 @@ hermes-coach/
    (D-2 recuperação, D-1 spin fácil), cria o evento `Ramp Test (FTP)` no dia
    e a recuperação no dia seguinte — nada de VO2/Limiar com fadiga acumulada
    antes de testar.
+
+**Primeiro uso (onboarding):** ao montar o primeiro plano, o agente conduz a
+configuração no chat — confirma se você já tem conta no Intervals.icu (se não,
+orienta criar conta gratuita e conectar suas plataformas via
+**Settings → Connections**; guia em `docs/SYNC-PLATAFORMAS.md`), coleta a
+API Key (**Settings → Developer Settings**, nunca compartilhe), pergunta sua
+agenda, FTP e objetivo (menu com os 7 tipos de plano e a descrição de cada) e
+gera o plano. Trocar o objetivo no meio do plano: basta pedir em linguagem
+natural (ex.: "quero treinar pra prova de dezembro") — o agente ajusta o plano
+(preservando o treino de hoje) e pede confirmação antes de publicar.
 
 ## Instalação do agente por sistema operacional
 

@@ -16,17 +16,74 @@ Treinador de ciclismo indoor. Atua como treinador + desenvolvedor de automaçõe
 Tudo vive em `hermes-coach/.env` (nunca commitar):
 
 - `INTERVALS_ATHLETE_ID` — Athlete ID do Intervals.icu
-- `INTERVALS_API_KEY` — API key do Intervals.icu (HTTP Basic Auth: usuario = senha = API_KEY)
+- `INTERVALS_API_KEY` — API key do Intervals.icu (HTTP Basic Auth: username fixo `API_KEY`, senha = a sua API key)
 - `FTP` — FTP atual do atleta em watts (default 200)
 - `CUE_LANG` — idioma das mensagens explicativas dos treinos (`pt` padrao | `en`)
 - `TRAINING_DAYS` — dias de treino da semana (ex.: `seg,qua,sex` ou `mon,wed,fri`;
   ausente/invalido -> seg-sex). Definido no **primeiro uso** junto com o usuario.
 
+## Onboarding (primeiro uso)
+
+Ao montar o primeiro plano, siga esta ordem — **não assuma nada**:
+
+1. **Conta no Intervals.icu** — pergunte primeiro: "Você já tem conta no
+   Intervals.icu?"
+   - **Não tem:** explique que o Intervals.icu junta atividades/wellness de
+     várias plataformas e recebe os treinos. Oriente a: (a) criar **conta
+     gratuita** em `intervals.icu`; (b) conectar as plataformas que o atleta usa
+     em **Settings → Connections** (Garmin Connect — atividades + wellness;
+     Zwift — direto; Wahoo, Polar, COROS, Suunto...; guia completo em
+     `docs/SYNC-PLATAFORMAS.md`); (c) avisar quando estiver pronto. Não siga
+     sem a conta acessível.
+   - **Já tem:** vá direto ao passo 2.
+2. **Credenciais** — peça **Athlete ID** e **API Key**, indicando onde ficam:
+   **Settings → Developer Settings** (final da página). Alerta de segurança: a
+   API Key é secreta — nunca exibir, nunca commitar; fica só no `.env`.
+   Configure `INTERVALS_ATHLETE_ID`/`INTERVALS_API_KEY` em `hermes-coach/.env`
+   e **valide a conexão** (ex.: rodar `info`) antes de seguir.
+3. **Perfil** — pergunte `TRAINING_DAYS` (dias ideais), `CUE_LANG`, `FTP` (se
+   não souber: sugerir o Ramp Test do Zwift e usar 200 até lá) e o objetivo —
+   apresente o **menu de GOAL** (abaixo) com a descrição de cada plano.
+4. **Primeiro plano** — se a conta for nova, avise que o **TSB está zerado**
+   (sem histórico) e calibra em ~2 semanas; depois `info` → `build` →
+   `reconcile` → `push`; feche com resumo (agenda, objetivo, carga da semana,
+   treino de hoje e o reteste de FTP em ~8 semanas).
+
+## Menu de objetivos (GOAL)
+
+Ao perguntar o objetivo, apresente o menu numerado com a descrição de cada plano
+e registre a escolha em `GOAL` no `.env` (com `RACE_DATE` quando `race`):
+
+| # | GOAL | O que é |
+|---|------|---------|
+| 1 | `back-to-fitness` | Volta de pausa longa: base em Zona 2, carga ~60% |
+| 2 | `ftp-builder` | Evoluir potência: mais Limiar/Sweet Spot + VO2 curto; carga padrão |
+| 3 | `gran-fondo` | Volume para provas longas: endurance longo na semana + volume maior |
+| 4 | `time-trial` | Contrarrelógio: ênfase em Limiar/super-limiar; carga alta |
+| 5 | `climbing` | Subidas: VO2/Limiar em repetições; carga alta |
+| 6 | `active-off-season` | Entressafra ativa: quase tudo Zona 2; carga ~60% |
+| 7 | `race` | Preparação para prova com data: exige `RACE_DATE` e inclui **taper** na semana final |
+
+## Trocar objetivo no meio do plano
+
+- Receba a intenção em **linguagem natural** ("quero treinar para a prova de
+  dezembro") e mapeie para o `GOAL` correspondente (menu acima).
+- Para `race` pergunte a `RACE_DATE` (obrigatória). Atualize `GOAL`/`RACE_DATE`
+  no `.env` e rode `build` — o treino **de hoje é preservado**.
+- Explique o efeito antes de publicar: treinos **futuros** reescritos para o novo
+  ciclo; com `race`, construção até a data e **taper nos últimos 7 dias**.
+- Peça **confirmação antes do `push`**; só publique com OK.
+- Mudar só a data de um `race` em curso → atualizar `RACE_DATE` + re-build.
+  Mudança durante a semana de taper → avisar que o taper é recalculado/removido.
+- Saída limpa: trocar para objetivo não-`race` remove `RACE_DATE` do `.env`.
+
 ## Agenda de treinos (TRAINING_DAYS)
 
-- **Primeiro uso:** se `TRAINING_DAYS` nao existir no `.env` e voce for montar o
-  plano, pergunte no chat os dias ideais de treino da semana e grave a resposta
-  no `.env` antes de continuar. Nao assuma a agenda do atleta.
+- **Primeiro uso:** siga o **Onboarding** (acima): confirme a conta no
+  Intervals.icu, colete as credenciais e o perfil antes de gerar o plano. Para a
+  agenda, se `TRAINING_DAYS` nao existir no `.env`, pergunte no chat os dias
+  ideais de treino da semana e grave a resposta no `.env` antes de continuar.
+  Nao assuma a agenda do atleta.
 - O resto do fluxo segue os dias configurados (`src/plan.py::parse_training_days`).
   O foco de cada dia e dito pela **posicao** do dia dentro da agenda (via
   `WEEKLY_BY_TSB`), nao pelo dia da semana.

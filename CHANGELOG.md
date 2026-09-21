@@ -11,6 +11,10 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+(Ainda não há mudanças não publicadas.)
+
+## [0.0.10] - 2026-09-20
+
 ### Adicionado
 
 - **Wellness implementado** (issue
@@ -20,6 +24,28 @@ própria — foram agrupadas na tag/release v0.0.7.
   (`wellness_summary`/`format_wellness`). **Decisão HRV (FR935)**: sem HRV
   Status overnight (requer Elevate Gen 3+); monitorar via Oura/WHOOP ou novo
   relógio fica no backlog. 5 testes novos (105 no total).
+- **Onboarding (primeiro uso)** no agente `cycling-coach`: ao montar o primeiro
+  plano, o agente conduz a configuração no chat — pergunta se o atleta **já tem
+  conta no Intervals.icu** (se não, orienta criar conta gratuita e conectar as
+  plataformas via **Settings → Connections**; guia em
+  `docs/SYNC-PLATAFORMAS.md`), coleta **Athlete ID + API Key** (Settings →
+  Developer Settings, com alerta de segurança), pergunta `TRAINING_DAYS`,
+  `CUE_LANG`, `FTP` e o objetivo, e só então gera o plano (conta nova: TSB
+  zerado calibra em ~2 semanas).
+- **Menu de objetivos (GOAL)** no agente: ao pedir o objetivo, apresenta os 7
+  planos com a descrição de cada (`back-to-fitness`, `ftp-builder`,
+  `gran-fondo`, `time-trial`, `climbing`, `active-off-season`, `race`).
+- **Trocar objetivo no meio do plano**: o agente recebe a intenção em linguagem
+  natural, mapeia para o `GOAL` (perguntando `RACE_DATE` quando `race`), atualiza
+  o `.env`, roda `build` **preservando o treino de hoje**, explica o que muda e
+  pede confirmação antes do `push`; trocar para objetivo não-`race` remove
+  `RACE_DATE` do `.env`.
+- **Correção Basic Auth** na documentação: o Intervals.icu usa HTTP Basic Auth
+  com **username fixo `API_KEY` e senha = a sua API key** (antes constava
+  "usuario = senha = API_KEY", impreciso).
+- `SKILL.md` do cycling-coach passa a descrever o onboarding e a troca de
+  objetivo no meio do plano (versão 2.5.0 → 2.6.0); `README.md`/`README.en.md`
+  ganham a seção **Primeiro uso (onboarding)**.
 
 ## [0.0.9] - 2026-09-19
 

@@ -1,7 +1,7 @@
 ---
 name: cycling-coach
 description: "Gera/monitora o treino de ciclismo do dia e o plano semanal nos dias de treino configurados (padrao seg-sex) no Intervals.icu — consulta TSB, respeita a carga semanal, reage a treinos extras nao-planejados, notifica falhas do fluxo diario e publica no calendario (o .zwo e baixado no app). Delega ao agente opencode 'cycling-coach'."
-version: 2.5.0
+version: 2.6.0
 author: Hermes Agent -> opencode
 license: MIT
 platforms: [linux]
@@ -31,9 +31,34 @@ curtos e a consulta/geracao de treinos nao consome credito de modelo.
 - Padrao: **segunda a sexta**. Para outra agenda, configure `TRAINING_DAYS` no
   `.env` com a lista de dias (nomes em pt `seg,ter,...` ou en `mon,tue,...`).
   Ausente/invalido -> seg-sex. O foco de cada dia acompanha a posicao na agenda.
-- **Primeiro uso:** se o agente for gerar o plano e o `.env` nao tiver
-  `TRAINING_DAYS`, ele pergunta no chat os dias ideais de treino da semana e
-  grava a resposta no `.env` antes de continuar. Nao assuma a agenda do atleta.
+- **Primeiro uso:** o agente conduz o onboarding no chat (veja a seção
+  "Onboarding (primeiro uso)" abaixo). Para a agenda: se `TRAINING_DAYS` nao
+  existir no `.env`, ele pergunta os dias ideais de treino da semana e grava a
+  resposta no `.env` antes de continuar. Nao assuma a agenda do atleta.
+
+## Onboarding (primeiro uso)
+
+Ao montar o primeiro plano, o agente conduz o onboarding no chat (o Hermes apenas
+delega — a interação acontece no turno do opencode). A ordem é:
+
+1. **Conta no Intervals.icu** — pergunta "você já tem conta?". Se **não**,
+   orienta criar conta gratuita em `intervals.icu` e conectar as plataformas do
+   atleta via **Settings → Connections** (Garmin, Zwift, Wahoo, Polar, COROS...;
+   guia: `docs/SYNC-PLATAFORMAS.md`). Se sim, vai direto às credenciais.
+2. **Credenciais** — coleta **Athlete ID** e **API Key** (Settings →
+   Developer Settings), configura o `.env` e valida a conexão. A API Key é
+   secreta: nunca exibir/commitar.
+3. **Perfil** — pergunta `TRAINING_DAYS`, `CUE_LANG`, `FTP` (se não souber:
+   Ramp Test do Zwift, padrão 200) e o **objetivo**, apresentando o menu com os
+   7 planos de treino e a descrição de cada (`back-to-fitness`, `ftp-builder`,
+   `gran-fondo`, `time-trial`, `climbing`, `active-off-season`, `race`).
+4. **Plano** — conta nova: avisar que o TSB zerado calibra em ~2 semanas; depois
+   `info` → `build` → `reconcile` → `push` e resumo.
+
+**Troca de objetivo no meio do plano:** o agente recebe a intenção em linguagem
+natural, mapeia para o `GOAL` (perguntando `RACE_DATE` quando `race`), atualiza o
+`.env`, roda `build` (preserva o treino de hoje), explica **o que muda** e pede
+confirmação antes do `push`. Trocar para objetivo não-`race` remove `RACE_DATE`.
 
 ## Regras de agendamento (passadas ao agente)
 
