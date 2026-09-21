@@ -27,6 +27,20 @@ própria — foram agrupadas na tag/release v0.0.7.
   `eFTP` do Intervals via API**; local best-20min × 0,95 como verificação;
   janela 3–20 min; **limpeza de outliers** do stream como gate/teste; fluxo
   "propor + confirmar" validado como padrão de mercado.
+- **Investigação da API do Intervals (piloto #6)**: endpoints de atividade
+  ficam **fora de `/athlete/{id}`** — `GET /api/v1/activity/{id}/...`; o
+  **eFTP não está no perfil** (só `eFTPSupported`/`ftp_est_min_secs`), mas o
+  detalhe da atividade expõe **`icu_pm_ftp`/`icu_rolling_ftp`** (estimado
+  calculado pela plataforma) e `GET .../activity/{id}/streams` devolve a série
+  em **`type == "watts"`** (dt=1s inferível pelo stream `time`).
+- **`src/ftp_estimation.py`** (mecânica pura #6, determinística): `best_effort`
+  (melhor média móvel, padrão 20 min), `clean_power` (clipe de spikes
+  > 2,5× mediana, suporta anomalias da plataforma — só subestima) e
+  `analyze_ride` → `proposed_ftp = round(best20 × 0,95)` com gates
+  **CV ≤ 15%**, **min ≥ 80% da média** (anti-apagão) e **diff do atual em
+  +3%..+30%** (só propõe para cima; >+30% = anomalia). 16 testes sintéticos
+  (suite: **138 passed**); validado com dados reais (treinos agendados
+  reprovam/sem novidade, como esperado).
 
 ### Atualizado
 

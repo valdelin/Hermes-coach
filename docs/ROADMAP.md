@@ -88,13 +88,21 @@ Revisão dos itens em aberto (sessão de 21/09, com o #6 novo):
   não do agente — saiu do início da sessão de testes 22/09),
   #2 notificações (Fase 1), #3 treinos sem potência (Fase 2),
   #6 **FTP sugerido de treinos não agendados** (Fase 2 — issue registrada
-  21/09; complementa o `ftp-check` da #5), #7 casca Runna (Fase 3 — onboarding
-  por objetivo já existe no agente, v0.0.10–0.0.11), #8 multi-atleta (Fase 4 —
+  21/09; complementa o `ftp-check` da #5. **Piloto de implementação em 21/09**:
+  investigada a API real — o eFTP não está no perfil, a fonte primária é o
+  `icu_pm_ftp` do detalhe da atividade e o stream de potência vem em
+  `/streams` (`type == "watts"`); **mecânica pura pronta** em
+  `src/ftp_estimation.py` (best-20min × 0,95, gates CV≤15%/min≥80%/diff
+  +3%..+30%, clipe de spikes) com 16 testes (suite 138 OK). Faltam: client
+  streams/filtro de candidatos, CLI `ftp-scan`, `plan.json` e #2), #7 casca
+  Runna (Fase 3 — onboarding por objetivo já existe no agente,
+  v0.0.10–0.0.11), #8 multi-atleta (Fase 4 —
   aguarda ROTEIRO-TREINADOR).
 - **Fechados:** #4 wellness ✅, #5 tipos de plano ✅ (resta validar a prescrição
   com treinador).
 - **Renumeração (21/09):** a coluna `#` acompanha os números das issues do
   GitHub — FTP é **#6**; a casca Runna (antes #6) é **#7** e multi-atleta
   (antes #7) é **#8**.
-- Suíte: **122 testes OK** (v0.0.13, fixtures de reconcile determinísticas).
+- Suíte: **138 testes OK** (v0.0.13 + 16 novos de `ftp_estimation`,
+  fixtures de reconcile determinísticas).
 - Roteiro de validação: **`docs/ROTEIRO-TESTES.md`** (execução em 22/09).
