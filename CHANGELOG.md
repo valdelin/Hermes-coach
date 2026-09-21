@@ -11,7 +11,21 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
-(Ainda não há mudanças não publicadas.)
+### Adicionado
+
+- **Issue [#6](https://github.com/valdelin/Hermes-coach/issues/6)** — TODO
+  registrado: **FTP sugerido a partir de treinos não agendados** (prova/treino
+  livre). Desenho na issue: detectar o pedido "extra" no `reconcile`, estimar
+  o FTP via melhor média móvel de 20 min do stream de potência (`0.95 ×
+  best20`) com gates de qualidade/contexto, e propor (nunca auto-aplicar) a
+  atualização de `.env FTP` + `indoor_ftp` no Intervals com confirmação do
+  atleta. Backlog (Fase 2) e ROADMAP atualizados.
+
+### Atualizado
+
+- **`docs/ROADMAP.md`** sincronizado: novo item #6 no backlog (FTP sugerido);
+  **renumeração** — a casca Runna virou **#7** e multi-atleta **#8**, para a
+  coluna `#` acompanhar os números reais das issues do GitHub.
 
 ## [0.0.14] - 2026-09-21
 

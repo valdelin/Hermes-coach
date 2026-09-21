@@ -17,8 +17,9 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
 | 4 | feature | ~~Ativar sync de wellness~~ **implementado e issue fechada** (RHR/sono no `info`; HRV sem suporte no FR935) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 ✅ |
 | 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado e issue fechada** (v0.0.9) — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
-| 6 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
-| 7 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
+| 6 | feature | **FTP sugerido a partir de treinos não agendados** (prova/treino livre): estimar novo FTP do stream de potência (best-20min × 0,95) com gates de qualidade/contexto e confirmação do atleta | [#6](https://github.com/valdelin/Hermes-coach/issues/6) | 2 |
+| 7 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
+| 8 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
 
 ## Fases
 
@@ -40,7 +41,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   config `NOTIFY_CHANNEL`/token/chat id no `.env`.
 - Regra: envio **assíncrono e não-bloqueante** (não derruba o timer diário).
 
-### Fase 2 — Dados incompletos (issue #3) + tipos de plano (#5)
+### Fase 2 — Dados incompletos (issue #3) + tipos de plano (#5) + FTP sugerido (#6)
 - Detectar ausência de potência; configurar `FTHR` no `.env`;
   `hrTSS = seg × IF_hr² × 100 / 3600`; prescrever %FTHR (ou RPE) em dias
   outdoor; sinalizar "sem potência — carga por FC" no resumo.
@@ -80,14 +81,19 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 
 ## Status atual (2026-09-21)
 
-Revisão dos itens em aberto (sessão de 21/09):
+Revisão dos itens em aberto (sessão de 21/09, com o #6 novo):
 
-- **Abertos (5):** #1 fantasmas (Fase 0 — bug, especificado em
+- **Abertos (6):** #1 fantasmas (Fase 0 — bug, especificado em
   `docs/KNOWN_ISSUES.md`; **próximo a atacar**, sessão de testes 22/09),
   #2 notificações (Fase 1), #3 treinos sem potência (Fase 2),
-  #6 casca Runna (Fase 3 — onboarding por objetivo já existe no agente,
-  v0.0.10–0.0.11), #7 multi-atleta (Fase 4 — aguarda ROTEIRO-TREINADOR).
+  #6 **FTP sugerido de treinos não agendados** (Fase 2 — issue registrada
+  21/09; complementa o `ftp-check` da #5), #7 casca Runna (Fase 3 — onboarding
+  por objetivo já existe no agente, v0.0.10–0.0.11), #8 multi-atleta (Fase 4 —
+  aguarda ROTEIRO-TREINADOR).
 - **Fechados:** #4 wellness ✅, #5 tipos de plano ✅ (resta validar a prescrição
   com treinador).
+- **Renumeração (21/09):** a coluna `#` acompanha os números das issues do
+  GitHub — FTP é **#6**; a casca Runna (antes #6) é **#7** e multi-atleta
+  (antes #7) é **#8**.
 - Suíte: **122 testes OK** (v0.0.13, fixtures de reconcile determinísticas).
 - Roteiro de validação: **`docs/ROTEIRO-TESTES.md`** (execução em 22/09).

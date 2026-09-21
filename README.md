@@ -321,6 +321,12 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   `RACE_DATE` + tapper pre-prova). Próximos passos em aberto: validar a
   prescrição por tipo com treinador (ROTEIRO-TREINADOR) e usar o catálogo na
   tela de seleção do onboarding (Fase 3, ADR-003 "Runna do ciclismo indoor").
+- **FTP sugerido de treinos não agendados** (issue [#6](https://github.com/valdelin/Hermes-coach/issues/6)):
+  quando o atleta faz uma prova ou treino livre com potência, estimar um novo
+  FTP do **stream de potência** (melhor média móvel de 20 min × 0,95), com
+  gates de qualidade do esforço e de contexto (fatiga, dias protegidos) e
+  **confirmação do atleta** antes de atualizar `.env FTP` + `indoor_ftp` no
+  Intervals. Complementa o `ftp-check` da #5 ("teste grátis de FTP").
 
 ## Notas / limitacoes do scaffold
 
