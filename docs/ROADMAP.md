@@ -63,6 +63,9 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 ### Fase 3 — Produto (casca estilo Runna, ADR-003)
 - PWA + onboarding por objetivo → `build` → calendário → Zwift (`.zwo`) +
   assinatura mensal; login com API key do Intervals.
+- **Parcialmente iniciado no agente (v0.0.10–0.0.11):** onboarding por objetivo
+  (menu GOAL de 7 tipos) + troca de objetivo no meio do plano + disponibilidade
+  (`WEEKLY_HOURS`/`LONG_DAY`). Falta a casca (PWA, tela de seleção, assinatura).
 
 ### Fase 4 — Multi-atleta / modo treinador
 - Dashboard por atleta, parâmetros por atleta, aprovação antes de publicar,
@@ -74,3 +77,17 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   commit.
 - Mudanças que afetam carga/plano passam por **`--dry-run`** ou validação com
   dados reais antes de tocar o fluxo do timer diário.
+
+## Status atual (2026-09-21)
+
+Revisão dos itens em aberto (sessão de 21/09):
+
+- **Abertos (5):** #1 fantasmas (Fase 0 — bug, especificado em
+  `docs/KNOWN_ISSUES.md`; **próximo a atacar**, sessão de testes 22/09),
+  #2 notificações (Fase 1), #3 treinos sem potência (Fase 2),
+  #6 casca Runna (Fase 3 — onboarding por objetivo já existe no agente,
+  v0.0.10–0.0.11), #7 multi-atleta (Fase 4 — aguarda ROTEIRO-TREINADOR).
+- **Fechados:** #4 wellness ✅, #5 tipos de plano ✅ (resta validar a prescrição
+  com treinador).
+- Suíte: **122 testes OK** (v0.0.13, fixtures de reconcile determinísticas).
+- Roteiro de validação: **`docs/ROTEIRO-TESTES.md`** (execução em 22/09).

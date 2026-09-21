@@ -13,6 +13,19 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 (Ainda não há mudanças não publicadas.)
 
+## [0.0.14] - 2026-09-21
+
+### Atualizado
+
+- **`docs/ROADMAP.md`** sincronizado com o estado real (revisão de 21/09):
+  registro dos 5 itens em aberto (#1–#3, #6, #7), dos fechados (#4, #5 —
+  resta validação com treinador), da Fase 3 parcialmente iniciada no agente
+  (onboarding + disponibilidade, v0.0.10–0.0.11) e do roteiro de testes
+  (`docs/ROTEIRO-TESTES.md`, execução em 22/09).
+- Vault do Obsidian sincronizado: `HISTORICO.md` (entradas 2026-09-20 e
+  2026-09-21), `PLANO-NOVAS-IMPLEMENTACOES.md` (status atual 2026-09-21) e
+  cópia do `ROTEIRO-TESTES.md`.
+
 ## [0.0.13] - 2026-09-21
 
 ### Adicionado
