@@ -20,6 +20,13 @@ própria — foram agrupadas na tag/release v0.0.7.
   best20`) com gates de qualidade/contexto, e propor (nunca auto-aplicar) a
   atualização de `.env FTP` + `indoor_ftp` no Intervals com confirmação do
   atleta. Backlog (Fase 2) e ROADMAP atualizados.
+- **Comentário de referência na issue #6** (como as plataformas estimam FTP
+  automático): Garmin (FC↔potência), Strava (curva de potência ≥20 min),
+  Intervals.icu (picos de 3/5/10/20 min + notificação de recorde), TrainingPeaks
+  (pop-up NP com **Aceitar**). Refinamento do desenho: **fonte primária =
+  `eFTP` do Intervals via API**; local best-20min × 0,95 como verificação;
+  janela 3–20 min; **limpeza de outliers** do stream como gate/teste; fluxo
+  "propor + confirmar" validado como padrão de mercado.
 
 ### Atualizado
 
