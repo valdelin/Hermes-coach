@@ -61,7 +61,7 @@ hermes-coach/
    Ausente ou invalido -> seg-sex como padrao. Pode ser configurado no chat
    com o agente no primeiro uso.
 
-2. Defina o **tipo de plano** (opcional):
+3. Defina o **tipo de plano** (opcional):
    ```
    GOAL=back-to-fitness   # ou ftp-builder | gran-fondo | time-trial |
                           # climbing | active-off-season | race
@@ -73,26 +73,78 @@ hermes-coach/
    Ausente ou invalido -> comportamento padrao por TSB. O `build` mostra o
    plano ativo e o `plan.json` guarda `goal`/`race_date`.
 
-2. (Opcional) **Agende um teste de FTP**: quando o `ftp-check` indicar
+4. (Opcional) **Agende um teste de FTP**: quando o `ftp-check` indicar
    reteste devido, rode `build --ftp-test YYYY-MM-DD` (ou defina no `.env`
    `FTP_TEST_DATE=YYYY-MM-DD`). O plano protege as **48h antes** do teste
    (D-2 recuperação, D-1 spin fácil), cria o evento `Ramp Test (FTP)` no dia
    e a recuperação no dia seguinte — nada de VO2/Limiar com fadiga acumulada
    antes de testar.
 
-2. Instale o agente no opencode (ja linkado em `~/.config/opencode/agent/`):
+## Instalação do agente por sistema operacional
+
+Requisitos: **Python 3** e o CLI do [opencode](https://opencode.ai). O agente é
+linkado na config global do opencode (`~/.config/opencode/agent/`). Troque
+`<USERHOME>` pela sua pasta home e ajuste o caminho do repo se não estiver em
+`~/Work/hermes-coach`.
+
+### Linux
+
+```bash
+mkdir -p ~/.config/opencode/agent
+ln -s <USERHOME>/Work/hermes-coach/.opencode/agent/cycling-coach.md \
+      ~/.config/opencode/agent/cycling-coach.md
+```
+
+Opcional — skill de delegação para o orquestrador Hermes (`~/.hermes`):
+```bash
+mkdir -p ~/.hermes/skills
+ln -s <USERHOME>/Work/hermes-coach/hermes/skills/cycling-coach \
+      ~/.hermes/skills/cycling-coach
+```
+
+### macOS
+
+O opencode usa a mesma pasta de config (`~/.config/opencode/`), então os
+comandos são idênticos ao Linux:
+
+```bash
+mkdir -p ~/.config/opencode/agent
+ln -s <USERHOME>/Work/hermes-coach/.opencode/agent/cycling-coach.md \
+      ~/.config/opencode/agent/cycling-coach.md
+```
+
+Opcional — skill para o Hermes (`~/.hermes`):
+```bash
+mkdir -p ~/.hermes/skills
+ln -s <USERHOME>/Work/hermes-coach/hermes/skills/cycling-coach \
+      ~/.hermes/skills/cycling-coach
+```
+
+### Windows (WSL)
+
+O opencode recomenda rodar no **WSL**. A instalação roda dentro do WSL e a
+config fica em `~/.config/opencode/agent/` **dentro do WSL**.
+
+1. Instale o [WSL](https://learn.microsoft.com/windows/wsl/install).
+2. No terminal WSL, instale o opencode:
+   ```
+   curl -fsSL https://opencode.ai/install | bash
+   ```
+3. Clone o repo preferencialmente no filesystem do WSL (mais rápido) e monte o
+   `.env`:
+   ```
+   git clone https://github.com/valdelin/Hermes-coach.git ~/Work/hermes-coach
+   cd ~/Work/hermes-coach
+   cp .env.example .env
+   ```
+4. Link do agente (idêntico ao Linux, dentro do WSL):
    ```
    mkdir -p ~/.config/opencode/agent
    ln -s <USERHOME>/Work/hermes-coach/.opencode/agent/cycling-coach.md \
          ~/.config/opencode/agent/cycling-coach.md
    ```
 
-3. Instale a skill no Hermes (ja linkada em `~/.hermes/skills/`):
-   ```
-   mkdir -p ~/.hermes/skills
-   ln -s <USERHOME>/Work/hermes-coach/hermes/skills/cycling-coach \
-         ~/.hermes/skills/cycling-coach
-   ```
+Acesso aos arquivos do Windows via `/mnt/c/Users/<voce>/...`.
 
 ## Uso
 

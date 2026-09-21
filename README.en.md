@@ -59,19 +59,71 @@ hermes-coach/
    Missing or invalid -> Monday-Friday by default. It can also be configured
    by chatting with the agent on first use.
 
-2. Install the agent in opencode (already linked in `~/.config/opencode/agent/`):
+## Agent installation by operating system
+
+Requirements: **Python 3** and the [opencode](https://opencode.ai) CLI. The
+agent is linked in the opencode global config (`~/.config/opencode/agent/`).
+Replace `<USERHOME>` with your home folder and adjust the repo path if it is
+not in `~/Work/hermes-coach`.
+
+### Linux
+
+```bash
+mkdir -p ~/.config/opencode/agent
+ln -s <USERHOME>/Work/hermes-coach/.opencode/agent/cycling-coach.md \
+      ~/.config/opencode/agent/cycling-coach.md
+```
+
+Optional — delegation skill for the Hermes orchestrator (`~/.hermes`):
+```bash
+mkdir -p ~/.hermes/skills
+ln -s <USERHOME>/Work/hermes-coach/hermes/skills/cycling-coach \
+      ~/.hermes/skills/cycling-coach
+```
+
+### macOS
+
+opencode uses the same config folder (`~/.config/opencode/`), so the commands
+are identical to Linux:
+
+```bash
+mkdir -p ~/.config/opencode/agent
+ln -s <USERHOME>/Work/hermes-coach/.opencode/agent/cycling-coach.md \
+      ~/.config/opencode/agent/cycling-coach.md
+```
+
+Optional — Hermes skill (`~/.hermes`):
+```bash
+mkdir -p ~/.hermes/skills
+ln -s <USERHOME>/Work/hermes-coach/hermes/skills/cycling-coach \
+      ~/.hermes/skills/cycling-coach
+```
+
+### Windows (WSL)
+
+opencode recommends running on **WSL**. Installation runs inside WSL and the
+config lives at `~/.config/opencode/agent/` **inside WSL**.
+
+1. Install [WSL](https://learn.microsoft.com/windows/wsl/install).
+2. In the WSL terminal, install opencode:
+   ```
+   curl -fsSL https://opencode.ai/install | bash
+   ```
+3. Clone the repo preferably into the WSL filesystem (faster) and create the
+   `.env`:
+   ```
+   git clone https://github.com/valdelin/Hermes-coach.git ~/Work/hermes-coach
+   cd ~/Work/hermes-coach
+   cp .env.example .env
+   ```
+4. Link the agent (same as Linux, inside WSL):
    ```
    mkdir -p ~/.config/opencode/agent
    ln -s <USERHOME>/Work/hermes-coach/.opencode/agent/cycling-coach.md \
          ~/.config/opencode/agent/cycling-coach.md
    ```
 
-3. Install the skill in Hermes (already linked in `~/.hermes/skills/`):
-   ```
-   mkdir -p ~/.hermes/skills
-   ln -s <USERHOME>/Work/hermes-coach/hermes/skills/cycling-coach \
-         ~/.hermes/skills/cycling-coach
-   ```
+Access Windows files via `/mnt/c/Users/<you>/...
 
 ## Usage
 
