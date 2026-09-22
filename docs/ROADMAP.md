@@ -20,6 +20,10 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 6 | feature | ~~FTP sugerido a partir de treinos não agendados~~ (prova/treino livre) **implementado e issue fechada** (v0.0.15, `ftp-scan`: best-20min × 0,95 com gates + confirmação) | [#6](https://github.com/valdelin/Hermes-coach/issues/6) | 2 ✅ |
 | 7 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
 | 8 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
+| 9 | feature | **Perfil de esforço-alvo no `GOAL=race`** (estilo "Athlete Type" do Xert: Rouleur/TT/escalador) — ajusta a distribuição de focos dentro do mesmo objetivo | — (benchmark 22/09) | **possível — validar c/ treinador** | 2 |
+| 10 | feature | **Nível do atleta** (iniciante/intermediário/avançado) como ajuste fino de volume/intensidade — hoje o TSB já calibra | — (benchmark 22/09) | **possível — validar c/ treinador** | 2 |
+| 11 | produto | **Catálogo de eventos estilo Pillar** (200+ provas) — onboarding por prova-alvo (distância/perfil) | — (benchmark 22/09) | **possível — validar c/ treinador** | 3 |
+| 12 | produto | **App comercial de ciclismo indoor** (posicionamento + preços — benchmark 22/09): consolidar #7/#8/#11 em produto com assinatura (tiers solo/coach), notificações (#2), catálogo de eventos e retenção | — (benchmark 22/09; ADR-003) | **possível — validar c/ treinador** (ROTEIRO-TREINADOR seções 3-4) | 3 |
 
 ## Fases
 
@@ -63,6 +67,27 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   elevam FC) ⇒ cue outdoor com RPE como âncora; (4) **threshold sem teste
   protocolado** (Xert "What's My FTP", TriDot auto-threshold) ⇒ valida o
   `ftp-scan` (#6) e sugere futuro **`fthr-scan`** análogo.
+- 📊 **Benchmark (2026-09-22) — tipos de training plan (Xert, Pillar, TriDot,
+  RunDot)** — verificar se o mercado tem "tipos de plano" a copiar. **Achado:
+  nenhuma usa catálogo estático tipo Zwift; todas são adaptativas por
+  objetivo/evento:**
+  - **Xert**: XATA (recomendação diária adaptativa) e XFAI (plano orientado a
+    evento/objetivo); "Athlete Type" (Rouleur/TT) como perfil de esforço-alvo;
+    sem planos pré-definidos ("the smartest plan is the emptiest").
+  - **Pillar**: filosofia anti-plano-genérico; plano **personalizado por
+    objetivo/agenda**, **200+ eventos** (Event Goals) + taper automático;
+    multi-sport.
+  - **TriDot**: por **distância de prova** (sprint → Olympic → 70.3 → full) +
+    camadas (Lifestyle 1 prova / Essentials 3 / Complete ilimitado).
+  - **RunDot** (running, FitLogic/TriDot): por **distância de corrida** (5K,
+    10K, meia, maratona) + base building; via número único (VDOT).
+  - **Conclusão:** as escolhas do hermes já refletem o padrão de mercado
+    (`GOAL` por perfil de prova + `race` com `RACE_DATE`/taper = "plano por
+    evento"; `ftp-scan` = threshold sem teste protocolado). **Não adicionar
+    novos `GOAL` agora.** Evoluções candidatas (backlog #9-#11), **validadas
+    com o treinador** no ROTEIRO-TREINADOR (seção 1, perguntas 9-12): perfil de
+    esforço-alvo no `race`; catálogo de eventos (Fase 3); nível do atleta como
+    calibração fina (TSB já cobre).
 - **FTP sugerido (issue #6) — ✅ implementado (v0.0.15)**: `ftp-scan` examina
   treinos fora do plano (eventos pareados não-hermes), filtra (não-MANUAL,
   ≥ 45 min, com potência, intensidade ≥ 75% do FTP), estima via
@@ -92,6 +117,25 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 - **Parcialmente iniciado no agente (v0.0.10–0.0.11):** onboarding por objetivo
   (menu GOAL de 7 tipos) + troca de objetivo no meio do plano + disponibilidade
   (`WEEKLY_HOURS`/`LONG_DAY`). Falta a casca (PWA, tela de seleção, assinatura).
+- 📊 **Benchmark comercial (22/09) — o agente pode virar app pago?** **Sim** — o
+  núcleo já entrega o que o mercado vende: planos adaptativos por objetivo
+  (GOAL + `race`/taper = Pillar/TriDot), treino sem medidor de potência
+  (FTHR/%FTHR/RPE = Xert HRDM, TriDot "power meter not required"), threshold
+  sem teste protocolado (`ftp-scan` = Xert "What's My FTP", TriDot
+  auto-threshold), execução medida no reconcile (≈ TrainX/Pillar "interval
+  detection"). **Vantagem competitiva: automação ponta-a-ponta** (plano →
+  calendário → reconcile + timer diário) que nenhum deles tem — os concorrentes
+  exigem app/ação manual. **Preços de referência (2026):** Xert US$8,33/mês
+  (anual) ou US$14,99 mensal; Pillar App ~US$7,99/mês (trial 30d); TriDot
+  Lifestyle US$14,99 (1 prova curta), Essentials US$39 (3 provas), Complete
+  US$99 (ilimitado), **Premium-Coached US$249/mês** (treinador dedicado);
+  RunDot ~US$9,99/mês. ⇒ **solo amador cabe em US$8–15/mês (~R$ 45–80)**;
+  **multi-atleta/treinador é onde o valor sobe** (valida a Fase 4).
+  **Gap para virar produto:** casca UI/PWA (#7), cobrança/assinatura,
+  notificações (#2), multi-atleta (#8), catálogo de eventos (#11), app nativo,
+  comunidade; **decisão:** caminho já traçado (#7→#8→#11) — adicionar à Fase 3 a
+  **camada de preços** (tiers solo/coach validados com o treinador,
+  ROTEIRO-TREINADOR 3.6) e métricas de retenção.
 
 ### Fase 4 — Multi-atleta / modo treinador
 - Dashboard por atleta, parâmetros por atleta, aprovação antes de publicar,
@@ -122,3 +166,17 @@ Revisão dos itens (release v0.0.15, sessão de 22/09):
   (antes #7) é **#8**.
 - Suíte: **165 testes OK** (v0.0.15).
 - Roteiro de validação: **`docs/ROTEIRO-TESTES.md`** (execução em 22/09).
+- **Benchmark tipos de plano (22/09)**: Xert/Pillar/TriDot/RunDot **não usam**
+  catálogo estático — todas adaptativas por objetivo/evento; nossas escolhas
+  (`GOAL` + `race`/taper + `ftp-scan`) já seguem o padrão. **Novas entradas de
+  backlog #9-#11** (perfil de esforço no `race`, catálogo de eventos, nível do
+  atleta) marcadas como **"possível — validar c/ treinador"**; perguntas 9-12
+  adicionadas ao ROTEIRO-TREINADOR seção 1 (vault).
+- **Benchmark comercial (22/09) — app pago?** **Sim, viável.** O núcleo já
+  entrega o que Xert/Pillar/TriDot vendem (planos por objetivo, sem potência,
+  threshold sem teste) + automação ponta-a-ponta que eles não têm. Preços de
+  referência: solo **US$8–15/mês** (Xert, Pillar, RunDot; TriDot entry
+  US$14,99), multi-atleta/coach **US$99–249/mês** (TriDot Complete/Coached).
+  **Nova entrada #12** (app comercial: tiers solo/coach + retenção) marcada
+  como **"possível — validar c/ treinador"**; detalhe na Fase 3.
+  ROTEIRO-TREINADOR 3.6 ganha a âncora de preços de mercado.
