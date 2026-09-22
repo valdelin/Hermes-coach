@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant U as Atleta
+    participant C as CLI
+    participant I as Intervals.icu API
+    participant P as plan.json
+
+    U->>C: build --days 60 --days-plan 14
+    C->>I: GET /events (60d)
+    I-->>C: histórico
+    C->>C: latest_metrics → TSB
+    C->>C: build_plan (GOAL + WEEKLY_BY_TSB +<br/>WEEKLY_HOURS + LONG_DAY + budget TSS)
+    Note over C: preserva treino de hoje<br/>do plano anterior
+    C->>P: salva plan.json (treinos + meta)
+
+    U->>C: reconcile --show
+    C->>I: GET /events (janela)
+    C->>P: carrega plano
+    C->>C: treino perdido? → recuperação + limiar
+    C->>P: salva ajustes
+    C-->>U: agenda + ajustes
+
+    U->>C: push --start YYYY-MM-DD
+    C->>P: carrega plano
+    C->>I: GET /events (recentes)
+    C->>I: DELETE órfãos (se houver)
+    C->>I: POST /events/bulk?upsert=true
+    I-->>C: eventos publicados
+    C-->>U: calendário atualizado

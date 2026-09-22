@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant T as systemd timer<br/>cycling-coach-daily
+    participant S as daily_reconcile.sh
+    participant C as CLI<br/>training_plan.py
+    participant I as Intervals.icu API
+    participant P as plan.json
+
+    T->>S: meia-noite (daily)
+    S->>C: reconcile --show
+    C->>I: GET /events (janela)
+    I-->>C: eventos + métricas
+    C->>P: carrega plano atual
+    C->>C: detecta perdidos/extras<br/>recuperação + limiar -5%
+    C->>P: salva plano ajustado
+    C-->>S: OK / erro
+    alt erro no reconcile
+        S->>S: notify-send (crítico) + exit 1
+        S-->>T: falha (log em logs/)
+    else sucesso
+        S->>C: push --start hoje
+        C->>I: GET /events (recentes)
+        C->>C: calcula órfãos (hermes-plan*)
+        C->>I: DELETE /events/bulk-delete (órfãos)
+        C->>I: POST /events/bulk?upsert=true (treinos)
+        I-->>C: 200 OK
+        C-->>S: calendário atualizado
+        S-->>T: sucesso
+    end

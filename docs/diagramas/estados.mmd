@@ -1,0 +1,12 @@
+stateDiagram-v2
+    [*] --> Planejado : build + push (external_id hermes-plan-*)
+    Planejado --> Feito : atividade pareada (paired_activity_id)
+    Planejado --> Perdido : passa do dia + sem atividade
+    Perdido --> Ajustado : reconcile insere recuperação<br/>e reduz próximo Limiar -5%
+    Planejado --> Extra : atividade fora do plano (não-hermes)
+    Extra --> Leve : carga ok → plano mantido
+    Extra --> Pesado : carga ≥ cap diário (7d)
+    Pesado --> Ajustado : recuperação + limiar
+    Ajustado --> Feito : treino executado
+    Perdido --> [*] : fim da janela do plano
+    Feito --> [*]

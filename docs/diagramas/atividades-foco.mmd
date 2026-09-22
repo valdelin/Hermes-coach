@@ -1,0 +1,20 @@
+flowchart TD
+    A["GET /events (histórico)"] --> B["latest_metrics → TSB atual"]
+    B --> C{"GOAL no .env?"}
+    C -- "não" --> D["WEEKLY_BY_TSB<br/>(padrão por TSB)"]
+    C -- "sim" --> E["GOAL_TEMPLATES[goal]<br/>(ex.: race exige RACE_DATE)"]
+
+    D --> F["escolhe template semanal<br/>pela faixa de TSB"]
+    E --> F
+    F --> G["preenche slots de TREINO<br/>(TRAINING_DAYS)"]
+    G --> H{"WEEKLY_HOURS?"}
+    H -- "sim" --> I["escala on_sec<br/>(0.5x–1.5x, min 120s)"]
+    H -- "não" --> J["sem ajuste de volume"]
+    I --> K{"LONG_DAY?"}
+    J --> K
+    K -- "sim" --> L["rotaciona ciclo → treino longo<br/>no dia preferido (ou mais próximo)"]
+    K -- "não" --> M["posição natural do foco"]
+    L --> N["_fit_budget: TSS 7d ≤ cap×7<br/>(encurta on_sec, depois on_power)"]
+    M --> N
+    N --> O["salva plan.json<br/>(preserva treino de hoje + meta)"]
+    O --> P["push → POST /events/bulk?upsert=true<br/>(limpa órfãos antes)"]

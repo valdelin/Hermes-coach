@@ -1,0 +1,34 @@
+flowchart LR
+    subgraph CLI["CLI — src/training_plan.py"]
+        CMD["info | ftp-check | ftp-scan | model<br/>build | reconcile | push | all"]
+    end
+
+    subgraph CORE["Motor de coaching"]
+        COACH["coach.py<br/>métricas · foco · prescrição"]
+        PLAN["plan.py<br/>build_plan · reconcile · event_payload"]
+        IR["impulse_response.py<br/>CTL/ATL/TSB local"]
+        FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
+    end
+
+    subgraph API["intervals_client.py"]
+        CLIENT["IntervalsClient<br/>events · wellness · activities · streams · sport-settings"]
+    end
+
+    ENV[".env<br/>credenciais · FTP · agenda · GOAL"]
+    PLANFILE["plan.json<br/>plano + meta"]
+    SH["scripts/daily_reconcile.sh<br/>(timer systemd meia-noite)"]
+
+    INTERVALS["Intervals.icu API"]
+    APPS["Zwift / Garmin / Wahoo<br/>(atividades + .zwo)"]
+
+    CMD --> COACH
+    CMD --> PLAN
+    CMD --> FTPS
+    COACH --> IR
+    CMD --> CLIENT
+    PLAN --> PLANFILE
+    COACH --> ENV
+    PLAN --> ENV
+    CLIENT --> INTERVALS
+    INTERVALS <--> APPS
+    SH --> CMD
