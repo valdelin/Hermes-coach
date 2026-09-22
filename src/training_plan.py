@@ -620,7 +620,7 @@ def main(argv=None):
                          help="Agenda o Ramp Test (FTP) e protege as 48h antes")
     p_build.add_argument("--no-power", action="store_true",
                          help="Prescricao sem medidor de potencia: alvos em "
-                              "%FTHR + RPE (exige FTHR no .env)")
+                              "%%FTHR + RPE (exige FTHR no .env)")
     p_build.set_defaults(func=cmd_build)
 
     p_rec = sub.add_parser("reconcile",
@@ -641,7 +641,7 @@ def main(argv=None):
     p_all.add_argument("--ftp-test", metavar="YYYY-MM-DD",
                        help="Agenda o Ramp Test (FTP) e protege as 48h antes")
     p_all.add_argument("--no-power", action="store_true",
-                       help="Prescricao sem medidor de potencia (%FTHR + RPE)")
+                       help="Prescricao sem medidor de potencia (%%FTHR + RPE)")
     p_all.set_defaults(func=cmd_all)
 
     args = parser.parse_args(argv)

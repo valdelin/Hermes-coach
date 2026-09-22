@@ -11,6 +11,22 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+### Corrigido
+
+- **CLI quebrava ao carregar qualquer comando** (`info`/`build`/`push`/etc.)
+  com `ValueError: badly formed help string`: o help do argparse de
+  `--no-power` continha `%FTHR` sem escapar — argparse interpreta `%` como
+  formato e abortava a montagem do parser. Escapado para `%%FTHR` nos dois
+  subparsers (`build` e `all`). **Derrubaria o timer diário à meia-noite.**
+  Encontrado pelo novo `dev/diagnose.sh`.
+
+### Adicionado
+
+- **Diretório `dev/`** — diagnóstico e recuperação para quando a aplicação
+  quebrar: `dev/DIAGNOSTICO.md` (fluxo de investigação passo a passo) +
+  `dev/diagnose.sh` (snapshot de estado: versão, timer systemd, log, `plan.json`,
+  `.env` sanitizado, health check via `info` e suíte de testes).
+
 ## [0.0.16] - 2026-09-22
 
 ### Adicionado
