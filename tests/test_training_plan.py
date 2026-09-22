@@ -1,5 +1,6 @@
 import contextlib
 import io
+import os
 import tempfile
 import types
 import unittest
@@ -8,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from src import training_plan as tp
-from src.plan import (build_plan, load_plan_meta, save_plan,
+from src.plan import (build_plan, load_plan, load_plan_meta, save_plan,
                       DEFAULT_FTP, DEFAULT_TRAINING_DAYS)
 
 
@@ -243,6 +244,135 @@ class PendingFtpHintTest(unittest.TestCase):
             self.assertNotIn("ftp-scan", out.getvalue())
         finally:
             _restore_scan(orig)
+            tmp.cleanup()
+
+
+class NoPowerModeTest(unittest.TestCase):
+    """Issue #3: plano sem medidor de potencia (modo FC com FTHR)."""
+
+    def _fixture_with_fthr(self, fthr="182"):
+        tmp = tempfile.TemporaryDirectory()
+        root = Path(tmp.name)
+        env = root / ".env"
+        env.write_text(f"FTP=182\nFTHR={fthr}\n", encoding="utf-8")
+        path = root / "plan.json"
+        save_plan([], str(path), goal="ftp-builder", race_date=None,
+                  ftp_test_date=None)
+        orig = (tp.PLAN_FILE, tp.ENV_FILE, tp.PROJECT_ROOT,
+                tp.get_client, tp.get_ftp)
+        tp.PLAN_FILE = path
+        tp.ENV_FILE = env
+        tp.PROJECT_ROOT = root
+        return tmp, root, env, path, orig
+
+    def _restore(self, orig):
+        (tp.PLAN_FILE, tp.ENV_FILE, tp.PROJECT_ROOT,
+         tp.get_client, tp.get_ftp) = orig
+        # load_env usa setdefault: limpa o FTHR injetado pelo .env do teste
+        # para nao vazar para os testes seguintes.
+        os.environ.pop("FTHR", None)
+
+    def test_get_fthr_ler_env(self):
+        tmp, root, env, path, orig = self._fixture_with_fthr("182")
+        try:
+            self.assertEqual(tp.get_fthr(), 182)
+        finally:
+            self._restore(orig)
+            tmp.cleanup()
+
+    def test_get_fthr_ausente_ou_invalido(self):
+        tmp, root, env, path, orig = self._fixture_with_fthr("")
+        try:
+            self.assertIsNone(tp.get_fthr())
+        finally:
+            self._restore(orig)
+            tmp.cleanup()
+
+        tmp, root, env, path, orig = self._fixture_with_fthr("abc")
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                val = tp.get_fthr()
+            self.assertIsNone(val)
+            self.assertIn("aviso", out.getvalue())
+        finally:
+            self._restore(orig)
+            tmp.cleanup()
+
+    def test_build_no_power_sem_fthr_aborta(self):
+        tmp, root, env, path, orig = self._fixture_with_fthr("")
+        try:
+            tp.get_client = lambda: _FakeClient()
+            tp.get_ftp = lambda: 182
+            tp.get_goal = lambda: "ftp-builder"
+            tp.get_race_date = lambda: None
+            tp.get_weekly_hours = lambda: None
+            tp.get_long_day = lambda: None
+            tp.get_ftp_test_date = lambda: None
+            args = types.SimpleNamespace(days=60, days_plan=14, ftp_test=None,
+                                         no_power=True)
+            out = io.StringIO()
+            plan = None
+            with contextlib.redirect_stdout(out):
+                plan = tp.cmd_build(args)
+            self.assertIsNone(plan)
+            self.assertIn("--no-power", out.getvalue())
+            self.assertIn("FTHR", out.getvalue())
+        finally:
+            self._restore(orig)
+            tmp.cleanup()
+
+    def test_build_no_power_carimba_hr_mode_e_avisa(self):
+        tmp, root, env, path, orig = self._fixture_with_fthr("182")
+        try:
+            tp.get_client = lambda: _FakeClient()
+            tp.get_ftp = lambda: 182
+            tp.get_goal = lambda: "ftp-builder"
+            tp.get_race_date = lambda: None
+            tp.get_weekly_hours = lambda: None
+            tp.get_long_day = lambda: None
+            tp.get_ftp_test_date = lambda: None
+            args = types.SimpleNamespace(days=60, days_plan=14, ftp_test=None,
+                                         no_power=True)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                tp.cmd_build(args)
+            self.assertIn("sem medidor de potencia", out.getvalue())
+            meta = load_plan_meta(str(path))
+            workouts = load_plan(str(path))
+            self.assertTrue(all(w.get("hr_mode") for w in workouts),
+                            "workouts devem carregar hr_mode")
+            self.assertEqual(meta["goal"], "ftp-builder")
+        finally:
+            self._restore(orig)
+            tmp.cleanup()
+
+    def test_push_envia_target_heart_rate_no_modo_fc(self):
+        _client = _FakeClient()
+        tmp, root, env, path, orig = self._fixture_with_fthr("182")
+        try:
+            plan = build_plan([], 2, ftp=182, days=1,
+                              start=date(2026, 9, 28), hr_mode=True)
+            save_plan(plan, str(path), goal="ftp-builder", race_date=None,
+                      ftp_test_date=None)
+            orig_client, orig_plan_file = tp.get_client, tp.PLAN_FILE
+            tp.PLAN_FILE = path
+            tp.get_client = lambda: _client
+            sent = []
+
+            def fake_create_events(batch):
+                sent.extend(batch)
+                return 200, batch
+
+            _client.create_events = fake_create_events
+            args = types.SimpleNamespace(start="2026-09-28", dry_run=False)
+            tp.cmd_push(args)
+            self.assertEqual(sent[0]["target"], "HEART_RATE")
+            self.assertIn("FTHR", sent[0]["description"])
+            self.assertIn("RPE", sent[0]["description"])
+            tp.get_client, tp.PLAN_FILE = orig_client, orig_plan_file
+        finally:
+            self._restore(orig)
             tmp.cleanup()
 
 

@@ -4,7 +4,8 @@ from datetime import date, timedelta
 from src.plan import (build_plan, event_payload, reconcile, templates,
                       weekly_template, workout_text, orphan_external_ids,
                       parse_training_days, _next_training_day,
-                      _reduce_next_hard,
+                      _reduce_next_hard, parse_fthr, hr_target_bpm,
+                      rpe_for_focus, FOCUS_VO2,
                       DEFAULT_TRAINING_DAYS,
                       REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2)
 
@@ -447,6 +448,97 @@ class OrphanTest(unittest.TestCase):
         ]
         self.assertEqual(orphan_external_ids([], events),
                          ["hermes-plan-2026-09-17", "hermes-plan-2026-09-19"])
+
+
+class FthrTest(unittest.TestCase):
+    """FTHR (#3): frequencia cardiaca no limiar para prescricao sem medidor
+    de potencia (modo FC, %FTHR + RPE)."""
+
+    def test_parse_valido(self):
+        self.assertEqual(parse_fthr("182"), 182)
+        self.assertEqual(parse_fthr(" 165 "), 165)
+
+    def test_parse_ausente_ou_invalido(self):
+        self.assertIsNone(parse_fthr(None))
+        self.assertIsNone(parse_fthr(""))
+        self.assertIsNone(parse_fthr("abc"))
+        self.assertIsNone(parse_fthr("20"))    # fora do intervalo humano
+        self.assertIsNone(parse_fthr("300"))
+
+    def test_alvo_em_bpm_por_foco(self):
+        self.assertEqual(hr_target_bpm(FOCUS_ZONE2, 182), round(182 * 0.75))
+        self.assertEqual(hr_target_bpm(FOCUS_SWEETSPOT, 182), round(182 * 0.88))
+        self.assertEqual(hr_target_bpm(FOCUS_THRESHOLD, 182), round(182 * 0.98))
+        self.assertEqual(hr_target_bpm(FOCUS_VO2, 182), round(182 * 1.05))
+
+    def test_rpe_por_foco(self):
+        self.assertEqual(rpe_for_focus(FOCUS_ZONE2), "3-4")
+        self.assertEqual(rpe_for_focus(FOCUS_THRESHOLD), "7-8")
+        self.assertEqual(rpe_for_focus("foco-desconhecido"), "5-6")
+
+
+class HeartRateModeTest(unittest.TestCase):
+    """Modo FC (#3): build --no-power carimba hr_mode, o texto usa %FTHR + RPE
+    e o evento vai com target HEART_RATE."""
+
+    def _fc_plan(self, fthr=182, days=1, start=None):
+        start = start or date(2026, 9, 28)  # segunda
+        return build_plan([], 2, ftp=182, days=days, start=start,
+                          hr_mode=True)
+
+    def test_build_carimba_hr_mode(self):
+        plan = self._fc_plan(days=3)
+        self.assertTrue(all(w.get("hr_mode") for w in plan),
+                        "todos os workouts devem carregar hr_mode")
+
+    def test_sem_hr_mode_nao_carimba(self):
+        plan = build_plan([], 2, ftp=182, days=3,
+                          start=date(2026, 9, 28))
+        self.assertTrue(all("hr_mode" not in w for w in plan))
+
+    def test_texto_fc_usa_fthr_e_rpe_sem_porcento_no_cue(self):
+        import re as _re
+        plan = self._fc_plan()
+        text = "\n".join(workout_text(plan[0], fthr=182).splitlines())
+        self.assertIn("FTHR", text)
+        self.assertIn("RPE", text)
+        self.assertNotIn("FTP", text.replace("FTHR", ""))
+        for l in text.splitlines():
+            if not l.startswith("- "):
+                continue
+            cue = " ".join(l[2:].split(" ")[:-2])
+            self.assertNotIn("%", cue, f"cue nao pode conter %: {cue!r}")
+            self.assertIsNone(_re.search(r"\d+[hms]", cue),
+                              f"cue nao pode ter duracao abreviada: {cue!r}")
+
+    def test_evento_fc_vai_com_target_heart_rate(self):
+        plan = self._fc_plan()
+        payload = event_payload(plan[0], ftp=182, fthr=182)
+        self.assertEqual(payload["target"], "HEART_RATE")
+        self.assertIn("FTHR", payload["description"])
+        self.assertIn("RPE", payload["description"])
+
+    def test_evento_sem_fthr_continua_power(self):
+        plan = self._fc_plan()
+        payload = event_payload(plan[0], ftp=182)
+        self.assertEqual(payload["target"], "POWER")
+        self.assertNotIn("FTHR", payload["description"])
+
+    def test_reconcile_preserva_hr_mode_ao_reescrever(self):
+        today = date.today()
+        plan = self._fc_plan(days=6, start=today - timedelta(days=4))
+        # todos os dias passados: treino perdido -> recuperacao inserida
+        plan, missed = reconcile(plan, [], ftp=182)
+        self.assertTrue(missed)
+        self.assertTrue(all(w.get("hr_mode") for w in plan),
+                        "recuperacao inserida deve herdar o modo FC")
+
+    def test_texto_em_ingles_fc(self):
+        plan = self._fc_plan()
+        desc = workout_text(plan[0], fthr=182, lang="en")
+        self.assertIn("HR threshold", desc)
+        self.assertIn("RPE", desc)
+        self.assertNotIn("Agora voce vai entrar", desc)
 
 
 if __name__ == "__main__":

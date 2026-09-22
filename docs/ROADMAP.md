@@ -42,9 +42,27 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 - Regra: envio **assíncrono e não-bloqueante** (não derruba o timer diário).
 
 ### Fase 2 — Dados incompletos (issue #3) + tipos de plano (#5) + FTP sugerido (#6)
-- Detectar ausência de potência; configurar `FTHR` no `.env`;
-  `hrTSS = seg × IF_hr² × 100 / 3600`; prescrever %FTHR (ou RPE) em dias
-  outdoor; sinalizar "sem potência — carga por FC" no resumo.
+- ✅ **Sem medidor de potência (issue #3) — implementado (próxima release)**:
+  `FTHR` no `.env` (`parse_fthr`/`get_fthr`); `build --no-power` carimba
+  `hr_mode` nos workouts e o `push` envia `target: HEART_RATE` com texto em
+  **%FTHR + RPE** (`FOCUS_HR_PCT`/`FOCUS_RPE`/`FOCUS_HR_HINT`); reconcile
+  preserva o modo FC ao reescrever treinos (recuperação/limiar); `info`/
+  `reconcile` avisam "sem potência — carga por FC (icu_training_load)".
+  Carga real da atividade continua via `average_heartrate`/`has_heartrate` →
+  `hr_load`/`icu_training_load` do Intervals (lthr 182 já configurado).
+  Futuro: `fthr-scan` análogo ao `ftp-scan`.
+- 📊 **Benchmark (2026-09-22) — Pillar, Xert, TriDot, RunDot**: referências
+  de treinos sem potência/outdoor/FC registradas como comentários na issue #3.
+  Consenso: (1) **carga por FC sem watts é padrão de mercado** (Pillar
+  "indoor ou outdoor"; Xert HRDM — FC+cadência → XSS; TriDot "power meter
+  great, but not required") ⇒ nosso plano FTHR + `hrTSS`/`icu_training_load`
+  está alinhado; (2) **execução medida contra a prescrição** (Xert smart
+  intervals, TriDot TrainX 1-100, Pillar "interval detection") ⇒ com `FTHR`
+  dá para verificar zona de FC alcançada em vez de só "não verificado";
+  (3) **ambiente importa no outdoor** (TriDot EnviroNorm: calor/altitude
+  elevam FC) ⇒ cue outdoor com RPE como âncora; (4) **threshold sem teste
+  protocolado** (Xert "What's My FTP", TriDot auto-threshold) ⇒ valida o
+  `ftp-scan` (#6) e sugere futuro **`fthr-scan`** análogo.
 - **FTP sugerido (issue #6) — ✅ implementado (v0.0.15)**: `ftp-scan` examina
   treinos fora do plano (eventos pareados não-hermes), filtra (não-MANUAL,
   ≥ 45 min, com potência, intensidade ≥ 75% do FTP), estima via

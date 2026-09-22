@@ -15,8 +15,8 @@ try:
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
                       reconcile, save_plan, orphan_external_ids,
                       parse_training_days, parse_goal, parse_weekly_hours,
-                      parse_long_day, GOAL_LABELS, FOCUS_LABELS_PT, REST,
-                      DEFAULT_FTP, CUE_LANGS, GOALS)
+                      parse_long_day, parse_fthr, GOAL_LABELS, FOCUS_LABELS_PT,
+                      REST, DEFAULT_FTP, CUE_LANGS, GOALS)
     import ftp_scan
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
@@ -26,8 +26,8 @@ except ImportError:
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                        parse_training_days, parse_goal, parse_weekly_hours,
-                       parse_long_day, GOAL_LABELS, FOCUS_LABELS_PT, REST,
-                       DEFAULT_FTP, CUE_LANGS, GOALS)
+                       parse_long_day, parse_fthr, GOAL_LABELS,
+                       FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS)
     from . import ftp_scan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -58,6 +58,17 @@ def get_client():
 def get_ftp():
     load_env(PROJECT_ROOT / ".env")
     return int(os.environ.get("FTP", DEFAULT_FTP))
+
+
+def get_fthr():
+    """FTHR do .env (frequencia cardiaca no limiar, bpm) para prescricao sem
+    medidor de potencia (#3), ou None se ausente. Invalido -> aviso + None."""
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("FTHR", "")
+    fthr = parse_fthr(value)
+    if value.strip() and fthr is None:
+        print(f"aviso: FTHR={value!r} invalido; use bpm (ex.: 182)")
+    return fthr
 
 
 def get_training_days():
@@ -175,6 +186,29 @@ def _pending_ftp_hint():
             f"({p['name']}) — rode `ftp-scan` para revisar.")
 
 
+def _plan_hr_mode():
+    """True quando o plan.json atual tem treinos em modo FC (#3: sem medidor
+    de potencia, prescricao em %FTHR + RPE)."""
+    try:
+        plan = load_plan(PLAN_FILE)
+    except FileNotFoundError:
+        return False
+    return any(w.get("hr_mode") for w in plan)
+
+
+def _hr_mode_hint():
+    """Aviso curto de plano em modo FC (sem medidor de potencia) ou None."""
+    if not _plan_hr_mode():
+        return None
+    fthr = get_fthr()
+    if fthr:
+        return ("Plano em modo FC (sem medidor de potencia): prescricao em "
+                f"%FTHR + RPE com FTHR {fthr} bpm; carga estimada por FC "
+                "(icu_training_load).")
+    return ("Plano em modo FC (sem medidor de potencia), mas FTHR ausente no "
+            ".env: prescricao em %FTHR + RPE; configure FTHR para alvos em bpm.")
+
+
 def prompt_race_date():
     """GOAL=race exige a data alvo (dia da prova): sempre pergunta — nunca
     assume default nem deixa em branco — e salva no .env."""
@@ -238,6 +272,9 @@ def cmd_info(args):
     hint = _pending_ftp_hint()
     if hint:
         print(hint)
+    hr_hint = _hr_mode_hint()
+    if hr_hint:
+        print(hr_hint)
 
 
 def cmd_ftp_check(args):
@@ -302,10 +339,17 @@ def cmd_model(args):
 def cmd_build(args):
     client = get_client()
     ftp = get_ftp()
+    fthr = get_fthr()
     goal = get_goal()
     race_date = get_race_date()
     weekly_hours = get_weekly_hours()
     long_day = get_long_day()
+    hr_mode = bool(getattr(args, "no_power", False))
+    if hr_mode and fthr is None:
+        print("erro: `--no-power` exige FTHR no .env (prescricao em %FTHR e "
+              "RPE). Configure FTHR (bpm) e rode o build de novo.")
+        print("  ex.: FTHR=182 no .env")
+        return None
     if args.ftp_test:
         # --ftp-test YYYY-MM-DD: agenda o teste (valida futuro) e salva no .env
         try:
@@ -336,7 +380,8 @@ def cmd_build(args):
     plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
                       existing=existing, training_days=get_training_days(),
                       goal=goal, race_date=race_date, ftp_test_date=ftp_test_date,
-                      weekly_hours=weekly_hours, long_day=long_day)
+                      weekly_hours=weekly_hours, long_day=long_day,
+                      hr_mode=hr_mode)
     # Preserva candidatos de FTP ja registrados na meta (issue #6): o build
     # nao deve apagar o rastro de um ftp-scan anterior.
     existing_meta = load_plan_meta(PLAN_FILE)
@@ -357,6 +402,9 @@ def cmd_build(args):
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
     test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""
     print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
+    if hr_mode:
+        print(f"Prescricao sem medidor de potencia: alvos em %FTHR + RPE "
+              f"(FTHR {fthr} bpm); carga estimada por FC no Intervals.")
     est_tss = sum(w["tss"] for w in plan)
     print(f"Plano gerado: {len(plan)} treinos | TSS estimado {est_tss:.0f}"
           + (" | preparacao p/ teste em " + ftp_test_date
@@ -386,6 +434,9 @@ def cmd_reconcile(args):
         print("Plano ajustado: recuperacao inserida e proximo limiar reduzido.")
     else:
         print("Nenhum treino perdido; plano mantido.")
+    hr_hint = _hr_mode_hint()
+    if hr_hint:
+        print(hr_hint)
     if args.show:
         for w in plan:
             print(f"  {w['day']} {w['name']:<30} TSS {w['tss']:.0f}")
@@ -497,9 +548,11 @@ def cmd_push(args):
     plan = load_plan(PLAN_FILE)
     client = get_client()
     lang = get_cue_lang()
+    ftp = get_ftp()
+    fthr = get_fthr()
     start = args.start or (date.today() + timedelta(days=1)).isoformat()
-    batch = [event_payload(w, get_ftp(), lang=lang,
-                           prev=_prev_same_focus(plan, w))
+    batch = [event_payload(w, ftp, lang=lang,
+                           prev=_prev_same_focus(plan, w), fthr=fthr)
              for w in plan if w["day"] >= start]
 
     newest = (max((w["day"] for w in plan), default=None)
@@ -565,6 +618,9 @@ def main(argv=None):
                          help="Quantos dias olhar para frente")
     p_build.add_argument("--ftp-test", metavar="YYYY-MM-DD",
                          help="Agenda o Ramp Test (FTP) e protege as 48h antes")
+    p_build.add_argument("--no-power", action="store_true",
+                         help="Prescricao sem medidor de potencia: alvos em "
+                              "%FTHR + RPE (exige FTHR no .env)")
     p_build.set_defaults(func=cmd_build)
 
     p_rec = sub.add_parser("reconcile",
@@ -584,6 +640,8 @@ def main(argv=None):
     p_all.add_argument("--days-plan", type=int, default=14)
     p_all.add_argument("--ftp-test", metavar="YYYY-MM-DD",
                        help="Agenda o Ramp Test (FTP) e protege as 48h antes")
+    p_all.add_argument("--no-power", action="store_true",
+                       help="Prescricao sem medidor de potencia (%FTHR + RPE)")
     p_all.set_defaults(func=cmd_all)
 
     args = parser.parse_args(argv)

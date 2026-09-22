@@ -11,6 +11,22 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Issue [#3](https://github.com/valdelin/Hermes-coach/issues/3)** —
+  **implementado** (treinos **sem medidor de potência / modo FC**):
+  - `FTHR` no `.env` (bpm) e `build --no-power`: o plano passa a prescrever em
+    **%FTHR + RPE** (`FOCUS_HR_PCT`/`FOCUS_RPE`/`FOCUS_HR_HINT`, alvo em bpm
+    via `hr_target_bpm`), e o `push` envia os eventos com
+    `target: HEART_RATE` (o texto do Intervals mantém a regra de cues sem `%`/
+    duração abreviada);
+  - `reconcile` **preserva o modo FC** ao reescrever treinos (recuperação,
+    limiar reduzido);
+  - `info`/`reconcile` avisam **"Plano em modo FC — sem medidor de potência;
+    carga estimada por FC (icu_training_load)"**;
+  - a **carga real** sem watts segue do Intervals (`average_heartrate` →
+    `hr_load`/`icu_training_load`), sem TRIMP local.
+
 ## [0.0.15] - 2026-09-22
 
 ### Adicionado

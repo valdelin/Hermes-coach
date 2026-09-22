@@ -314,6 +314,23 @@ def parse_ftp_test_date(value):
     except ValueError:
         return None
 
+
+def parse_fthr(value):
+    """Converte FTHR do .env (frequencia cardiaca no limiar, em bpm) em int, ou
+    None se ausente/invalido. Valores fora do intervalo humano (30-250 bpm) sao
+    descartados. O FTHR e usado na prescricao sem medidor de potencia (#3):
+    alvos em %FTHR + RPE e carga estimada via icu_training_load do Intervals."""
+    if not value:
+        return None
+    try:
+        fthr = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    if fthr < 30 or fthr > 250:
+        return None
+    return fthr
+
+
 FOCUS_LABELS_PT = {
     REST: "Descanso",
     FOCUS_ZONE2: "Zona 2",
@@ -359,7 +376,8 @@ def weekly_budget(avg):
 
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
-               ftp_test_date=None, weekly_hours=None, long_day=None):
+               ftp_test_date=None, weekly_hours=None, long_day=None,
+               hr_mode=False):
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -376,7 +394,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          goal=goal, race_date=race_date,
                                          ftp_test_date=ftp_test_date,
                                          weekly_hours=weekly_hours,
-                                         long_day=long_day)
+                                         long_day=long_day, hr_mode=hr_mode)
     weekly = weekly_template(tsb, goal)
     slots = sorted(training_days)
     weekly = _place_long_day(weekly, long_day, slots)
@@ -424,8 +442,14 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
     # Preparacao do teste de FTP: o ciclo do dia manda no teste, nao no
     # template. Protege as 48h antes (D-2 facil, D-1 spin), cria o evento do
     # teste (D0) e a recuperacao pos-teste (D+1).
-    return _protect_ftp_test(plan, ftp_test_date, training_days,
+    plan = _protect_ftp_test(plan, ftp_test_date, training_days,
                              start, days, ftp)
+    # Modo FC (#3): prescricao sem medidor de potencia (%FTHR + RPE). Todos os
+    # workouts do plano carregam a marca para o push escolher HEART_RATE.
+    if hr_mode:
+        for w in plan:
+            w["hr_mode"] = True
+    return plan
 
 
 def _block_for(focus, slot, goal):
@@ -610,19 +634,81 @@ FOCUS_LABELS_EN = {
     ENDURANCE: "endurance",
 }
 
+# Prescricao sem medidor de potencia (#3): alvo em %FTHR por foco, com RPE
+# como ancora quando o atleta nao tem medidor. A carga do dia continua sendo
+# estimada pelo Intervals (icu_training_load), inclusive via FC (has_heartrate).
+# Valores calibrados contra zonas de FC comuns (fração do FTHR/LTHR):
+#   Z2 ~ 70-80%, Sweet Spot ~ 85-90%, Limiar ~ 95-100%, VO2 ~ 105%+.
+FOCUS_HR_PCT = {
+    FOCUS_ZONE2: 0.75,
+    FOCUS_SWEETSPOT: 0.88,
+    FOCUS_THRESHOLD: 0.98,
+    FOCUS_VO2: 1.05,
+    ENDURANCE: 0.75,
+}
 
-def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None):
+FOCUS_RPE = {
+    FOCUS_ZONE2: "3-4",
+    "endurance": "3-5",
+    FOCUS_SWEETSPOT: "5-6",
+    FOCUS_THRESHOLD: "7-8",
+    FOCUS_VO2: "9-10",
+}
+
+# Roteiro explicativo da zona em %FTHR (modo FC / sem medidor de potencia).
+# Mesma regra do parser: mensagens escrevem "por cento"/"percent" por extenso.
+FOCUS_HR_HINT = {
+    FOCUS_ZONE2: {
+        "pt": "a zona 2 fica entre 65 e 80 por cento do FTHR",
+        "en": "the zone 2 band sits between 65 and 80 percent of your HR threshold",
+    },
+    FOCUS_SWEETSPOT: {
+        "pt": "a zona de sweet spot fica entre 84 e 93 por cento do FTHR",
+        "en": "the sweet spot zone sits between 84 and 93 percent of your HR threshold",
+    },
+    FOCUS_THRESHOLD: {
+        "pt": "a zona de limiar fica entre 95 e 100 por cento do FTHR",
+        "en": "the threshold zone sits between 95 and 100 percent of your HR threshold",
+    },
+    FOCUS_VO2: {
+        "pt": "a zona de VO2 Max fica acima de 100 por cento do FTHR",
+        "en": "the VO2 Max zone sits above 100 percent of your HR threshold",
+    },
+    ENDURANCE: {
+        "pt": "a endurance (resistencia longa) fica entre 65 e 80 por cento do FTHR",
+        "en": "the endurance band sits between 65 and 80 percent of your HR threshold",
+    },
+}
+
+
+def hr_target_bpm(focus, fthr):
+    """FC alvo (bpm) do esforco do foco, a partir do FTHR (#3)."""
+    return round(fthr * FOCUS_HR_PCT[focus])
+
+
+def rpe_for_focus(focus):
+    """Faixa RPE (escala 1-10) como ancora do esforco sem medidor de potencia."""
+    return FOCUS_RPE.get(focus, "5-6")
+
+
+def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None,
+                  fthr=None):
+    """Evento do calendario. Com `fthr` e o workout marcado `hr_mode` (#3), o
+    target vira HEART_RATE e o texto usa %FTHR + RPE; senao, POWER (%FTP)."""
+    hr = bool(workout.get("hr_mode")) and bool(fthr)
     return {
         "start_date_local": f"{workout['day']}T{START_TIME}",
         "category": "WORKOUT", "type": "Ride",
         "name": workout["name"],
-        "description": desc or workout_text(workout, ftp, lang=lang, prev=prev),
+        "description": desc or workout_text(workout, ftp, lang=lang, prev=prev,
+                                            fthr=fthr),
         "planned_duration": workout["planned_duration"],
-        "target": "POWER", "external_id": workout["external_id"],
+        "target": "HEART_RATE" if hr else "POWER",
+        "external_id": workout["external_id"],
     }
 
 
-def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None):
+def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None, fthr=None):
     """Descricao nativa do Intervals (workout builder): a primeira linha e o
     titulo do treino e cada passo e `texto duracao percentual%`. Os watts (ex:
     `83% (151w)`) sao calculados pelo Intervals a partir do FTP.
@@ -631,7 +717,11 @@ def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None):
     duracao (cue text -> textevent no .zwo). As repeticoes sao achatadas em
     passos individuais porque o parser do Intervals ignora o grupo `Nx` quando
     os passos internos trazem texto. O texto do cue nao pode conter "%".
-    """
+
+    Com `fthr` e `hr_mode` no workout: prescricao por FC (#3) — os alvos usam
+    %FTHR e cada serie traz o RPE como ancora (sem medidor de potencia)."""
+    if workout.get("hr_mode") and fthr:
+        return _workout_text_hr(workout, fthr, lang=lang, prev=prev)
     params = workout["params"]
     lines = [workout["name"], ""]
     lines.append(f"- {_warmup_msg(workout, lang, prev)} "
@@ -648,6 +738,97 @@ def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None):
               f"{_hm(params['cooldown_sec'])} "
               f"{_pct(params['cooldown_power_low'])}-{_pct(params['cooldown_power_high'])}%"]
     return "\n".join(lines)
+
+
+def _workout_text_hr(workout, fthr, lang="pt", prev=None):
+    """Texto em %FTHR + RPE para treino sem medidor de potencia (#3)."""
+    params = workout["params"]
+    focus = workout["focus"]
+    lines = [workout["name"], ""]
+    lines.append(f"- {_warmup_msg_hr(workout, lang, fthr, prev)} "
+                 f"{_hm(params['warmup_sec'])} "
+                 f"{_pct(params['warmup_power_low'])}-{_pct(params['warmup_power_high'])}%")
+    for _ in range(max(1, params["repeats"])):
+        lines.append(f"- {_interval_msg_hr(focus, params, lang, fthr)} "
+                     f"{_hm(params['on_sec'])} {_pct(FOCUS_HR_PCT[focus])}%")
+        if params["off_sec"]:
+            lines.append(f"- {_recovery_msg_hr(params, lang)} "
+                         f"{_hm(params['off_sec'])} {_pct(params['off_power'])}%")
+    lines += ["",
+              f"- {_cooldown_msg_hr(params, lang)} "
+              f"{_hm(params['cooldown_sec'])} "
+              f"{_pct(params['cooldown_power_low'])}-{_pct(params['cooldown_power_high'])}%"]
+    return "\n".join(lines)
+
+
+def _warmup_msg_hr(workout, lang, fthr, prev):
+    focus = workout["focus"]
+    rpe = rpe_for_focus(focus)
+    bpm = hr_target_bpm(focus, fthr)
+    hint = FOCUS_HR_HINT[focus][lang]
+    pct = _pct(FOCUS_HR_PCT[focus])
+    if lang == "en":
+        head = (f"Warm-up: {hint}. Today we aim at {pct} percent of your HR "
+                f"threshold (about {bpm} bpm, RPE {rpe}).")
+        body = " After the warm-up, " + _structure_msg_hr(workout, lang, fthr) + "."
+        pep = " Listen to your body!"
+    else:
+        head = (f"Aquecimento: {hint}. Hoje miramos {pct} por cento do seu FTHR "
+                f"(cerca de {bpm} bpm, RPE {rpe}).")
+        body = " Apos o aquecimento, " + _structure_msg_hr(workout, lang, fthr) + "."
+        pep = " Vai com tudo!"
+    return head + body + _progress_msg(workout, prev, lang) + pep
+
+
+def _structure_msg_hr(workout, lang, fthr):
+    params = workout["params"]
+    focus = workout["focus"]
+    dur = _dur_text(params["on_sec"], lang)
+    pct = _pct(FOCUS_HR_PCT[focus])
+    bpm = hr_target_bpm(focus, fthr)
+    if lang == "en":
+        if params["off_sec"]:
+            return (f"we'll do {params['repeats']} sets of {dur} at {pct} percent "
+                    f"of your HR threshold (about {bpm} bpm), with "
+                    f"{_dur_text(params['off_sec'], lang)} of recovery between them, "
+                    "then cool down")
+        return (f"we'll do a continuous {dur} block at {pct} percent of your HR "
+                f"threshold (about {bpm} bpm), then cool down")
+    if params["off_sec"]:
+        return (f"faremos {params['repeats']} series de {dur} a {pct} por cento do "
+                f"FTHR (cerca de {bpm} bpm), com "
+                f"{_dur_text(params['off_sec'], lang)} de recuperacao entre elas, "
+                "e depois o desaquecimento")
+    return (f"faremos um bloco continuo de {dur} a {pct} por cento do FTHR "
+            f"(cerca de {bpm} bpm), e depois o desaquecimento")
+
+
+def _interval_msg_hr(focus, params, lang, fthr):
+    dur = _dur_text(params["on_sec"], lang)
+    pct = _pct(FOCUS_HR_PCT[focus])
+    bpm = hr_target_bpm(focus, fthr)
+    rpe = rpe_for_focus(focus)
+    if lang == "en":
+        return (f"Now you'll ride {dur} at {pct} percent of your HR threshold "
+                f"(about {bpm} bpm, RPE {rpe})")
+    return (f"Agora voce vai entrar em {dur} a {pct} por cento do FTHR "
+            f"(cerca de {bpm} bpm, RPE {rpe})")
+
+
+def _recovery_msg_hr(params, lang):
+    dur = _dur_text(params["off_sec"], lang)
+    pct = _pct(params["off_power"])
+    if lang == "en":
+        return f"Recovery: {dur} at {pct} percent of HR threshold"
+    return f"Recuperacao de {dur} a {pct} por cento do FTHR"
+
+
+def _cooldown_msg_hr(params, lang):
+    low = _pct(params["cooldown_power_low"])
+    high = _pct(params["cooldown_power_high"])
+    if lang == "en":
+        return f"Cooldown: ease down from {low} to {high} percent of HR threshold"
+    return f"Desaquecimento: reduza de {low} a {high} por cento do FTHR"
 
 
 def _warmup_msg(workout, lang, prev):
@@ -766,6 +947,7 @@ def _zone(frac):
 
 def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS):
     today = date.today()
+    hr_mode = any(w.get("hr_mode") for w in plan)
     done_ids, extras = _done_and_extra(events)
     reduced_ids = set()
     missed = [w for w in plan
@@ -777,6 +959,12 @@ def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS
     plan = _adjust_for_extra_workouts(plan, extras, ftp, training_days,
                                       cap=daily_tss_cap(avg_load(events)),
                                       reduced_ids=reduced_ids)
+    # Modo FC (#3): treinos reescritos (recuperacao, limiar reduzido) perdem a
+    # marca `hr_mode` ao serem reconstruidos; restaura em todos para o plano
+    # nao misturar prescricao por FC e por potencia.
+    if hr_mode:
+        for w in plan:
+            w["hr_mode"] = True
     return plan, missed
 
 
