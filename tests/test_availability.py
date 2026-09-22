@@ -139,5 +139,52 @@ class LongDayPlacementTest(unittest.TestCase):
         self.assertEqual(_place_long_day(weekly, 6, ()), weekly)
 
 
+class PreserveTodayWithAvailabilityTest(unittest.TestCase):
+    """BUG #7: o caminho que preserva o treino de hoje nao pode descartar
+    WEEKLY_HOURS/LONG_DAY nos dias futuros (plan.py:373-376)."""
+
+    def _existing(self):
+        today = date.today()
+        if today.weekday() >= 5:
+            self.skipTest("hoje e fim de semana")
+        return [{"day": today.isoformat(), "focus": FOCUS_ZONE2,
+                 "planned_duration": 2400,
+                 "name": f"{today} - Recuperacao (plano ajustado)",
+                 "params": {"on_sec": 1200}, "tss": 14.0,
+                 "external_id": f"hermes-plan-{today}"}]
+
+    def test_preserva_hoje_e_aplica_weekly_hours_nos_dias_futuros(self):
+        existing = self._existing()
+        base = build_plan([], -7, ftp=182, days=5, existing=existing)
+        scaled = build_plan([], -7, ftp=182, days=5, existing=existing,
+                            weekly_hours=2)
+        # treino de hoje preservado nunca e escalado
+        self.assertEqual(scaled[0]["params"]["on_sec"], 1200)
+        # dias futuros DEVEM ser escalados (regressao: antes ficavam iguais)
+        self.assertEqual(len(base), len(scaled))
+        for b, s in zip(base[1:], scaled[1:]):
+            self.assertLessEqual(s["params"]["on_sec"], b["params"]["on_sec"])
+        self.assertLess(sum(w["tss"] for w in scaled[1:]),
+                        sum(w["tss"] for w in base[1:]))
+
+    def test_preserva_hoje_e_aplica_long_day_nos_dias_futuros(self):
+        existing = self._existing()
+        base = build_plan([], 0, ftp=182, days=14, goal="gran-fondo",
+                          existing=existing)
+        rotated = build_plan([], 0, ftp=182, days=14, goal="gran-fondo",
+                             existing=existing, long_day=6)  # domingo
+        self.assertEqual(rotated[0]["day"], existing[0]["day"])
+        # agenda seg-sex + LONG_DAY=dom -> endurance cai na segunda
+        # (dia de treino mais proximo). Antes da correcao, o LONG_DAY era
+        # descartado e a segunda ficava com o foco do template (ZONE2).
+        mondays = [w for w in rotated[1:]
+                   if date.fromisoformat(w["day"]).weekday() == 0]
+        self.assertTrue(mondays, "precisa haver segunda no horizonte")
+        self.assertTrue(all(w["focus"] == ENDURANCE for w in mondays),
+                        "LONG_DAY nao foi aplicado nos dias futuros")
+        self.assertNotEqual([w["focus"] for w in base[1:]],
+                            [w["focus"] for w in rotated[1:]])
+
+
 if __name__ == "__main__":
     unittest.main()

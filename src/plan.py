@@ -371,9 +371,12 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                 plan = [kept[0]]
                 recent = [(today, kept[0]["tss"])]
                 return plan + build_plan(events, tsb, ftp=ftp, days=days,
-                                         start=start, training_days=training_days,
+                                         start=start,
+                                         training_days=training_days,
                                          goal=goal, race_date=race_date,
-                                         ftp_test_date=ftp_test_date)
+                                         ftp_test_date=ftp_test_date,
+                                         weekly_hours=weekly_hours,
+                                         long_day=long_day)
     weekly = weekly_template(tsb, goal)
     slots = sorted(training_days)
     weekly = _place_long_day(weekly, long_day, slots)
