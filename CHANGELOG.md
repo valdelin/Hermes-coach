@@ -11,62 +11,64 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-09-22
+
 ### Adicionado
 
-- **Issue [#6](https://github.com/valdelin/Hermes-coach/issues/6)** — TODO
-  registrado: **FTP sugerido a partir de treinos não agendados** (prova/treino
-  livre). Desenho na issue: detectar o pedido "extra" no `reconcile`, estimar
-  o FTP via melhor média móvel de 20 min do stream de potência (`0.95 ×
-  best20`) com gates de qualidade/contexto, e propor (nunca auto-aplicar) a
-  atualização de `.env FTP` + `indoor_ftp` no Intervals com confirmação do
-  atleta. Backlog (Fase 2) e ROADMAP atualizados.
-- **Comentário de referência na issue #6** (como as plataformas estimam FTP
-  automático): Garmin (FC↔potência), Strava (curva de potência ≥20 min),
-  Intervals.icu (picos de 3/5/10/20 min + notificação de recorde), TrainingPeaks
-  (pop-up NP com **Aceitar**). Refinamento do desenho: **fonte primária =
-  `eFTP` do Intervals via API**; local best-20min × 0,95 como verificação;
-  janela 3–20 min; **limpeza de outliers** do stream como gate/teste; fluxo
-  "propor + confirmar" validado como padrão de mercado.
-- **Investigação da API do Intervals (piloto #6)**: endpoints de atividade
-  ficam **fora de `/athlete/{id}`** — `GET /api/v1/activity/{id}/...`; o
-  **eFTP não está no perfil** (só `eFTPSupported`/`ftp_est_min_secs`), mas o
-  detalhe da atividade expõe **`icu_pm_ftp`/`icu_rolling_ftp`** (estimado
-  calculado pela plataforma) e `GET .../activity/{id}/streams` devolve a série
-  em **`type == "watts"`** (dt=1s inferível pelo stream `time`).
+- **Issue [#6](https://github.com/valdelin/Hermes-coach/issues/6)** — **implementado**
+  (comando `ftp-scan`): **FTP sugerido a partir de treinos fora do plano**.
+  Detecta eventos pareados não-hermes, aplica filtros baratos no detalhe
+  (não-MANUAL, ≥ 45 min, com potência, intensidade ≥ 75% do FTP), estima via
+  melhor média móvel de 20 min × 0,95 (`src/ftp_estimation.py`) com gates de
+  qualidade, propõe **somente para cima** (+3%..+30%), exige **confirmação
+  antes de aplicar** e, no sim, atualiza `.env FTP` (+ `.env.bak`) e o
+  `indoor_ftp` via `PUT /athlete/{id}/sport-settings/{ride}`. Candidatos ficam
+  na meta do `plan.json` (`ftp_candidates`, com `applied`), preservada por
+  `build`/`reconcile`; `info`/`ftp-check` avisam quando há pendência. Detalhes
+  em `docs/KNOWN_ISSUES.md`.
 - **`src/ftp_estimation.py`** (mecânica pura #6, determinística): `best_effort`
   (melhor média móvel, padrão 20 min), `clean_power` (clipe de spikes
   > 2,5× mediana, suporta anomalias da plataforma — só subestima) e
   `analyze_ride` → `proposed_ftp = round(best20 × 0,95)` com gates
   **CV ≤ 15%**, **min ≥ 80% da média** (anti-apagão) e **diff do atual em
-  +3%..+30%** (só propõe para cima; >+30% = anomalia). 16 testes sintéticos
-  (suite: **138 passed**); validado com dados reais (treinos agendados
-  reprovam/sem novidade, como esperado).
+  +3%..+30%** (só propõe para cima; >+30% = anomalia). 16 testes sintéticos;
+  validado com dados reais (treinos agendados reprovam/sem novidade, como
+  esperado).
 - **`README.md`**: nova seção **"O que o cycling coach faz"** — inventário das
   capacidades (plano/cargas, GOAL, FTP, automação, segurança) + contagem de
-  testes corrigida (138).
+  testes corrigida.
+
+### Corrigido
+
+- **#7** — `build` preservava o treino de hoje **descartando `WEEKLY_HOURS`/
+  `LONG_DAY`**: a chamada recursiva agora repassa as duas opções (o treino de
+  hoje preservado não é escalado). Testes `PreserveTodayWithAvailabilityTest`.
+- **#8** — `reconcile` regravava `plan.json` **sem a meta**: agora carrega e
+  regrava a meta (`goal`/`race_date`/`ftp_test_date`). Testes
+  `ReconcileMetaTest`. Pré-requisito da #6 (os `ftp_candidates` vivem na meta).
 
 ### Atualizado
 
-- **`docs/ROADMAP.md`** sincronizado: novo item #6 no backlog (FTP sugerido);
-  **renumeração** — a casca Runna virou **#7** e multi-atleta **#8**, para a
-  coluna `#` acompanhar os números reais das issues do GitHub.
+- **`docs/KNOWN_ISSUES.md`**: #7 e #8 marcadas **corrigidas** (2026-09-22);
+  nota operacional do incidente do timer (evento de hoje apagado e restaurado);
+  entrada nova da #6 (implementada).
+- **`docs/ROTEIRO-TESTES.md`**: resultados completos da sessão de testes de
+  22/09 (S1-S14 + bug hunt + correções).
+- **`docs/ROADMAP.md`** sincronizado com o estado real (revisão de 21/09):
+  registro dos 5 itens em aberto (#1–#3, #6, #7), dos fechados (#4, #5 —
+  resta validação com treinador), da Fase 3 parcialmente iniciada no agente
+  (onboarding + disponibilidade, v0.0.10–0.0.11) e do roteiro de testes
+  (`docs/ROTEIRO-TESTES.md`, execução em 22/09). Na v0.0.15 o #6 entra nos
+  **fechados** (ftp-scan entregue).
+- Vault do Obsidian sincronizado: `HISTORICO.md` (entradas 2026-09-20 e
+  2026-09-21), `PLANO-NOVAS-IMPLEMENTACOES.md` (status atual 2026-09-21) e
+  cópia do `ROTEIRO-TESTES.md`.
 - **Prioridade da #1 reduzida** (decisão 2026-09-21): a "fantasma" é
   **cosmética** e é comportamento do **Intervals**, não do agente —
   label `priority: low` criado no repo e aplicado à issue; documentado em
   `docs/KNOWN_ISSUES.md`; #1 saiu do início da sessão de testes de 22/09.
 
 ## [0.0.14] - 2026-09-21
-
-### Atualizado
-
-- **`docs/ROADMAP.md`** sincronizado com o estado real (revisão de 21/09):
-  registro dos 5 itens em aberto (#1–#3, #6, #7), dos fechados (#4, #5 —
-  resta validação com treinador), da Fase 3 parcialmente iniciada no agente
-  (onboarding + disponibilidade, v0.0.10–0.0.11) e do roteiro de testes
-  (`docs/ROTEIRO-TESTES.md`, execução em 22/09).
-- Vault do Obsidian sincronizado: `HISTORICO.md` (entradas 2026-09-20 e
-  2026-09-21), `PLANO-NOVAS-IMPLEMENTACOES.md` (status atual 2026-09-21) e
-  cópia do `ROTEIRO-TESTES.md`.
 
 ## [0.0.13] - 2026-09-21
 

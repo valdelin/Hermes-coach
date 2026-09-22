@@ -193,6 +193,62 @@ reconcile → meta `{'goal': 'ftp-builder', 'race_date': None,
 
 ---
 
+## #6 — FTP sugerido a partir de treinos fora do plano
+
+**GitHub:** [valdelin/Hermes-coach#6](https://github.com/valdelin/Hermes-coach/issues/6)
+**Status:** **implementado** (2026-09-22, aguardando commit/release) ·
+**Severidade:** feature (estimativa assistida de FTP)
+
+### Descrição
+
+Quando o atleta pedala **fora do plano** (ex.: um Zwift race, um pedal solto ou
+um treino que ele mesmo montou), o pedal carrega informação de fitness que o
+Ramp Test obrigaria a parar a semana para obter. O `ftp-scan` examina esses
+treinos e propõe um novo FTP, seguindo regras conservadoras:
+
+- **Candidatos**: eventos pareados (`paired_activity_id`) com `external_id`
+  não-hermes; filtros baratos no detalhe (não-MANUAL, duração ≥ 45 min, com
+  potência, intensidade média ≥ 75% do FTP) antes de baixar o stream;
+- **Estimativa** (`src/ftp_estimation.py`): melhor média móvel de 20 min × 0.95
+  (= `proposed_ftp`), com gates de qualidade (CV ≤ 15%, mínimo da janela ≥ 80%
+  da média, limpeza de picos espúrios);
+- **Somente para cima**: `proposed_ftp` precisa estar entre **+3% e +30%** do
+  FTP atual (`MIN_NEW_FTP_RATIO`/`MAX_NEW_FTP_RATIO`) — esforço fraco não vira
+  "FTP menor" (fadiga derruba potência) e salto > 30% é tratado como anomalia;
+- **Confirmação obrigatória**: o `ftp-scan` lista os candidatos validados e
+  pergunta antes de aplicar (nunca altera `.env`/Intervals sozinho);
+- **Aplicação**: `.env FTP` + backup `.env.bak` + `PUT /athlete/{id}/
+  sport-settings/{ride_id}` com `indoor_ftp` novo (mesmo padrão do alinhamento
+  210 → 182W em 19/09/2026: payload sem `created`/`updated`);
+- **Registro na meta**: candidatos ficam em `plan.json` → `ftp_candidates`
+  (chave = `activity_id`, com `applied`); `build`/`reconcile` **preservam** a
+  meta (o #8 garantiu isso); `info`/`ftp-check` avisam quando há pendência.
+
+### Uso
+
+```
+python3 src/training_plan.py ftp-scan [--days 45]
+```
+
+### Validação
+
+- Suíte: 165 testes OK (novos em `tests/test_ftp_scan.py` +
+  `tests/test_training_plan.py` — E2E com client fake, sem rede).
+- Dados reais (2026-09-22, janela 45d): 8 treinos fora do plano detectados,
+  **todos filtrados** no gate de intensidade (pedais leves de agosto/setembro:
+  101–131W < 75% do FTP 182W) — nenhum candidato a aplicar; `plan.json`
+  inalterado.
+
+### Registro
+
+- 2026-09-22: implementação da integração (client: activity/streams/
+  sport-settings + detecção + CLI + meta); sondagem da API real confirmou o
+  formato dos streams (`GET /activity/{id}/streams.json?types=watts,time` →
+  lista `{type, data}`) e da entrada Ride das sport-settings (id 31898,
+  `indoor_ftp`).
+
+---
+
 ## Nota defensiva: `workout_text`/`event_payload` com `lang` inválida
 
 **Status:** nota (sem issue própria) · **Severidade:** defensiva — **não

@@ -17,7 +17,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
 | 4 | feature | ~~Ativar sync de wellness~~ **implementado e issue fechada** (RHR/sono no `info`; HRV sem suporte no FR935) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 ✅ |
 | 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado e issue fechada** (v0.0.9) — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
-| 6 | feature | **FTP sugerido a partir de treinos não agendados** (prova/treino livre): estimar novo FTP do stream de potência (best-20min × 0,95) com gates de qualidade/contexto e confirmação do atleta | [#6](https://github.com/valdelin/Hermes-coach/issues/6) | 2 |
+| 6 | feature | ~~FTP sugerido a partir de treinos não agendados~~ (prova/treino livre) **implementado e issue fechada** (v0.0.15, `ftp-scan`: best-20min × 0,95 com gates + confirmação) | [#6](https://github.com/valdelin/Hermes-coach/issues/6) | 2 ✅ |
 | 7 | produto | Casca estilo Runna: PWA + onboarding por objetivo + assinatura | — | 3 |
 | 8 | produto | Multi-atleta / modo treinador (dashboard por atleta) | — | 4 |
 
@@ -45,6 +45,13 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 - Detectar ausência de potência; configurar `FTHR` no `.env`;
   `hrTSS = seg × IF_hr² × 100 / 3600`; prescrever %FTHR (ou RPE) em dias
   outdoor; sinalizar "sem potência — carga por FC" no resumo.
+- **FTP sugerido (issue #6) — ✅ implementado (v0.0.15)**: `ftp-scan` examina
+  treinos fora do plano (eventos pareados não-hermes), filtra (não-MANUAL,
+  ≥ 45 min, com potência, intensidade ≥ 75% do FTP), estima via
+  `src/ftp_estimation.py` (best-20min × 0,95, gates CV≤15%/min≥80%) e propõe
+  **somente para cima** (+3%..+30%) com **confirmação obrigatória** — aplica
+  `.env FTP` + `indoor_ftp` do Intervals e registra `ftp_candidates` na meta do
+  `plan.json` (preservada por build/reconcile).
 - **Tipos de plano (issue #5) — ✅ implementado** (reste: validação da
   prescrição com treinador). `GOAL` no `.env` seleciona o tipo —
   `back-to-fitness` (pós-pausa: base z2, carga ~60%), `ftp-builder`
@@ -79,30 +86,21 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 - Mudanças que afetam carga/plano passam por **`--dry-run`** ou validação com
   dados reais antes de tocar o fluxo do timer diário.
 
-## Status atual (2026-09-21)
+## Status atual (2026-09-22)
 
-Revisão dos itens em aberto (sessão de 21/09, com o #6 novo):
+Revisão dos itens (release v0.0.15, sessão de 22/09):
 
-- **Abertos (6):** #1 fantasmas (Fase 0 — bug especificado em
+- **Abertos (3):** #1 fantasmas (Fase 0 — bug especificado em
   `docs/KNOWN_ISSUES.md`, **prioridade baixa**: cosmético, bug do Intervals,
-  não do agente — saiu do início da sessão de testes 22/09),
-  #2 notificações (Fase 1), #3 treinos sem potência (Fase 2),
-  #6 **FTP sugerido de treinos não agendados** (Fase 2 — issue registrada
-  21/09; complementa o `ftp-check` da #5. **Piloto de implementação em 21/09**:
-  investigada a API real — o eFTP não está no perfil, a fonte primária é o
-  `icu_pm_ftp` do detalhe da atividade e o stream de potência vem em
-  `/streams` (`type == "watts"`); **mecânica pura pronta** em
-  `src/ftp_estimation.py` (best-20min × 0,95, gates CV≤15%/min≥80%/diff
-  +3%..+30%, clipe de spikes) com 16 testes (suite 138 OK). Faltam: client
-  streams/filtro de candidatos, CLI `ftp-scan`, `plan.json` e #2), #7 casca
-  Runna (Fase 3 — onboarding por objetivo já existe no agente,
-  v0.0.10–0.0.11), #8 multi-atleta (Fase 4 —
-  aguarda ROTEIRO-TREINADOR).
+  não do agente), #2 notificações (Fase 1), #3 treinos sem potência
+  (Fase 2 — complementa o `ftp-scan`/FTHR).
 - **Fechados:** #4 wellness ✅, #5 tipos de plano ✅ (resta validar a prescrição
-  com treinador).
+  com treinador), **#6 FTP sugerido ✅ (v0.0.15)** — `ftp-scan` implementado e
+  validado com dados reais (janela 45d: 8 treinos fora do plano, todos
+  filtrados no gate de intensidade); issues #7/#8 (bugs da sessão 22/09)
+  corrigidos na v0.0.15.
 - **Renumeração (21/09):** a coluna `#` acompanha os números das issues do
   GitHub — FTP é **#6**; a casca Runna (antes #6) é **#7** e multi-atleta
   (antes #7) é **#8**.
-- Suíte: **138 testes OK** (v0.0.13 + 16 novos de `ftp_estimation`,
-  fixtures de reconcile determinísticas).
+- Suíte: **165 testes OK** (v0.0.15).
 - Roteiro de validação: **`docs/ROTEIRO-TESTES.md`** (execução em 22/09).
