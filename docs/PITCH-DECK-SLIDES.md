@@ -71,6 +71,7 @@ O que já está provado
 - Motor rodando em produção (timer diário + calendário real no Intervals.icu)
 - Benchmarks de mercado concluídos: Xert, Pillar, TriDot, RunDot, Zwift
 - Roteiro de validação com treinador pronto: ciência + multi-atleta + pricing
+- Acesso a treinadores via rede do fundador: treinadores conhecidos entram como beta testers (primeiro piloto, custo ~zero)
 - 181 testes automatizados, CI no GitHub
 
 ---
@@ -94,7 +95,7 @@ Já implementado → próximas 3 fases
 - Comunicação (Fase 1): notificações Telegram → e-mail/WhatsApp — em andamento
 - Casca/produto (Fase 3): PWA + onboarding + assinatura + catálogo de eventos
 - Multi-atleta (Fase 4): dashboard por atleta, aprovação, alertas
-- Piloto: 1 treinador + seus atletas lendo/escrevendo no Intervals
+- Piloto: treinadores conhecidos do fundador como beta testers (1–2, com seus atletas no Intervals) — aquisição inicial com custo ~zero
 
 ---
 
@@ -122,7 +123,7 @@ Estamos levantando US$ 25k para validar o produto e chegar aos primeiros pagante
 Uso do capital (12 meses):
 1. Notificações (issue #2) — primeiro valor visível para o atleta
 2. Casca PWA + onboarding + assinatura (Fase 3) — mínimo produto assinável
-3. Piloto com 1–2 treinadores (modo multi-atleta) — validação B2B + pricing
-4. Aquisição inicial: comunidade Zwift/Intervals + conteúdo de treino
+3. Piloto com 1–2 treinadores (modo multi-atleta) — treinadores conhecidos como beta testers: validação B2B + pricing
+4. Aquisição inicial: rede de treinadores (beta testers) + comunidade Zwift/Intervals + conteúdo de treino
 
 Meta de 12 meses: 100 atletas solo + 3 treinadores → ARR ~US$ 70–90k

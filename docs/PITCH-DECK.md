@@ -125,11 +125,13 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
   Zwift — prescrição e precificação validados contra o padrão do mercado.
 - **Roteiro de validação com treinador** pronto (`ROTEIRO-TREINADOR.md`):
   ciência do treino + produto multi-atleta + pricing (perguntas 9–12 adicionadas).
+- **Acesso a treinadores via rede do fundador:** treinadores conhecidos entram
+  como **beta testers** — primeiro piloto com custo de aquisição ~zero.
 - 181 testes automatizados; CI no GitHub.
 
 > **Nota reta:** ainda não é tração comercial (zero pagantes) — seja honesto.
 > A validação até agora é de **motor + mercado + método**; o próximo marco é o
-> piloto com treinador (ver Slide 9).
+> piloto com treinadores conhecidos como beta testers (ver Slide 9).
 
 ---
 
@@ -163,7 +165,8 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 | Multi-atleta (4) | Dashboard por atleta, aprovação, alertas | 📋 Fase 4 (#8) |
 
 - Validar com treinador antes do B2B (ROTEIRO-TREINADOR).
-- **Piloto:** 1 treinador + seus atletas lendo/escrevendo no Intervals.
+- **Piloto:** treinadores conhecidos do fundador como **beta testers** (1–2, com
+  seus atletas lendo/escrevendo no Intervals) — aquisição inicial com custo ~zero.
 
 > **Nota:** mostrar que o caminho está desenhado e priorizado, não é roadmap
 > de slide bonito. O próximo investimento vai 100% para Fase 1 + 3.
@@ -211,8 +214,10 @@ produto e chegar aos primeiros pagantes**
 Uso do capital (12 meses):
 1. **Notificações (issue #2)** — primeiro valor visível para o atleta;
 2. **Casca PWA + onboarding + assinatura (Fase 3)** — mínimo produto assinável;
-3. **Piloto com 1–2 treinadores (modo multi-atleta)** — validação B2B + pricing;
-4. Aquisição inicial: comunidade Zwift/Intervals + conteúdo de treino.
+3. **Piloto com 1–2 treinadores (modo multi-atleta)** — treinadores conhecidos
+   do fundador como beta testers: validação B2B + pricing;
+4. Aquisição inicial: **rede de treinadores (beta testers)** + comunidade
+   Zwift/Intervals + conteúdo de treino.
 
 Meta de 12 meses 🔧 *(proposta)*: **100 atletas solo + 3 treinadores** → ARR
 ~**US$ 70–90k**
