@@ -7,14 +7,26 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
-                   wellness_summary, format_wellness)
-from intervals_client import IntervalsClient
-from impulse_response import ImpulseResponseEngine, daily_tss_series
-from plan import (build_plan, event_payload, load_plan, load_plan_meta,
-                  reconcile, save_plan, orphan_external_ids, parse_training_days,
-                  parse_goal, parse_weekly_hours, parse_long_day, GOAL_LABELS,
-                  FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS)
+try:
+    from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
+                       wellness_summary, format_wellness)
+    from intervals_client import IntervalsClient
+    from impulse_response import ImpulseResponseEngine, daily_tss_series
+    from plan import (build_plan, event_payload, load_plan, load_plan_meta,
+                      reconcile, save_plan, orphan_external_ids,
+                      parse_training_days, parse_goal, parse_weekly_hours,
+                      parse_long_day, GOAL_LABELS, FOCUS_LABELS_PT, REST,
+                      DEFAULT_FTP, CUE_LANGS, GOALS)
+except ImportError:
+    from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
+                        wellness_summary, format_wellness)
+    from .intervals_client import IntervalsClient
+    from .impulse_response import ImpulseResponseEngine, daily_tss_series
+    from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
+                       reconcile, save_plan, orphan_external_ids,
+                       parse_training_days, parse_goal, parse_weekly_hours,
+                       parse_long_day, GOAL_LABELS, FOCUS_LABELS_PT, REST,
+                       DEFAULT_FTP, CUE_LANGS, GOALS)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -314,7 +326,9 @@ def cmd_reconcile(args):
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
     plan, missed = reconcile(plan, events, ftp=ftp,
                              training_days=get_training_days())
-    save_plan(plan, PLAN_FILE)
+    meta = load_plan_meta(PLAN_FILE)
+    save_plan(plan, PLAN_FILE, goal=meta["goal"], race_date=meta["race_date"],
+              ftp_test_date=meta["ftp_test_date"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
