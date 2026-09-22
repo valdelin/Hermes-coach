@@ -11,6 +11,8 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.16] - 2026-09-22
+
 ### Adicionado
 
 - **Issue [#3](https://github.com/valdelin/Hermes-coach/issues/3)** —
