@@ -173,7 +173,7 @@ class PlanMetaTest(unittest.TestCase):
                              "load_plan deve continuar devolvendo a lista")
             self.assertEqual(load_plan_meta(path),
                              {"goal": "ftp-builder", "race_date": None,
-                              "ftp_test_date": None})
+                              "ftp_test_date": None, "ftp_candidates": {}})
 
     def test_save_load_com_teste_ftp(self):
         plan = self._sample_plan()
@@ -183,7 +183,7 @@ class PlanMetaTest(unittest.TestCase):
                       ftp_test_date="2026-10-22")
             self.assertEqual(load_plan_meta(path),
                              {"goal": "ftp-builder", "race_date": None,
-                              "ftp_test_date": "2026-10-22"})
+                              "ftp_test_date": "2026-10-22", "ftp_candidates": {}})
 
     def test_save_load_formato_antigo(self):
         plan = self._sample_plan()
@@ -193,14 +193,14 @@ class PlanMetaTest(unittest.TestCase):
             self.assertEqual(load_plan(path), plan)
             self.assertEqual(load_plan_meta(path),
                              {"goal": None, "race_date": None,
-                              "ftp_test_date": None})
+                              "ftp_test_date": None, "ftp_candidates": {}})
 
     def test_load_meta_arquivo_inexistente(self):
         with tempfile.TemporaryDirectory() as t:
             path = str(Path(t) / "nada.json")
             self.assertEqual(load_plan_meta(path),
                              {"goal": None, "race_date": None,
-                              "ftp_test_date": None})
+                              "ftp_test_date": None, "ftp_candidates": {}})
 
 
 class PromptRaceDateTest(unittest.TestCase):

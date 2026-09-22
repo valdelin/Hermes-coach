@@ -17,6 +17,7 @@ try:
                       parse_training_days, parse_goal, parse_weekly_hours,
                       parse_long_day, GOAL_LABELS, FOCUS_LABELS_PT, REST,
                       DEFAULT_FTP, CUE_LANGS, GOALS)
+    import ftp_scan
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
@@ -27,9 +28,11 @@ except ImportError:
                        parse_training_days, parse_goal, parse_weekly_hours,
                        parse_long_day, GOAL_LABELS, FOCUS_LABELS_PT, REST,
                        DEFAULT_FTP, CUE_LANGS, GOALS)
+    from . import ftp_scan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
+ENV_FILE = PROJECT_ROOT / ".env"
 
 
 def load_env(path):
@@ -122,10 +125,10 @@ def get_ftp_test_date():
         return None
 
 
-def _env_set(key, value):
-    """Grava/atualiza `key=value` no .env do projeto (sem tocar nas demais
-    linhas; nunca expoe a API key)."""
-    env_path = PROJECT_ROOT / ".env"
+def _env_set(key, value, path=None):
+    """Grava/atualiza `key=value` no .env (ou em `path`) sem tocar nas demais
+    linhas; nunca expoe a API key."""
+    env_path = path or ENV_FILE
     key_line = f"{key}={value}"
     lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.is_file() else []
     kept = [line for line in lines
@@ -133,6 +136,43 @@ def _env_set(key, value):
     kept.append(key_line)
     env_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
     os.environ[key] = value
+
+
+def _record_ftp_candidates(new_candidates):
+    """Mescla registros do ftp-scan na meta do plan.json (por activity_id)."""
+    try:
+        plan = load_plan(PLAN_FILE)
+    except FileNotFoundError:
+        print("aviso: plan.json ausente; rode `build` antes do `ftp-scan` "
+              "(candidatos nao registrados).")
+        return {}
+    meta = load_plan_meta(PLAN_FILE)
+    merged = dict(meta.get("ftp_candidates") or {})
+    for c in new_candidates:
+        merged[c["activity_id"]] = c
+    save_plan(plan, PLAN_FILE, goal=meta["goal"], race_date=meta["race_date"],
+              ftp_test_date=meta["ftp_test_date"], ftp_candidates=merged)
+    return merged
+
+
+def _pending_ftp_candidates():
+    """Candidatos a novo FTP da meta, validados e ainda nao aplicados."""
+    meta = load_plan_meta(PLAN_FILE)
+    cands = meta.get("ftp_candidates") or {}
+    return sorted(
+        (c for c in cands.values()
+         if c.get("suggests_new") and not c.get("applied")),
+        key=lambda c: c.get("day", ""), reverse=True)
+
+
+def _pending_ftp_hint():
+    """Aviso curto de FTP sugerido pendente (para info/ftp-check) ou None."""
+    pending = _pending_ftp_candidates()
+    if not pending:
+        return None
+    p = pending[0]
+    return (f"FTP sugerido pendente: {p['proposed_ftp']}W em {p['day']} "
+            f"({p['name']}) — rode `ftp-scan` para revisar.")
 
 
 def prompt_race_date():
@@ -195,6 +235,9 @@ def cmd_info(args):
     wellness = client.wellness(oldest=oldest.isoformat(), newest=newest.isoformat())
     summary = wellness_summary(wellness, days=7)
     print(f"Wellness: {format_wellness(summary)}")
+    hint = _pending_ftp_hint()
+    if hint:
+        print(hint)
 
 
 def cmd_ftp_check(args):
@@ -215,6 +258,9 @@ def cmd_ftp_check(args):
         print("Sugestao: agende um Ramp Test no app Zwift em um dia descansado;")
         print("  rode `build --ftp-test YYYY-MM-DD` para proteger as 48h antes")
         print("  (D-2 facil, D-1 spin) e publicar o evento do teste no plano.")
+    hint = _pending_ftp_hint()
+    if hint:
+        print(hint)
 
 
 def cmd_model(args):
@@ -291,8 +337,12 @@ def cmd_build(args):
                       existing=existing, training_days=get_training_days(),
                       goal=goal, race_date=race_date, ftp_test_date=ftp_test_date,
                       weekly_hours=weekly_hours, long_day=long_day)
+    # Preserva candidatos de FTP ja registrados na meta (issue #6): o build
+    # nao deve apagar o rastro de um ftp-scan anterior.
+    existing_meta = load_plan_meta(PLAN_FILE)
     save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date,
-              ftp_test_date=ftp_test_date)
+              ftp_test_date=ftp_test_date,
+              ftp_candidates=existing_meta.get("ftp_candidates"))
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     avail = []
     if weekly_hours:
@@ -328,7 +378,8 @@ def cmd_reconcile(args):
                              training_days=get_training_days())
     meta = load_plan_meta(PLAN_FILE)
     save_plan(plan, PLAN_FILE, goal=meta["goal"], race_date=meta["race_date"],
-              ftp_test_date=meta["ftp_test_date"])
+              ftp_test_date=meta["ftp_test_date"],
+              ftp_candidates=meta["ftp_candidates"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
@@ -357,6 +408,88 @@ def _prev_same_focus(plan, workout):
         if w["focus"] == workout["focus"] and w["day"] < workout["day"]:
             prev = w
     return prev
+
+
+def cmd_ftp_scan(args):
+    """Examina treinos feitos fora do plano (janela) e propoe novo FTP.
+
+    Fluxo (issue #6): eventos pareados nao-hermes -> detalhe -> filtros baratos
+    -> stream de watts -> analise local (20 min x 0.95) -> relatorio ->
+    confirmacao obrigatoria -> .env FTP + PUT indoor_ftp no Intervals."""
+    client = get_client()
+    ftp = get_ftp()
+    newest = date.today() + timedelta(days=1)
+    oldest = newest - timedelta(days=args.days)
+    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
+    extras = ftp_scan.extra_activities(events)
+    if not extras:
+        print(f"Sem treinos fora do plano na janela de {args.days} dias.")
+        return None
+    print(f"Treinos fora do plano na janela de {args.days} dias: {len(extras)}")
+    scanned = []
+    for e in extras:
+        activity = client.activity(e["activity_id"])
+        reason = ftp_scan.skip_reason(activity, ftp)
+        if reason:
+            print(f"  - {e['day']} {e['name'][:44]:<44} ignorado ({reason})")
+            continue
+        streams = client.activity_streams(e["activity_id"],
+                                          types=("watts", "time"))
+        rec = ftp_scan.estimate_ride(e["activity_id"], e["day"], e["name"],
+                                     activity, streams.get("watts") or [],
+                                     streams.get("time") or [], ftp)
+        scanned.append(rec)
+        status = ("-> sugere FTP" if rec["suggests_new"] else
+                  "-> sem novidade" if rec["quality_ok"] else "-> invalido")
+        print(f"  - {e['day']} {e['name'][:36]:<36} "
+              f"20min {rec['best20']:.0f}W | prop {rec['proposed_ftp']}W "
+              f"{status} {rec['reason']}".rstrip())
+    if not scanned:
+        print("Nenhum treino analisavel na janela.")
+        return None
+
+    valid = [c for c in scanned if c["suggests_new"]]
+    if not valid:
+        _record_ftp_candidates(scanned)
+        print("Nenhum candidato valido: os esforcos fora do plano nao "
+              "sustentam novo FTP agora.")
+        return scanned
+
+    chosen = ftp_scan.best_candidate(valid)
+    print("\nCandidato a aplicar:")
+    print(f"  {chosen['day']} {chosen['name']} ({chosen['activity_id']}): "
+          f"FTP {ftp}W -> {chosen['proposed_ftp']}W "
+          f"(20min {chosen['best20']:.0f}W x 0.95)")
+    answer = input("Aplicar novo FTP no .env e no Intervals (indoor_ftp)? "
+                   "(s/N) ").strip().lower()
+    _record_ftp_candidates(scanned)
+    if answer != "s":
+        print("Nao aplicado; candidato registrado na meta para revisao.")
+        return scanned
+
+    _env_set("FTP", str(chosen["proposed_ftp"]))
+    bak = PROJECT_ROOT / ".env.bak"
+    if bak.exists():
+        _env_set("FTP", str(chosen["proposed_ftp"]), path=bak)
+    else:
+        bak.write_text(ENV_FILE.read_text(encoding="utf-8"),
+                       encoding="utf-8")
+    settings = client.sport_settings()
+    ride = ftp_scan.ride_settings(settings)
+    if ride is None:
+        print("aviso: entrada Ride das sport-settings nao encontrada; .env "
+              "atualizado, Intervals NAO (verifique manualmente).")
+    else:
+        payload = ftp_scan.sanitize_ride_payload(
+            ride, indoor_ftp=chosen["proposed_ftp"])
+        st, _ = client.put_sport_settings(ride["id"], payload)
+        print(f"Intervals indoor_ftp atualizado (HTTP {st}) "
+              f"-> {chosen['proposed_ftp']}W")
+    chosen["applied"] = True
+    _record_ftp_candidates([chosen])
+    print(f"FTP atualizado para {chosen['proposed_ftp']}W "
+          "(.env + Intervals).")
+    return scanned
 
 
 def cmd_push(args):
@@ -410,6 +543,13 @@ def main(argv=None):
     p_ftp.add_argument("--weeks", type=int, default=8,
                        help="Janela em semanas entre testes")
     p_ftp.set_defaults(func=cmd_ftp_check)
+
+    p_scan = sub.add_parser(
+        "ftp-scan",
+        help="Examina treinos fora do plano e propoe novo FTP (issue #6)")
+    p_scan.add_argument("--days", type=int, default=45,
+                        help="Janela de historico de treinos fora do plano (dias)")
+    p_scan.set_defaults(func=cmd_ftp_scan)
 
     p_model = sub.add_parser(
         "model",

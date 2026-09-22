@@ -886,14 +886,17 @@ def orphan_external_ids(plan, events, start=None):
 
 
 def save_plan(plan, path="plan.json", goal=None, race_date=None,
-              ftp_test_date=None):
+              ftp_test_date=None, ftp_candidates=None):
     """Salva o plano. Com GOAL configurado, guarda a meta junto
-    (plan.json passa a ser {'goal', 'race_date', 'ftp_test_date', 'workouts'});
-    sem GOAL, mantem o formato antigo (lista pura) para compatibilidade."""
+    (plan.json passa a ser {'goal', 'race_date', 'ftp_test_date',
+    'ftp_candidates', 'workouts'}); sem GOAL, mantem o formato antigo (lista
+    pura) para compatibilidade."""
     data = plan
     if goal is not None:
         data = {"goal": goal, "race_date": race_date,
-                "ftp_test_date": ftp_test_date, "workouts": plan}
+                "ftp_test_date": ftp_test_date,
+                "ftp_candidates": ftp_candidates or {},
+                "workouts": plan}
     out = pathlib.Path(path)
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
@@ -911,14 +914,17 @@ def load_plan(path="plan.json"):
 
 
 def load_plan_meta(path="plan.json"):
-    """Meta (goal, race_date, ftp_test_date) salva junto com o plano, ou None
-    quando ausente."""
+    """Meta (goal, race_date, ftp_test_date, ftp_candidates) salva junto com o
+    plano, ou default (tudo None/{} ) quando ausente."""
     try:
         with open(pathlib.Path(path), "r", encoding="utf-8") as fh:
             data = json.load(fh)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"goal": None, "race_date": None, "ftp_test_date": None}
+        return {"goal": None, "race_date": None, "ftp_test_date": None,
+                "ftp_candidates": {}}
     if isinstance(data, dict) and "workouts" in data:
         return {"goal": data.get("goal"), "race_date": data.get("race_date"),
-                "ftp_test_date": data.get("ftp_test_date")}
-    return {"goal": None, "race_date": None, "ftp_test_date": None}
+                "ftp_test_date": data.get("ftp_test_date"),
+                "ftp_candidates": data.get("ftp_candidates") or {}}
+    return {"goal": None, "race_date": None, "ftp_test_date": None,
+            "ftp_candidates": {}}
