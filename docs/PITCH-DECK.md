@@ -2,7 +2,7 @@
 
 **Rascunho para apresentação a investidor** (anjo/seed). Conteúdo baseado nos
 docs reais do repo: `docs/ROADMAP.md`, `docs/ARQUITETURA.md`, ADR-003 (vault),
-benchmarks de mercado (22/09) e avaliação comercial #12.
+benchmarks de mercado (22/09–23/09) e avaliação comercial #12.
 
 > Formato: 12 slides. Cada seção tem (a) o texto da tela — curto, pronto para
 > colar no Gamma/Slidebean — e (b) nota do apresentador (não vai no slide).
@@ -77,10 +77,13 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 ## Slide 5 — Produto (como funciona)
 
-**O motor já roda hoje** (v0.0.16, 181 testes OK)
+**O motor já roda hoje** (v0.0.18, 198 testes OK)
 
 - Motor Banister local: **CTL/ATL/TSB** → foco do dia por faixa (`<-15` → Z2;
   `-15..0` → Sweet Spot; `0..5` → Limiar; `>=+5` → VO2).
+- **Expected PMC:** projeta forma/fadiga com treinos reais **+** planejados
+  (TSB hoje → próxima semana; alertas de sobrecarga).
+- **Plan adherence:** execução medida — feito × perdido × pendente por semana.
 - Orçamento semanal de carga (TSS 7d ≤ cap diário × 7) — nunca estoura.
 - **7 tipos de plano** (`GOAL`): base, FTP builder, gran-fondo, time-trial,
   climbing, off-season, **race** (com `RACE_DATE` e taper automático na semana
@@ -90,7 +93,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 - Integração: API do Intervals.icu (Garmin/Zwift/Wahoo/Polar/COROS...) + Zwift.
 
 > **Nota:** é o slide de maior densidade técnica — mantenha só o essencial e
-> mostre 1 print do calendário/`info` se possível. "181 testes OK" é sinal de
+> mostre 1 print do calendário/`info` se possível. "198 testes OK" é sinal de
 > engenharia séria; guarde detalhe para o Q&A.
 
 ---
@@ -111,6 +114,11 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
   (`systemd` timer diário + reconcile noturno).
 - **Custo de operação ~R$ 0:** a orquestração é determinística (sem LLM por
   treino) — rodar o serviço é barato, margem alta.
+- **Tredict** (benchmark 23/09) é o concorrente conceitual mais próximo —
+  plataforma completa (análise + IA + sync de devices, MCP server). **Valida o
+  conceito** (previsão de forma, detecção de FTP/LTHR) **e o contraste:** eles
+  são a plataforma de dados; o Hermes é o cérebro determinístico/auditável
+  sobre o ecossistema que o atleta já usa.
 
 > **Nota:** a linha do meio (automação) é o argumento central de investimento.
 > Reforçar: "não é mais um app de treino — é o backend de coaching".
@@ -121,13 +129,14 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 - Motor **rodando em produção pessoal** há ~1 semana (timer diário +
   calendário real no Intervals.icu).
-- Benchmarks de mercado concluídos (22/09): Xert, Pillar, TriDot, RunDot,
-  Zwift — prescrição e precificação validados contra o padrão do mercado.
+- Benchmarks de mercado concluídos (22/09–23/09): Xert, Pillar, TriDot,
+  RunDot, Zwift, **Tredict** — prescrição, precificação e posicionamento
+  validados contra o padrão do mercado.
 - **Roteiro de validação com treinador** pronto (`ROTEIRO-TREINADOR.md`):
   ciência do treino + produto multi-atleta + pricing (perguntas 9–12 adicionadas).
 - **Acesso a treinadores via rede do fundador:** treinadores conhecidos entram
   como **beta testers** — primeiro piloto com custo de aquisição ~zero.
-- 181 testes automatizados; CI no GitHub.
+- 198 testes automatizados; CI no GitHub.
 
 > **Nota reta:** ainda não é tração comercial (zero pagantes) — seja honesto.
 > A validação até agora é de **motor + mercado + método**; o próximo marco é o
@@ -159,7 +168,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 | Fase | Entrega | Status |
 |---|---|---|
-| Motor (0–2) | Plano, GOAL×7, race/taper, FTP scan, modo FC, wellness | ✅ feito (v0.0.16) |
+| Motor (0–2) | Plano, GOAL×7, race/taper, FTP scan, modo FC, wellness, Expected PMC, adherence | ✅ feito (v0.0.18) |
 | Comunicação (1) | Notificações Telegram → e-mail/WhatsApp | 🔜 issue #2 |
 | Casca/produto (3) | PWA + onboarding + assinatura + catálogo de eventos | 📋 Fase 3 (#7/#11/#12) |
 | Multi-atleta (4) | Dashboard por atleta, aprovação, alertas | 📋 Fase 4 (#8) |
@@ -192,8 +201,8 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 **1 fundador (full-stack: produto + engenharia + ciência do treino)**
 
-- Construiu o motor completo: TSB, plano, reconcile, FTP scan, integração
-  Intervals/Zwift — 181 testes, rodando em produção.
+- Construiu o motor completo: TSB, plano, reconcile, FTP scan, Expected PMC,
+  adherence, integração Intervals/Zwift — 198 testes, rodando em produção.
 - Fez benchmarks de mercado e rascunhou o roteiro de validação com treinador.
 - [Se aplicar] Validando com treinador de ciclismo real (parceria de
   validação/consultoria).
@@ -235,9 +244,11 @@ Cálculo da proposta:
 
 ## Apêndice — fatos usados (para Q&A)
 
-- Versão atual: **v0.0.16** · 181 testes OK · CI verde · timer systemd rodando.
+- Versão atual: **v0.0.18** · 198 testes OK · CI verde · timer systemd rodando.
 - Pricing concorrentes verificado em 22/09/2026 (fontes oficiais).
 - Repo **privado** (`github.com/valdelin/Hermes-coach`) — código sob demanda
   (demonstração/NDA para investidores); docs públicos resumidos no pitch.
 - Non-goals (ADR-003): **não** reimplementar tracking/sync de dispositivos —
   usamos Intervals.icu como backend de dados.
+- Posicionamento vs Tredict: eles são a **plataforma de dados/IA**; o Hermes é
+  o **cérebro de coaching determinístico** sobre o ecossistema (ADR-003).

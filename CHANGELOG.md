@@ -53,6 +53,9 @@ própria — foram agrupadas na tag/release v0.0.7.
   o caminho IA (MCP server); posicionamento "independência de fornecedor"
   (aquisição Garmin→TrainingPeaks) reforça o seam `AthleteContext`; decisão
   **W′/CP fica fora do motor por ora** (backlog #13/#14).
+- **Pitch deck atualizado** — `docs/PITCH-DECK.md` (23/09): competidor Tredict
+  nos diferenciais/validação/Q&A, Expected PMC + adherence no slide de produto,
+  motor elevado para v0.0.18 (198 testes); espelhado no vault.
 - **Portal de acesso (desenho, sem código)** — `docs/PORTAL-UI-DESIGN.md`: mapa
   de telas v0 do portal multi-usuário (papéis admin/coach/atleta). Decisões
   fixadas: conexão Intervals via OAuth, aprovação solo (atleta decide) / com

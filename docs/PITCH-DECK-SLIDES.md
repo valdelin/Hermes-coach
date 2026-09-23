@@ -42,9 +42,11 @@ Ciclismo amador é grande e paga por assinatura
 
 # Produto
 
-O motor já roda hoje (v0.0.16, 181 testes OK)
+O motor já roda hoje (v0.0.18, 198 testes OK)
 
 - Motor Banister local: CTL/ATL/TSB → foco do dia por faixa (Z2, Sweet Spot, Limiar, VO2)
+- Expected PMC: projeta forma/fadiga com treinos reais + planejados (TSB hoje → próxima semana; alertas de sobrecarga)
+- Plan adherence: execução medida — feito × perdido × pendente por semana
 - Orçamento semanal de carga (TSS) — nunca estoura
 - 7 tipos de plano: base, FTP builder, gran-fondo, time-trial, climbing, off-season, race (com taper automático)
 - Novo FTP sem teste: best-20min × 0,95
@@ -59,6 +61,7 @@ Automação ponta-a-ponta que nenhum concorrente tem
 
 - Concorrentes (Xert, Pillar, TriDot) exigem app e ação manual todo dia
 - Hermes roda sozinho: timer diário + reconciliação noturna
+- Tredict (23/09) é o concorrente conceitual mais próximo (plataforma completa + IA): valida o conceito — mas o Hermes é o cérebro determinístico sobre o ecossistema, não outra plataforma de dados
 - Custo de operação ~R$ 0: orquestração determinística, sem LLM por treino
 - Não é mais um app de treino — é o backend de coaching
 
@@ -69,10 +72,10 @@ Automação ponta-a-ponta que nenhum concorrente tem
 O que já está provado
 
 - Motor rodando em produção (timer diário + calendário real no Intervals.icu)
-- Benchmarks de mercado concluídos: Xert, Pillar, TriDot, RunDot, Zwift
+- Benchmarks de mercado concluídos: Xert, Pillar, TriDot, RunDot, Zwift, Tredict
 - Roteiro de validação com treinador pronto: ciência + multi-atleta + pricing
 - Acesso a treinadores via rede do fundador: treinadores conhecidos entram como beta testers (primeiro piloto, custo ~zero)
-- 181 testes automatizados, CI no GitHub
+- 198 testes automatizados, CI no GitHub
 
 ---
 
@@ -91,7 +94,7 @@ Assinatura em 2 tiers (a validar com treinador)
 
 Já implementado → próximas 3 fases
 
-- Motor (Fases 0–2): plano, 7 objetivos, race/taper, FTP scan, modo FC, wellness — feito (v0.0.16)
+- Motor (Fases 0–2): plano, 7 objetivos, race/taper, FTP scan, modo FC, wellness, Expected PMC, adherence — feito (v0.0.18)
 - Comunicação (Fase 1): notificações Telegram → e-mail/WhatsApp — em andamento
 - Casca/produto (Fase 3): PWA + onboarding + assinatura + catálogo de eventos
 - Multi-atleta (Fase 4): dashboard por atleta, aprovação, alertas
@@ -111,7 +114,7 @@ Já implementado → próximas 3 fases
 # Time
 
 - 1 fundador full-stack: produto + engenharia + ciência do treino
-- Motor completo construído: TSB, plano, reconcile, FTP scan, integração Intervals/Zwift — 181 testes em produção
+- Motor completo construído: TSB, plano, reconcile, FTP scan, Expected PMC, adherence, integração Intervals/Zwift — 198 testes em produção
 - Benchmarks de mercado e roteiro de validação com treinador prontos
 
 ---
