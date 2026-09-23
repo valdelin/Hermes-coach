@@ -25,21 +25,33 @@ hermes-coach/
 ├── src/
 │   ├── intervals_client.py            # Intervals.icu API client
 │   ├── coach.py                       # TSB -> focus -> load (TSS)
-│   ├── impulse_response.py            # local Banister engine (CTL/ATL/TSB)
-│   ├── plan.py                        # weekly plan (build/reconcile)
-│   └── training_plan.py               # plan CLI (info/model/build/reconcile/push)
-└── tests/                             # tests (stdlib unittest)
+│   ├── impulse_response.py            # local Banister engine (CTL/ATL/TSB) + Expected PMC w/ Friel zones
+│   ├── plan.py                        # weekly plan (build/reconcile/adherence/race taper)
+│   ├── plan_run.py                    # running prototype (#18): %LTHR/RPE/pace, no power meter
+│   ├── ftp_estimation.py              # FTP estimation from unplanned hard rides (#6)
+│   └── training_plan.py               # plan CLI (info/model/build/adherence/reconcile/push)
+├── tests/                             # 216 tests (stdlib unittest)
+└── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, ...
 ```
 
 ## Documentation
 
+- [docs/ROADMAP.md](docs/ROADMAP.md) — consolidated roadmap: per-phase backlog
+  (issues #1–#18) + market/science benchmarks (Tredict, Joe Friel, Science to
+  Sport) that back decisions.
+- [docs/GLOSSARIO.md](docs/GLOSSARIO.md) — acronyms and decisions (CTL/ATL/TSB,
+  rFTP/LTHR, W′/CP as context, etc.).
+- [docs/PITCH-DECK.md](docs/PITCH-DECK.md) — product deck (differentials vs
+  Tredict, engine and tests).
 - [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — original agent concept
   (Banister impulse-response engine, athlete state schema, system prompt) and
   differences from the current implementation. **Not implemented** — design
   reference and future multi-sport (running) direction. Kept in sync with the
   Obsidian vault.
+- [CHANGELOG.md](CHANGELOG.md) — version history (SemVer, tags).
 - Coach-validation script (training science + multi-athlete/solo product):
-  `ROTEIRO-TREINADOR.md` in the Obsidian vault.
+  `ROTEIRO-TREINADOR.md` in the Obsidian vault — includes a "questions the
+  coach will ask and the answers we already have" section.
 - [docs/ROTEIRO-TESTES.md](docs/ROTEIRO-TESTES.md) — manual/semi-automated test
   script (CLI, agent, calendar, reconciliation, onboarding, availability, FTP)
   with checklist, bug-hunt areas and a bug report template.
@@ -160,8 +172,10 @@ Access Windows files via `/mnt/c/Users/<you>/...
 Adaptive training plan (history -> Intervals calendar):
 ```
 python3 src/training_plan.py info                        # current TSB/CTL/ATL
-python3 src/training_plan.py model                       # local Banister engine + plan forecast
+python3 src/training_plan.py model                       # Expected PMC (Banister) + Friel zones + forecast
 python3 src/training_plan.py build --days 60 --days-plan 14   # generate plan
+python3 src/training_plan.py build --no-power            # HR mode: %FTHR + RPE targets
+python3 src/training_plan.py adherence --show            # weekly plan adherence
 python3 src/training_plan.py reconcile --show         # detect missed workouts
 python3 src/training_plan.py push --start 2026-09-16  # publish to Intervals (upsert)
 python3 src/training_plan.py all                      # full flow
@@ -169,9 +183,10 @@ python3 src/training_plan.py all                      # full flow
 The `model` command runs the **impulse-response load engine** (Banister,
 `src/impulse_response.py`): it computes CTL/ATL/TSB locally from the daily TSS
 in the window, compares it with Intervals, and forecasts the form of following
-the current plan (`plan.json`). The trusted day-to-day reference remains
-Intervals; the local engine shines at **forecasting** (e.g. "following the
-plan drops TSB to X in 2 weeks").
+the current plan (`plan.json`), tagging each day with its **Joe Friel TSB zone**
+(`high-risk`/`transition` get a rest/break warning). The trusted day-to-day
+reference remains Intervals; the local engine shines at **forecasting** (e.g.
+"following the plan drops TSB to X in 2 weeks").
 The `external_id` is the upsert key: running again does not duplicate events
 on Intervals. `push` also automatically removes `hermes-plan*` events that are
 no longer in the plan (e.g. dates that changed on a rebuild). Today's workouts
@@ -190,7 +205,7 @@ Tests:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(64 tests, stdlib-only — CI runs the same suite on every push/PR.)
+(216 tests, stdlib-only — CI runs the same suite on every push/PR.)
 
 ## Daily automation (optional)
 
@@ -258,9 +273,21 @@ cue. The message language is set via `CUE_LANG` in `.env` (`pt`|`en`).
   rule-generated (deterministic, as today) or should be picked from a library
   of validated workouts.
 - **Rest weeks / deload** every 3–4 weeks: evaluate automatic scheduling.
-- **Multi-sport (running)**: the original agent concept (vDOT, pace/km, HR,
-  running system prompt) lives in [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
-  as a future direction — not implemented.
+- **Multi-sport (running)**: prototype implemented in `src/plan_run.py` (#18) —
+  **no-power-meter** prescription with a **per-template control variable**:
+  steady/long = `hr` (%LTHR), tempo/threshold/VO2 = `pace` (rFTP target),
+  fartlek = `rpe`; `tss: 0` (load via Intervals by HR). Coach validation pending
+  (which control when + FIT structured vs plain text to the watch). The original
+  concept (vDOT, pace/km) stays in
+  [docs/ARQUITETURA.md](docs/ARQUITETURA.md) as a reference.
+- **Workouts without a power meter** (issue [#3](https://github.com/valdelin/Hermes-coach/issues/3)):
+  **implemented** (v0.0.16) and closed — `build --no-power` prescribes **%FTHR +
+  RPE** targets (HR mode, `FTHR` in `.env`); `ftp-scan` (#6) estimates FTP from
+  hard unplanned rides to feed power mode.
+- **Personal TSB target** (issue [#16](https://github.com/valdelin/Hermes-coach/issues/16)):
+  seed implemented (v0.0.20) — `build` projects race-day TSB against the
+  `−10..+20` band (Joe Friel ~+20 reference); the athlete's personal target is
+  under validation.
 
 ## Notes / scaffold limitations
 

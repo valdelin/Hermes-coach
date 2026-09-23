@@ -24,21 +24,33 @@ hermes-coach/
 ├── src/
 │   ├── intervals_client.py            # cliente da API do Intervals.icu
 │   ├── coach.py                       # TSB -> foco -> carga (TSS)
-│   ├── impulse_response.py            # motor Banister local (CTL/ATL/TSB)
-│   ├── plan.py                        # plano semanal (build/reconcile)
-│   └── training_plan.py               # CLI do plano (info/model/build/reconcile/push)
-└── tests/                             # testes (stdlib unittest)
+│   ├── impulse_response.py            # motor Banister (CTL/ATL/TSB) + Expected PMC com zonas Friel
+│   ├── plan.py                        # plano semanal (build/reconcile/adherence/taper de prova)
+│   ├── plan_run.py                    # protótipo de corrida (#18): %LTHR/RPE/pace, sem power meter
+│   ├── ftp_estimation.py              # estimativa de FTP de pedais não agendados (#6)
+│   └── training_plan.py               # CLI (info/model/build/adherence/reconcile/push)
+├── tests/                             # 216 testes (stdlib unittest)
+└── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, ...
 ```
 
 ## Documentação
 
+- [docs/ROADMAP.md](docs/ROADMAP.md) — roadmap consolidado: backlog por fase
+  (issues #1–#18) + benchmarks de mercado/ciência (Tredict, Joe Friel,
+  Science to Sport) que justificam decisões.
+- [docs/GLOSSARIO.md](docs/GLOSSARIO.md) — acrônimos e decisões (CTL/ATL/TSB,
+  rFTP/LTHR, W′/CP como contexto, etc.).
+- [docs/PITCH-DECK.md](docs/PITCH-DECK.md) — deck do produto (diferenciais vs
+  Tredict, motor e testes).
 - [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — conceito original do agente
   (motor Impulse-Response/Banister, schema de estado do atleta, system prompt)
   e diferenças para a implementação atual. **Não implementado** — referência de
   design e direção futura multi-esporte (corrida). Sincronizado com o vault do
   Obsidian.
+- [CHANGELOG.md](CHANGELOG.md) — histórico de versões (SemVer, tags).
 - Roteiro de validação com treinador (ciência do treino + produto
-  multi-atleta/modo solo): `ROTEIRO-TREINADOR.md` no vault do Obsidian.
+  multi-atleta/modo solo): `ROTEIRO-TREINADOR.md` no vault do Obsidian — inclui
+  seção "perguntas que o treinador fará e as respostas que já temos".
 - [docs/SYNC-PLATAFORMAS.md](docs/SYNC-PLATAFORMAS.md) — como conectar cada
   plataforma (Garmin, Zwift, Wahoo, Strava, Polar, COROS, Suunto, Oura/WHOOP
   etc.) ao Intervals.icu (atividades, wellness e treinos planejados).
@@ -189,14 +201,19 @@ calendario.
 - `info` — TSB/CTL/ATL atuais no Intervals.icu.
 - `build` — plano dos proximos 14 dias com ciclo de foco pelo TSB, orcamento de
   TSS, preservacao do treino de hoje, escala por `WEEKLY_HOURS` e treino longo
-  em `LONG_DAY`.
+  em `LONG_DAY`. Opções: `--no-power` (prescricao em %FTHR + RPE, modo FC) e
+  `--ftp-test YYYY-MM-DD` (protege 48h antes do Ramp Test). Com `GOAL=race`
+  dentro do horizonte, mostra a **projecao de TSB no dia da prova**.
+- `adherence` — cumprimento semanal do plano: treinos feito/perdido/pendente e
+  % de conclusão.
 - `reconcile` — treino perdido vira recuperacao no proximo dia + proximo Limiar
   -5%; treino **extra fora do plano** com carga cheia insere recuperacao e
   reduz o Limiar.
 - `push` — upsert no calendario + limpeza automatica de eventos `hermes-plan*`
   orfaos; `.zwo` baixado no app (sem geracao local).
-- `model` — motor Impulse-Response (Banister) local: CTL/ATL/TSB e **projecao**
-  da forma seguindo o plano atual.
+- `model` — Expected PMC (Banister): CTL/ATL/TSB projetados do real + plano,
+  com **zona de TSB de Joe Friel** por dia (`high-risk < −30` → R&R,
+  `transition > +25` → descanso longo) e avisos.
 - `all` — fluxo completo.
 - Nome dos treinos no padrao `YYYY-MM-DD - Treino de <Foco>`; descricao na
   notacao nativa do workout builder (passos com mensagem explicativa, repeticoes
@@ -204,15 +221,20 @@ calendario.
 
 **Objetivos (GOAL)** — 7 tipos de plano: `back-to-fitness`, `ftp-builder`,
 `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race` (exige
-`RACE_DATE`, com **taper** nos ultimos 7 dias). Troca de objetivo a qualquer
-momento preservando o treino de hoje; mudanca no meio do taper avisa e recalcula.
+`RACE_DATE`). Para `race`, a ultima semana vira **taper progressivo** (periodizacao
+de Joe Friel): D-6 ultimo estimulo de qualidade (Limiar curto), D-5..D-3
+recuperacao Z2, D-2/D-1 spin muito leve; o dia da prova recebe um **evento no
+calendario** (TSS 0, `Prova: dia de prova`) e o `build` projeta o TSB no dia
+da prova contra a faixa-alvo `−10..+20` (avisa se chega cansado ou passou do
+pico — semente do #16, TSB-alvo pessoal). Troca de objetivo a qualquer momento
+preservando o treino de hoje.
 
 **Teste de FTP**
 - `ftp-check` — ultimo teste de FTP no historico e se o reteste (janela de 8
   semanas) e devido; quando devido, sugere o Ramp Test do Zwift (nunca agenda
   por conta propria).
-- Em validacao (issue #6): estimar FTP de **pedais duros nao agendados**
-  (best-20min x 0,95 + gates de qualidade, `src/ftp_estimation.py`) e propor a
+- `ftp-scan` (issue #6): estima FTP de **pedais duros nao agendados**
+  (best-20min x 0,95 + gates de qualidade, `src/ftp_estimation.py`) e propoe a
   atualizacao **apenas com confirmacao do atleta**.
 
 **Automacao** — timer systemd `cycling-coach-daily` roda `reconcile + push` a
@@ -228,8 +250,10 @@ inventa TSB se o Intervals falhar; suíte de testes obrigatoria antes de conclui
 Plano de treinos adaptativo (historico -> calendario do Intervals):
 ```
 python3 src/training_plan.py info                        # TSB/CTL/ATL atuais
-python3 src/training_plan.py model                       # motor Banister local + projecao do plano
+python3 src/training_plan.py model                       # Expected PMC (Banister) + zonas Friel + projecao
 python3 src/training_plan.py build --days 60 --days-plan 14   # gera plano
+python3 src/training_plan.py build --no-power            # modo FC: alvos em %FTHR + RPE
+python3 src/training_plan.py adherence --show            # cumprimento semanal do plano
 python3 src/training_plan.py reconcile --show         # detecta treinos perdidos
 python3 src/training_plan.py push --start 2026-09-16  # publica no Intervals (upsert)
 python3 src/training_plan.py all                      # fluxo completo
@@ -237,9 +261,10 @@ python3 src/training_plan.py all                      # fluxo completo
 O comando `model` roda o **motor de carga Impulse-Response** (Banister,
 `src/impulse_response.py`): calcula CTL/ATL/TSB localmente a partir do TSS
 diario da janela, compara com o Intervals e projeta a forma ao seguir o plano
-atual (`plan.json`). Referencia confiavel para o dia a dia continua sendo o
-Intervals; o motor local brilha na **projecao** (ex.: "seguir o plano derruba
-o TSB para X em 2 semanas").
+atual (`plan.json`), classificando cada dia na **zona de TSB de Joe Friel**
+(`high-risk`/`transition` recebem aviso de R&R/descanso longo). Referencia
+confiavel para o dia a dia continua sendo o Intervals; o motor local brilha na
+**projecao** (ex.: "seguir o plano derruba o TSB para X em 2 semanas").
 O `external_id` e usado como chave de upsert: rodar de novo nao duplica eventos
 no Intervals. O `push` tambem remove automaticamente eventos `hermes-plan*`
 que nao constam mais no plano (ex.: datas que mudaram em um rebuild). Treinos
@@ -258,7 +283,7 @@ Testes:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(138 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+(216 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
 
 ## Automacao diaria (opcional)
 
@@ -309,7 +334,7 @@ do `build` (via `GOAL_TEMPLATES`/`GOAL_BUDGET_SCALE` em `src/plan.py`):
 | `time-trial` | Ênfase em Limiar/super-limiar; carga alta |
 | `climbing` | VO2/Limiar em repetições; carga alta |
 | `active-off-season` | Quase tudo zona 2; carga ~60% |
-| `race` | Exige `RACE_DATE`; nos últimos 7 dias antes da prova os treinos viram **Taper (pre-prova)** |
+| `race` | Exige `RACE_DATE`; a última semana vira **taper progressivo** (D-6 estímulo → D-5..D-3 recuperação → D-2/D-1 spin), evento no dia da prova e projeção de TSB contra a faixa-alvo `−10..+20` |
 
 Com `GOAL` ativo o `build` também **varia os formatos** dos treinos do mesmo
 foco (séries curtas/longas, over-unders, contínuos) para o plano não ficar
@@ -345,18 +370,28 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   de treinos validados.
 - **Semanas de descanso / deload** a cada 3–4 semanas: avaliar agendamento
   automático.
-- **Multi-esporte (corrida)**: o conceito original do agente (vDOT, pace/km,
-  FC, sistema prompt de corrida) está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
-  como direção futura — não implementado.
+- **Multi-esporte (corrida)**: protótipo implementado em
+  `src/plan_run.py` (#18) — prescrição **sem power meter**, variável de controle
+  **por template**: contínua/longa = `hr` (%LTHR), tempo/limiar/VO2 = `pace`
+  (ritmo-alvo rFTP), fartlek = `rpe`; `tss: 0` (carga via Intervals por FC).
+  Falta validar com treinador quando usar cada controle + decisão FIT vs texto
+  puro para o relógio. O conceito original (vDOT, pace/km) segue em
+  [docs/ARQUITETURA.md](docs/ARQUITETURA.md) como referência.
 - **Notificações do treino** (issue [#2](https://github.com/valdelin/Hermes-coach/issues/2)):
   enviar resumo do treino por **e-mail, WhatsApp ou Telegram** (foco + TSB +
   TSS previsto/real + avisos do reconcile). Proposta: começar por Telegram e
   manter interface extensível; envio assíncrono para não quebrar o fluxo diário.
+  **Adiado** (decisão do roteiro com treinador).
 - **Treinos sem medidor de potência** (issue [#3](https://github.com/valdelin/Hermes-coach/issues/3)):
-  pedais outdoor sem potência deixam os dados incompletos (sem NP/TSS por
-  watts e sem verificação de %FTP). Proposta: detectar ausência de potência,
-  configurar `FTHR` (FC de limiar) no `.env`, estimar carga por FC
-  (`hrTSS`) e prescrever alvos em %FTHR/RPE nos dias outdoor.
+  **implementado** (v0.0.16) e encerrado — `build --no-power` prescreve alvos em
+  **%FTHR + RPE** (modo FC, `FTHR` no `.env`); o `ftp-scan` estima FTP de pedais
+  duros não agendados (#6) para alimentar o modo potência.
+- **TSB-alvo pessoal** (issue [#16](https://github.com/valdelin/Hermes-coach/issues/16)):
+  semente implementada (v0.0.20) — o `build` projeta o TSB no dia da prova contra
+  a faixa `−10..+20` (referência Joe Friel ~+20, benchmark de case study);
+  aprendizado pessoal do alvo em validação.
+- **Formato FIT structured workout vs texto puro** (#18): decidir com o treinador
+  se os treinos de corrida vão para o relógio como FIT estruturado ou texto.
 - **Sync de wellness** (issue [#4](https://github.com/valdelin/Hermes-coach/issues/4)):
   **implementado** — o Garmin Connect → Intervals.icu já entrega RHR e sono
   reais; o `info` agora exibe `Wellness:` (RHR atual/média 7d, sono, passos,
@@ -366,11 +401,13 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
 - **Tipos de plano de treino** (issue [#5](https://github.com/valdelin/Hermes-coach/issues/5)):
   **implementado** — `GOAL` no `.env` (`back-to-fitness`, `ftp-builder`,
   `gran-fondo`, `time-trial`, `climbing`, `active-off-season` e `race` com
-  `RACE_DATE` + tapper pre-prova). Próximos passos em aberto: validar a
+  `RACE_DATE` + **taper progressivo** de 7 dias e projeção de TSB no dia da
+  prova). Próximos passos em aberto: validar a
   prescrição por tipo com treinador (ROTEIRO-TREINADOR) e usar o catálogo na
   tela de seleção do onboarding (Fase 3, ADR-003 "Runna do ciclismo indoor").
 - **FTP sugerido de treinos não agendados** (issue [#6](https://github.com/valdelin/Hermes-coach/issues/6)):
-  quando o atleta faz uma prova ou treino livre com potência, estimar um novo
+  **implementado** (`ftp-scan`, `src/ftp_estimation.py`) — quando o atleta faz
+  uma prova ou treino livre com potência, estima um novo
   FTP do **stream de potência** (melhor média móvel de 20 min × 0,95), com
   gates de qualidade do esforço e de contexto (fatiga, dias protegidos) e
   **confirmação do atleta** antes de atualizar `.env FTP` + `indoor_ftp` no
