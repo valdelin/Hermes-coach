@@ -20,6 +20,7 @@ try:
                       REST, DEFAULT_FTP, CUE_LANGS, GOALS, adherence_report,
                       _tsb_race_verdict)
     import ftp_scan
+    import recovery
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
@@ -33,6 +34,7 @@ except ImportError:
                        FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS,
                        adherence_report, _tsb_race_verdict)
     from . import ftp_scan
+    from . import recovery
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -484,6 +486,89 @@ def _print_race_tsb_projection(events, plan, metrics, race_date):
           f"{hint} | alvo -10..+20 (Friel ~+20; por atleta = #16)")
 
 
+def cmd_recovery(args):
+    """Historico real do Intervals -> PMC reconstruido -> estimativa de
+    retorno a antiga forma + prescricao segura de rampa de volume.
+
+    Usa somente treinos FEITOS (com atividade pareada); planejado-nao-feito nao
+    conta como carga real. O pico historico e a melhor janela de 30 dias sao o
+    "onde voce esteve"; a estimativa projeta o prazo de volta ao CTL de pico sob
+    rampas conservadora/realista/otimista, e a prescricao da a rampa semanal.
+    """
+    client = get_client()
+    events = recovery.fetch_full_history(client)
+    done = [e for e in events
+            if e.get("paired_activity_id") or e.get("activity_id")]
+    daily = recovery.actual_daily_load(events)
+    rows = recovery.pmc_series(daily)
+    if not rows:
+        print("Sem treinos feitos com carga no historico.")
+        return None
+    st = recovery.state(rows)
+    print(f"historico: {len(events)} eventos | treinos feitos com carga: "
+          f"{len(done)}")
+    print(f"periodo coberto: {st['first_day']} a {st['last_day']}")
+
+    print("\n=== AGORA ===")
+    vol = recovery.weekly_volume(daily)
+    print(f"CTL {st['current_ctl']:.1f} | ATL {st['current_atl']:.1f} | "
+          f"TSB {st['current_tsb']:+.1f}")
+    print(f"volume semanal recente (28d): {vol:.0f} TSS")
+
+    print("\n=== ONDE VOCE JA ESTEVE ===")
+    print(f"pico de CTL: {st['peak_ctl']:.1f} em {st['peak_ctl_day']} "
+          f"(TSB {st['peak_ctl_tsb']:+.1f})")
+    print(f"melhor mes (CTL medio 30d): {st['window_avg']:.1f} "
+          f"({st['window_start']} a {st['window_end']})")
+    print(f"pico de TSB: {st['peak_tsb']:+.1f} em {st['peak_tsb_day']} "
+          f"(CTL {st['peak_tsb_ctl']:.1f})")
+
+    target = st["peak_ctl"]
+    print("\n=== ESTIMATIVA DE RETORNO AO CTL "
+          f"{target:.0f} ===")
+    scenarios = (
+        ("conservador (+6/sem)", 6),
+        ("realista    (+9/sem)", 9),
+        ("otimista    (+12/sem)", 12),
+    )
+    for label, ramp in scenarios:
+        r = recovery.estimate_return(st["current_ctl"], st["current_atl"],
+                                     target, vol, ramp)
+        w90 = _fmt_weeks(r["weeks_90"])
+        w99 = _fmt_weeks(r["weeks_99"])
+        print(f"  {label}: 90% em {w90} | 100% em {w99}")
+    print(f"  (sustentar o CTL {target:.0f} exige ~"
+          f"{target * 7:.0f} TSS/semana)")
+
+    if args.weeks > 0:
+        ramp = args.ramp_pts
+        print("\n=== PRESCRICAO SEGURA DE RETORNO "
+              f"(rampa +{ramp}/sem, deload a cada 4 sem) ===")
+        schedule = recovery.ramp_schedule(target, vol, ramp,
+                                          weeks=args.weeks)
+        line = []
+        for i, wk in enumerate(schedule, start=1):
+            tag = " (deload)" if i % 4 == 0 else ""
+            line.append(f"sem {i}: {wk:.0f}{tag}")
+        # quebra de linha a cada 4 semanas para legibilidade
+        for i in range(0, len(line), 4):
+            print("  " + " | ".join(line[i:i + 4]))
+        print("  Dica: gere os treinos em si com `build` e `GOAL=back-to-fitness`")
+        print("  respeitando esses tetos semanais; valide a prescricao com o treinador.")
+    else:
+        print("\n(Dica: `recovery --weeks 12` imprime a rampa semanal segura.)")
+    return st
+
+
+def _fmt_weeks(weeks):
+    if weeks is None:
+        return "nao atingiu (horizonte)"  # pragma: no cover
+    if weeks == 0:
+        return "ja atingido"
+    return f"~{weeks} sem (~{weeks / 4:.1f} mes)"
+
+
+
 def cmd_reconcile(args):
     plan = load_plan(PLAN_FILE)
     client = get_client()
@@ -686,6 +771,17 @@ def main(argv=None):
     p_adh.add_argument("--days", type=int, default=45,
                        help="Janela de historico de eventos para casar (dias)")
     p_adh.set_defaults(func=cmd_adherence)
+
+    p_rec = sub.add_parser(
+        "recovery",
+        help="Historico real -> PMC -> estimativa de retorno a antiga forma + "
+             "prescricao segura de rampa de volume")
+    p_rec.add_argument(
+        "--weeks", type=int, default=12,
+        help="Semanas da prescricao segura de rampa (0 = so a estimativa)")
+    p_rec.add_argument("--ramp-pts", type=int, default=9,
+                       help="Crescimento semanal de TSS na prescricao (default 9)")
+    p_rec.set_defaults(func=cmd_recovery)
 
     p_build = sub.add_parser("build", help="Gera o plano a partir do historico")
     p_build.add_argument("--days", type=int, default=60,

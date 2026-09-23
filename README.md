@@ -27,9 +27,10 @@ hermes-coach/
 │   ├── impulse_response.py            # motor Banister (CTL/ATL/TSB) + Expected PMC com zonas Friel
 │   ├── plan.py                        # plano semanal (build/reconcile/adherence/taper de prova)
 │   ├── plan_run.py                    # protótipo de corrida (#18): %LTHR/RPE/pace, sem power meter
+│   ├── recovery.py                    # retorno a forma: PMC real + estimativa de prazo + rampa segura
 │   ├── ftp_estimation.py              # estimativa de FTP de pedais não agendados (#6)
-│   └── training_plan.py               # CLI (info/model/build/adherence/reconcile/push)
-├── tests/                             # 216 testes (stdlib unittest)
+│   └── training_plan.py               # CLI (info/model/build/adherence/recovery/reconcile/push)
+├── tests/                             # 233 testes (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, ...
 ```
 
@@ -206,6 +207,12 @@ calendario.
   dentro do horizonte, mostra a **projecao de TSB no dia da prova**.
 - `adherence` — cumprimento semanal do plano: treinos feito/perdido/pendente e
   % de conclusão.
+- `recovery` — **retorno a forma**: varre todo o histórico real do Intervals
+  (só treinos feitos), reconstrói o PMC (CTL/ATL/TSB) ao longo do tempo e
+  compara o hoje com o pico histórico (CTL, melhor mês, TSB). Estima o prazo
+  (semanas/meses) para voltar a X% do CTL de pico sob rampas conservadora/
+  realista/otimista e prescreve a **rampa semanal de TSS** (deload a cada 4
+  semanas, teto = carga que sustenta o CTL-alvo).
 - `reconcile` — treino perdido vira recuperacao no proximo dia + proximo Limiar
   -5%; treino **extra fora do plano** com carga cheia insere recuperacao e
   reduz o Limiar.
@@ -254,6 +261,7 @@ python3 src/training_plan.py model                       # Expected PMC (Baniste
 python3 src/training_plan.py build --days 60 --days-plan 14   # gera plano
 python3 src/training_plan.py build --no-power            # modo FC: alvos em %FTHR + RPE
 python3 src/training_plan.py adherence --show            # cumprimento semanal do plano
+python3 src/training_plan.py recovery                    # retorno a forma: estimativa + rampa segura
 python3 src/training_plan.py reconcile --show         # detecta treinos perdidos
 python3 src/training_plan.py push --start 2026-09-16  # publica no Intervals (upsert)
 python3 src/training_plan.py all                      # fluxo completo
@@ -283,7 +291,7 @@ Testes:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(216 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+(233 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
 
 ## Automacao diaria (opcional)
 

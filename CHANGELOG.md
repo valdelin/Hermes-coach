@@ -13,6 +13,25 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 _Próximas mudanças a documentar._
 
+## [0.0.21] - 2026-09-23
+
+### Adicionado
+
+- **`recovery` — retorno a forma**: varre todo o histórico real do Intervals
+  (só treinos feitos, com atividade pareada; planejado-nao-feito fica fora),
+  reconstrói o PMC (CTL/ATL/TSB, EWMA 42/7, hiatos com zero) do primeiro dia
+  até hoje e compara o estado atual com o pico histórico (CTL, melhor mês,
+  TSB). Estima o prazo (semanas/meses) de volta a 90%/99% do CTL de pico sob
+  rampas conservadora/realista/otimista (deload a cada 4 semanas, teto =
+  carga que sustenta o CTL-alvo) e prescreve a rampa semanal de TSS
+  (`recovery --weeks N --ramp-pts R`). Módulo `src/recovery.py` (backlog #19).
+
+### Testes
+
+- +17 (216 → **233**): `tests/test_recovery.py` (carga só de treinos feitos,
+  série PMC com hiatos, estado/pico, estimativa de retorno, rampa com deload)
+  e CLI `recovery` no `tests/test_training_plan.py`.
+
 ## [0.0.20] - 2026-09-23
 
 ### Adicionado
@@ -460,6 +479,7 @@ Ao criar uma nova versão (bump de `VERSION`):
 
 ## Comparações (links)
 
+- [v0.0.20…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.20...master)
 - [v0.0.19…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.19...master)
 - [v0.0.18…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.18...master)
 - [v0.0.17…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.17...master)

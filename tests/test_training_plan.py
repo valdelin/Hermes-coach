@@ -376,5 +376,52 @@ class NoPowerModeTest(unittest.TestCase):
             tmp.cleanup()
 
 
+class _RecoveryClient(_FakeClient):
+    """Historico paginado: 2 treinos feitos em 2026, 2 em 2021 e 1 planejado
+    nao-feito (deve ficar fora da carga real)."""
+
+    def events(self, **params):
+        oldest = params.get("oldest", "")[:10]
+        if oldest and oldest >= "2026-09-15":
+            return [
+                {"id": "r1", "paired_activity_id": "p1",
+                 "start_date_local": "2026-09-16T00:00:00",
+                 "icu_training_load": 33, "name": "feito 1"},
+                {"id": "r2", "paired_activity_id": "p2",
+                 "start_date_local": "2026-09-18T00:00:00",
+                 "icu_training_load": 41, "name": "feito 2"},
+                {"id": "r3", "start_date_local": "2026-09-19T00:00:00",
+                 "icu_training_load": 55, "name": "planejado nao-feito"},
+            ]
+        if oldest and "2021-10-15" <= oldest < "2026-09-15":
+            return [
+                {"id": "o1", "paired_activity_id": "po1",
+                 "start_date_local": "2021-12-01T00:00:00",
+                 "icu_training_load": 60, "name": "antigo 1"},
+                {"id": "o2", "paired_activity_id": "po2",
+                 "start_date_local": "2021-12-08T00:00:00",
+                 "icu_training_load": 70, "name": "antigo 2"},
+            ]
+        return []
+
+
+class RecoveryCliTest(unittest.TestCase):
+    def test_cmd_recovery_relata_estado_e_pico(self):
+        orig_client = tp.get_client
+        tp.get_client = lambda: _RecoveryClient()
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                tp.cmd_recovery(types.SimpleNamespace(weeks=0, ramp_pts=9))
+            out = buf.getvalue()
+            self.assertIn("=== AGORA ===", out)
+            self.assertIn("=== ONDE VOCE JA ESTEVE ===", out)
+            self.assertIn("pico de CTL", out)
+            # debounce: pico vem da fase antiga (treinos de 2021)
+            self.assertRegex(out, r"pico de CTL: \d")
+        finally:
+            tp.get_client = orig_client
+
+
 if __name__ == "__main__":
     unittest.main()
