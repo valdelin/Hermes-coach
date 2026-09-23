@@ -26,6 +26,9 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 12 | produto | **App comercial de ciclismo indoor** (posicionamento + preços — benchmark 22/09): consolidar #7/#8/#11 em produto com assinatura (tiers solo/coach), notificações (#2), catálogo de eventos e retenção | — (benchmark 22/09; ADR-003) | **possível — validar c/ treinador** (ROTEIRO-TREINADOR seções 3-4) | 3 |
 | 13 | produto | **Assistentes de IA no padrão Tredict** — análise do histórico e criação de planos via LLM (MCP server / apps ChatGPT/Claude) como interface do motor; o nosso é determinístico/auditável (diferencial de confiança), o deles é LLM aberto | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 3 |
 | 14 | decisão | **W′/CP — não implementar agora**: análise Tredict (post mai/2026) mostra modelo de critical power instável e pouco acionável para endurance; CP/W′ ficam como **contexto/candidata** (ver `docs/GLOSSARIO.md`) | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 2 |
+| 15 | feature | **Input subjetivo de wellness** (RPE/"como se sentiu" pós-sessão via Intervals) no cálculo/alerta de sobrecarga — Science to Sport (23/09): sensibilidade a overreaching pode ser **maior** que métricas de potência; complementa o alerta `TSB ≤ −10` do Expected PMC | — (Science to Sport 23/09) | **possível — validar c/ treinador** | 1 |
+| 16 | feature | **TSB-alvo pessoal de prova** — aprender o TSB ótimo de corrida correlacionando os melhores dias de forma com o TSB do dia (S2S: ótimo varia, `−5..+5` a `+10..+20` por atleta); usar para ajustar o taper do `GOAL=race` | — (Science to Sport 23/09) | **possível — validar c/ treinador** | 2 |
+| 17 | feature | **Indicadores de zona extrema no Expected PMC** (Friel: `TSB < −30` = risco alto → sugerir R&R; `> +25` = transição → avisar descanso longo) — estende o alerta atual `TSB ≤ −10` | — (Joe Friel 23/09) | **possível — validar c/ treinador** | 2 |
 
 ## Fases
 
@@ -167,6 +170,32 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   (5) **posicionamento**: Tredict resolve "onde guardo/analiso/sincronizo"; o
   Hermes resolve "quem pensa/planeja" ⇒ caminho (cérebro sobre o Intervals)
   segue defensável; Tredict vira **benchmark vivo** das Fases 2-3.
+
+- 📊 **Benchmark (2026-09-23) — Joe Friel + Science to Sport (TSB/CTL/ATL)** —
+  duas referências de ciência do treino que **justificam decisões e mudanças**
+  no sistema:
+  - **Joe Friel — "Managing Training Using TSB"**
+    (https://joefrieltraining.com/managing-training-using-tsb/): define 5 zonas
+    de TSB para **gerenciar** treino — risco alto `< −30` (overreaching; ficar
+    poucos dias, R&R depois), ótimo `−30..−10` (maior estímulo de treino),
+    cinza `−10..+5` (planalto: recuperação/taper/volta), frescor `+5..+25`
+    (pronto p/ prova / qualidade), transição `> +25` (fim de temporada).
+    **O que justifica:** (a) o mapa de "foco do dia" por TSB é a mesma lógica
+    dele — sem mudança; (b) nossas bordas são simplificação (4 faixas vs 5):
+    **backlog #17** adiciona indicadores de zona extrema (`< −30`/`> +25`) ao
+    Expected PMC; (c) a ressalva "zonas variam por atleta" reforça a
+    parametrização existente (FTP/FTHR/GOAL/horas) e o **#16** (TSB-alvo
+    pessoal).
+  - **Mike Posthumus — "Monitoring Cyclist Training Load Part 1"** (Science to
+    Sport/UCT, https://www.sciencetosport.com/monitoring-training-load/):
+    **valida o modelo EWMA 42/7** já usado pelo engine
+    (`impulse_response.py`); defende monitorar **aderência** ao plano
+    (implementado na v0.0.18, `adherence`); mostra que input **subjetivo**
+    (RPE/"how do you feel") pode detectar overreaching mais cedo que métricas
+    de potência; CTL/TSB ótimos são **individuais** (CTL 70→140; TSB de prova
+    `−5..+5` a `+10..+20`). **O que justifica:** **#15** (wellness subjetivo no
+    alerta de sobrecarga) e **#16** (TSB-alvo de prova aprendido por
+    correlação).
 
 ## Regras transversais
 

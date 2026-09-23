@@ -56,6 +56,15 @@ própria — foram agrupadas na tag/release v0.0.7.
 - **Pitch deck atualizado** — `docs/PITCH-DECK.md` (23/09): competidor Tredict
   nos diferenciais/validação/Q&A, Expected PMC + adherence no slide de produto,
   motor elevado para v0.0.18 (198 testes); espelhado no vault.
+- **Benchmark Science to Sport (23/09)** no ROADMAP — artigo de Mike Posthumus
+  corrobora o modelo EWMA 42/7 do motor (e a ênfase em aderência ao plano);
+  novas entradas de backlog #15 (input subjetivo de wellness no alerta de
+  sobrecarga) e #16 (TSB-alvo pessoal de prova aprendido, ajusta o taper).
+- **Referências de ciência (23/09)** no ROADMAP: dois artigos justificam
+  decisões — Joe Friel ("Managing Training Using TSB": 5 zonas, valida o
+  mapa de foco, gera **#17** alertas de zona extrema `< −30`/`> +25`) e
+  Mike Posthumus/Science to Sport (EWMA 42/7 + aderência + wellness subjetivo:
+  gera **#15**/**#16**); espelhado no vault.
 - **Portal de acesso (desenho, sem código)** — `docs/PORTAL-UI-DESIGN.md`: mapa
   de telas v0 do portal multi-usuário (papéis admin/coach/atleta). Decisões
   fixadas: conexão Intervals via OAuth, aprovação solo (atleta decide) / com
