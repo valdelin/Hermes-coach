@@ -14,7 +14,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 |---|---|---|---|---|
 | 1 | bug | Limpeza de "fantasmas" (atividades MANUAL criadas pelo Intervals ao parear treino) — **prioridade baixa** (cosmético, bug do Intervals, não do agente) | [#1](https://github.com/valdelin/Hermes-coach/issues/1) | 0 |
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
-| 3 | feature | Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 |
+| 3 | feature | ~~Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE)~~ **implementado e issue fechada** (v0.0.16, modo FC %FTHR+RPE; validado 23/09 — 202 testes) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 ✅ |
 | 4 | feature | ~~Ativar sync de wellness~~ **implementado e issue fechada** (RHR/sono no `info`; HRV sem suporte no FR935) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 ✅ |
 | 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado e issue fechada** (v0.0.9) — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
 | 6 | feature | ~~FTP sugerido a partir de treinos não agendados~~ (prova/treino livre) **implementado e issue fechada** (v0.0.15, `ftp-scan`: best-20min × 0,95 com gates + confirmação) | [#6](https://github.com/valdelin/Hermes-coach/issues/6) | 2 ✅ |
@@ -28,7 +28,8 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 14 | decisão | **W′/CP — não implementar agora**: análise Tredict (post mai/2026) mostra modelo de critical power instável e pouco acionável para endurance; CP/W′ ficam como **contexto/candidata** (ver `docs/GLOSSARIO.md`) | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 2 |
 | 15 | feature | **Input subjetivo de wellness** (RPE/"como se sentiu" pós-sessão via Intervals) no cálculo/alerta de sobrecarga — Science to Sport (23/09): sensibilidade a overreaching pode ser **maior** que métricas de potência; complementa o alerta `TSB ≤ −10` do Expected PMC | — (Science to Sport 23/09) | **possível — validar c/ treinador** | 1 |
 | 16 | feature | **TSB-alvo pessoal de prova** — aprender o TSB ótimo de corrida correlacionando os melhores dias de forma com o TSB do dia (S2S: ótimo varia, `−5..+5` a `+10..+20` por atleta); usar para ajustar o taper do `GOAL=race` | — (Science to Sport 23/09) | **possível — validar c/ treinador** | 2 |
-| 17 | feature | **Indicadores de zona extrema no Expected PMC** (Friel: `TSB < −30` = risco alto → sugerir R&R; `> +25` = transição → avisar descanso longo) — estende o alerta atual `TSB ≤ −10` | — (Joe Friel 23/09) | **possível — validar c/ treinador** | 2 |
+| 17 | feature | ~~**Indicadores de zona extrema no Expected PMC**~~ **implementado (v0.0.19)**: Friel — `TSB < −30` = risco alto (R&R), `> +25` = transição (descanso longo); `forecast_pmc()` etiqueta a zona por dia (`_tsb_zone`) e o `model` avisa | — (Joe Friel 23/09) | **implementado** | 2 ✅ |
+| 18 | feature | **Módulo de corrida a pé (esporte #2)** — `sport` no domínio (plan.json/workouts/eventos), limiar por pace/LTHR, `rftp-scan`, carga via Intervals (rTSS/gCTB), workouts de corrida em FIT, metas 5K/10K/meia/maratona (estilo RunDot), **PMC único multi-esporte** (TSS de todos os esportes no mesmo CTL/ATL — abordagem tri). Fora de escopo: passada/forma, Stryd/RunPower | — (análise 23/09) | **possível — validar c/ treinador** | 2 |
 
 ## Fases
 

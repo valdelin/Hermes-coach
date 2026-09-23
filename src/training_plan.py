@@ -339,7 +339,16 @@ def cmd_model(args):
             for row in fc["series"]:
                 alert = "  <-- TSB <= -10" if row["tsb"] <= -10.0 else ""
                 print(f"  {row['day']}  CTL {row['ctl']:6.1f}  "
-                      f"ATL {row['atl']:6.1f}  TSB {row['tsb']:7.1f}{alert}")
+                      f"ATL {row['atl']:6.1f}  TSB {row['tsb']:7.1f}"
+                      f"  [{row['zone']}]{alert}")
+            if fc["high_risk"]:
+                print("Risco alto (TSB < -30): considerar R&R --")
+                for r in fc["high_risk"]:
+                    print(f"  {r['day']}  TSB {r['tsb']:.1f}")
+            if fc["transition"]:
+                print("Transicao (TSB > +25): descanso longo --")
+                for r in fc["transition"]:
+                    print(f"  {r['day']}  TSB {r['tsb']:.1f}")
         else:
             print("Expected PMC: sem treinos planejados para frente.")
     else:

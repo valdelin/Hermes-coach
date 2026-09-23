@@ -97,8 +97,30 @@ def daily_load_by_date(events, window_days: int = 60, today=None) -> dict:
 
 
 PMC_ALERT_TSB = -10.0
+PMC_ZONE_HIGH_RISK = -30.0
+PMC_ZONE_TRANSITION = 25.0
 
 _ALERT_THRESHOLD = PMC_ALERT_TSB
+
+
+def _tsb_zone(tsb):
+    """Rótulo da zona de TSB conforme Joe Friel ("Managing Training Using TSB").
+
+    - `high-risk`: `< -30` (overreaching; ficar poucos dias, R&R depois).
+    - `optimal`:   `-30..-10` (maior estímulo de treino).
+    - `grey`:      `-10..+5` (planalto: recuperação/taper/volta).
+    - `freshness`: `+5..+25` (pronto p/ prova / qualidade).
+    - `transition`: `> +25` (fim de temporada; pouco/nenhum treino).
+    """
+    if tsb < PMC_ZONE_HIGH_RISK:
+        return "high-risk"
+    if tsb < PMC_ALERT_TSB:
+        return "optimal"
+    if tsb < 5.0:
+        return "grey"
+    if tsb <= PMC_ZONE_TRANSITION:
+        return "freshness"
+    return "transition"
 
 
 def forecast_pmc(events, plan, initial_ctl: float = None,
@@ -114,8 +136,10 @@ def forecast_pmc(events, plan, initial_ctl: float = None,
     - Fase planejada: treinos do plano (campo `tss`, TSS somado por dia) de
       `today + 1` ate o fim do plano (ou `horizon`, se menor que o fim).
 
-    Retorna {"series": [{"day", "ctl", "atl", "tsb"} por dia de hoje ao fim],
-    "alerts": [{"day", "tsb"} nos dias onde TSB <= PMC_ALERT_TSB],
+    Retorna {"series": [{"day", "ctl", "atl", "tsb", "zone"} por dia de hoje ao
+    fim], "alerts": [{"day", "tsb"} nos dias onde TSB <= PMC_ALERT_TSB],
+    "high_risk": [{"day", "tsb"} nos dias onde TSB < PMC_ZONE_HIGH_RISK],
+    "transition": [{"day", "tsb"} nos dias onde TSB > PMC_ZONE_TRANSITION],
     "end": {"ctl_fitness", "atl_fatigue", "tsb_form"}}.
     Sem plano futuro retorna series vazia e end None.
     """
@@ -129,7 +153,8 @@ def forecast_pmc(events, plan, initial_ctl: float = None,
         if load and load > 0:
             planned[day] = planned.get(day, 0.0) + float(load)
     if not planned:
-        return {"series": [], "alerts": [], "end": None}
+        return {"series": [], "alerts": [], "high_risk": [],
+                "transition": [], "end": None}
 
     end_day = today + timedelta(days=1)
     for day in planned:
@@ -158,23 +183,31 @@ def forecast_pmc(events, plan, initial_ctl: float = None,
     k_atl = 1 - math.exp(-1 / engine.tc_atl)
     series = [{"day": today.isoformat(),
                "ctl": round(ctl, 1), "atl": round(atl, 1),
-               "tsb": round(ctl - atl, 1)}]
+               "tsb": round(ctl - atl, 1),
+               "zone": _tsb_zone(round(ctl - atl, 1))}]
     d = today + timedelta(days=1)
     while d <= end_day:
         tss = planned.get(d, 0.0)
         ctl = ctl + (tss - ctl) * k_ctl
         atl = atl + (tss - atl) * k_atl
+        tsb = round(ctl - atl, 1)
         series.append({"day": d.isoformat(),
                        "ctl": round(ctl, 1), "atl": round(atl, 1),
-                       "tsb": round(ctl - atl, 1)})
+                       "tsb": tsb, "zone": _tsb_zone(tsb)})
         d += timedelta(days=1)
 
     alerts = [{"day": row["day"], "tsb": row["tsb"]}
               for row in series if row["tsb"] <= _ALERT_THRESHOLD]
+    high_risk = [{"day": row["day"], "tsb": row["tsb"]}
+                 for row in series if row["tsb"] < PMC_ZONE_HIGH_RISK]
+    transition = [{"day": row["day"], "tsb": row["tsb"]}
+                  for row in series if row["tsb"] > PMC_ZONE_TRANSITION]
     last = series[-1]
     return {
         "series": series,
         "alerts": alerts,
+        "high_risk": high_risk,
+        "transition": transition,
         "end": {"ctl_fitness": last["ctl"], "atl_fatigue": last["atl"],
                 "tsb_form": last["tsb"]},
     }

@@ -9,6 +9,38 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [Unreleased]
+
+_Próximas mudanças a documentar._
+
+## [0.0.19] - 2026-09-23
+
+### Adicionado
+
+- **Indicadores de zona extrema no Expected PMC (#17 — Friel)**:
+  `forecast_pmc()` etiqueta cada dia da projeção com a **zona de TSB** de Joe
+  Friel (`high-risk` < −30, `optimal` −30..−10, `grey` −10..+5, `freshness`
+  +5..+25, `transition` > +25) via `_tsb_zone()`; retorna listas
+  `high_risk`/`transition` e o `model` imprime a zona por linha + avisos de
+  R&R (risco alto) e descanso longo (transição).
+- **Módulo de corrida a pé (backlog #18)** — esporte #2 registrado no ROADMAP:
+  `sport` no domínio, limiar por pace/LTHR, `rftp-scan`, carga via Intervals
+  (rTSS), workouts de corrida em FIT, metas 5K/10K/meia/maratona, **PMC único
+  multi-esporte**. **Possível — validar c/ treinador.**
+- **Issue #3 fechada** — prescrição sem medidor de potência (%FTHR + RPE,
+  target `HEART_RATE`, modo FC) validada na suíte (202 testes); ROADMAP nº 3
+  refletido como fechado.
+- **Docs (acumulado 22–23/09):** glossário de acrônimos (`docs/GLOSSARIO.md`);
+  benchmark Tredict + referências de ciência **Joe Friel/Science to Sport** no
+  ROADMAP (backlog #13–#17); pitch deck atualizado (Tredict, v0.0.18); portal
+  de acesso (desenho v0, `docs/PORTAL-UI-DESIGN.md`); containerização + guia
+  de deploy (`dev/DEPLOY.md`); repo privado.
+
+### Testes
+
+- +4 (198 → **202**): zonas de TSB — risco alto, transição, frescor (bordas) e
+  plano vazio com `high_risk`/`transition` vazios.
+
 ## [0.0.18] - 2026-09-22
 
 ### Adicionado
@@ -40,45 +72,6 @@ própria — foram agrupadas na tag/release v0.0.7.
   pela manhã mostrava % de cumprimento artificialmente baixo (ex.: W39 saía
   `1 feito / 1 perdido` antes do treino do dia acontecer). Teste
   `test_treino_de_hoje_ainda_nao_conta_como_perdido` cobre o caso. (198 testes)
-
-## [Unreleased]
-
-### Adicionado
-
-- **Glossário de acrônimos** — `docs/GLOSSARIO.md`: dicionário do domínio
-  (FTP, FTHR, TSS, CTL/ATL/TSB, IF, RPE, PMC, CP/W′, HRV, FIT/ERG, …) com
-  status **no motor** vs **contexto**; espelhado no vault.
-- **Benchmark Tredict (23/09)** no ROADMAP — concorrente conceitual mais
-  próximo: valida Expected PMC/TSB, detecção auto de FTP/LTHR, coach↔atleta e
-  o caminho IA (MCP server); posicionamento "independência de fornecedor"
-  (aquisição Garmin→TrainingPeaks) reforça o seam `AthleteContext`; decisão
-  **W′/CP fica fora do motor por ora** (backlog #13/#14).
-- **Pitch deck atualizado** — `docs/PITCH-DECK.md` (23/09): competidor Tredict
-  nos diferenciais/validação/Q&A, Expected PMC + adherence no slide de produto,
-  motor elevado para v0.0.18 (198 testes); espelhado no vault.
-- **Benchmark Science to Sport (23/09)** no ROADMAP — artigo de Mike Posthumus
-  corrobora o modelo EWMA 42/7 do motor (e a ênfase em aderência ao plano);
-  novas entradas de backlog #15 (input subjetivo de wellness no alerta de
-  sobrecarga) e #16 (TSB-alvo pessoal de prova aprendido, ajusta o taper).
-- **Referências de ciência (23/09)** no ROADMAP: dois artigos justificam
-  decisões — Joe Friel ("Managing Training Using TSB": 5 zonas, valida o
-  mapa de foco, gera **#17** alertas de zona extrema `< −30`/`> +25`) e
-  Mike Posthumus/Science to Sport (EWMA 42/7 + aderência + wellness subjetivo:
-  gera **#15**/**#16**); espelhado no vault.
-- **Portal de acesso (desenho, sem código)** — `docs/PORTAL-UI-DESIGN.md`: mapa
-  de telas v0 do portal multi-usuário (papéis admin/coach/atleta). Decisões
-  fixadas: conexão Intervals via OAuth, aprovação solo (atleta decide) / com
-  treinador (treinador decide), publicação automática + botão manual, dados ao
-  vivo com fallback ao cache, interface PT-BR, alerta TSB ≤ −10, SPA React
-  (Vite+TS+Tailwind) sem app nativo. Trackeado nas issues #9/#10/#11 (label
-  `portal`). O fluxo atual (CLI + timer + container) permanece intocado.
-- **Containerização + deploy em nuvem** — o sistema agora tem `Dockerfile`
-  (python slim + supercronic v0.2.49 fixado com SHA-1 verificado), `crontab`
-  (job diário de meia-noite idêntico ao timer systemd), `docker-compose.yml`
-  (serviço sempre-ligado, `.env`/`plan.json`/`logs/` fora da imagem via
-  bind-mounts) e `.dockerignore`. Guia completo de deploy no Oracle Cloud Free
-  Tier (instância, chave SSH, deploy key, build, atualização) em
-  `dev/DEPLOY.md`.
 
 ## [0.0.17] - 2026-09-22
 
@@ -450,6 +443,7 @@ Ao criar uma nova versão (bump de `VERSION`):
 
 ## Comparações (links)
 
+- [v0.0.18…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.18...master)
 - [v0.0.17…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.17...master)
 - [v0.0.9…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.9...master)
 - [v0.0.8…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.8...master)

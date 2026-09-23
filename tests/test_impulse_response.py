@@ -208,6 +208,50 @@ class ForecastPmcTest(unittest.TestCase):
         self.assertEqual(fc["alerts"][0]["day"], "2026-09-11")
         self.assertLessEqual(fc["alerts"][0]["tsb"], -10.0)
 
+    def test_zona_risco_alto(self):
+        """Friel: TSB < -30 classifica como high-risk e vira indicador #17."""
+        plan = self._plan([("2026-09-11", 1000)])
+        fc = forecast_pmc([], plan, initial_ctl=50.0, initial_atl=5.0,
+                          today=self.TODAY)
+        self.assertTrue(fc["high_risk"], "TSB < -30 deve aparecer em high_risk")
+        self.assertEqual(fc["high_risk"][0]["day"], "2026-09-11")
+        self.assertLess(fc["high_risk"][0]["tsb"], -30.0)
+        self.assertEqual(fc["series"][1]["zone"], "high-risk")
+        self.assertEqual([r["day"] for r in fc["transition"]],
+                         ["2026-09-10"],
+                         "estado inicial (TSB 45) cai em transition; cargas a frente nao")
+
+    def test_zona_transicao(self):
+        """Friel: TSB > +25 classifica como transition (descanso longo)."""
+        plan = self._plan([("2026-09-11", 10), ("2026-09-12", 10)])
+        fc = forecast_pmc([], plan, initial_ctl=60.0, initial_atl=10.0,
+                          today=self.TODAY)
+        self.assertTrue(fc["transition"], "TSB alto e estável deve ficar > +25")
+        for r in fc["transition"]:
+            self.assertGreater(r["tsb"], 25.0)
+        self.assertTrue(all(row["zone"] == "transition"
+                            for row in fc["series"]))
+        self.assertEqual(fc["high_risk"], [])
+
+    def test_zonas_intermediarias(self):
+        """Bordas Friel: -30..-10 optimal, -10..+5 grey, +5..25 freshness."""
+        plan = self._plan([("2026-09-11", 100)])
+        fc = forecast_pmc([], plan, initial_ctl=30.0, initial_atl=20.0,
+                          today=self.TODAY)
+        today_row = fc["series"][0]
+        self.assertEqual(today_row["tsb"], 10.0)
+        self.assertEqual(today_row["zone"], "freshness",
+                         "TSB 10 esta na zona de frescor (+5..+25)")
+        self.assertEqual(fc["alerts"], [])
+        self.assertEqual(fc["high_risk"], [])
+        self.assertEqual(fc["transition"], [])
+
+    def test_plano_vazio_zonas_vazias(self):
+        fc = forecast_pmc([], [], initial_ctl=10.0, initial_atl=10.0,
+                          today=self.TODAY)
+        self.assertEqual(fc["high_risk"], [])
+        self.assertEqual(fc["transition"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
