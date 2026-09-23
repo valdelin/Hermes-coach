@@ -13,6 +13,13 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ### Adicionado
 
+- **Portal de acesso (desenho, sem código)** — `docs/PORTAL-UI-DESIGN.md`: mapa
+  de telas v0 do portal multi-usuário (papéis admin/coach/atleta). Decisões
+  fixadas: conexão Intervals via OAuth, aprovação solo (atleta decide) / com
+  treinador (treinador decide), publicação automática + botão manual, dados ao
+  vivo com fallback ao cache, interface PT-BR, alerta TSB ≤ −10, SPA React
+  (Vite+TS+Tailwind) sem app nativo. Trackeado nas issues #9/#10/#11 (label
+  `portal`). O fluxo atual (CLI + timer + container) permanece intocado.
 - **Containerização + deploy em nuvem** — o sistema agora tem `Dockerfile`
   (python slim + supercronic v0.2.49 fixado com SHA-1 verificado), `crontab`
   (job diário de meia-noite idêntico ao timer systemd), `docker-compose.yml`
