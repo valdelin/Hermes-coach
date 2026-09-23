@@ -30,6 +30,8 @@
 > Resultado 22/09: baseline **138 testes OK** (v0.0.14); branch `master` 1
 > commit à frente do remoto (rename, `f25959c`, ainda **não pushado**).
 
+> Resultado 23/09: baseline **216 testes OK** (v0.0.20); suíte roda igual no CI.
+
 ---
 
 ## 2. Regressão offline (código)

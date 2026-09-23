@@ -42,7 +42,7 @@ Ciclismo amador é grande e paga por assinatura
 
 # Produto
 
-O motor já roda hoje (v0.0.18, 198 testes OK)
+O motor já roda hoje (v0.0.20, 216 testes OK)
 
 - Motor Banister local: CTL/ATL/TSB → foco do dia por faixa (Z2, Sweet Spot, Limiar, VO2)
 - Expected PMC: projeta forma/fadiga com treinos reais + planejados (TSB hoje → próxima semana; alertas de sobrecarga)
@@ -75,7 +75,7 @@ O que já está provado
 - Benchmarks de mercado concluídos: Xert, Pillar, TriDot, RunDot, Zwift, Tredict
 - Roteiro de validação com treinador pronto: ciência + multi-atleta + pricing
 - Acesso a treinadores via rede do fundador: treinadores conhecidos entram como beta testers (primeiro piloto, custo ~zero)
-- 198 testes automatizados, CI no GitHub
+- 216 testes automatizados, CI no GitHub
 
 ---
 
@@ -94,7 +94,7 @@ Assinatura em 2 tiers (a validar com treinador)
 
 Já implementado → próximas 3 fases
 
-- Motor (Fases 0–2): plano, 7 objetivos, race/taper, FTP scan, modo FC, wellness, Expected PMC, adherence — feito (v0.0.18)
+- Motor (Fases 0–2): plano, 7 objetivos, race/taper + TSB no dia da prova, FTP scan, modo FC, wellness, Expected PMC com zonas Friel, adherence — feito (v0.0.20)
 - Comunicação (Fase 1): notificações Telegram → e-mail/WhatsApp — em andamento
 - Casca/produto (Fase 3): PWA + onboarding + assinatura + catálogo de eventos
 - Multi-atleta (Fase 4): dashboard por atleta, aprovação, alertas
@@ -114,7 +114,7 @@ Já implementado → próximas 3 fases
 # Time
 
 - 1 fundador full-stack: produto + engenharia + ciência do treino
-- Motor completo construído: TSB, plano, reconcile, FTP scan, Expected PMC, adherence, integração Intervals/Zwift — 198 testes em produção
+- Motor completo construído: TSB, plano, reconcile, FTP scan, Expected PMC, adherence, integração Intervals/Zwift — 216 testes em produção
 - Benchmarks de mercado e roteiro de validação com treinador prontos
 
 ---
