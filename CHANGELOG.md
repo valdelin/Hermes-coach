@@ -11,7 +11,20 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
-_Próximas mudanças a documentar._
+### Adicionado
+
+- **Taper progressivo para `GOAL=race`** (periodização do Joe Friel, case
+  study 2010): a última semana antes da prova deixa de ser "Z2 uniforme 20'"
+  e vira preparação por fases — **D-6** último estímulo de qualidade
+  (Limiar curto ~2×6' "abrir a perna"), **D-5..D-3** recuperação Z2 curta,
+  **D-2/D-1** spin muito leve (<60% FTP). Nomes por fase no plano.
+- **Evento do dia da prova**: o plano garante `Prova: dia de prova` na data
+  (mesmo fora da agenda de treino; TSS 0 = marcador, a carga real entra pela
+  API) e **D+1** recuperação pós-prova quando é dia de treino.
+- **Projeção de TSB no dia da prova (#16 — semente)**: `build` com
+  `GOAL=race` projeta o TSB em `RACE_DATE` via Expected PMC e compara com a
+  faixa-alvo `−10..+20` (Friel ~+20; S2S: individual), avisando se o atleta
+  chega **cansado** (`< −10`) ou **passou do pico** (`> +20`).
 
 ## [0.0.19] - 2026-09-23
 

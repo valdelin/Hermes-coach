@@ -7,7 +7,8 @@ from src.plan import (build_plan, event_payload, reconcile, templates,
                       _reduce_next_hard, parse_fthr, hr_target_bpm,
                       rpe_for_focus, adherence_report, FOCUS_VO2,
                       DEFAULT_TRAINING_DAYS,
-                      REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2)
+                      REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2,
+                      _tsb_race_verdict)
 
 
 class BuildPlanTest(unittest.TestCase):
@@ -620,6 +621,63 @@ class AdherenceReportTest(unittest.TestCase):
         report = adherence_report([], [], today=self.TODAY)
         self.assertEqual(report["weeks"], [])
         self.assertEqual(report["summary"]["pct"], None)
+
+
+class RaceTaperTest(unittest.TestCase):
+    """GOAL=race: taper faselatedo (Friel), evento da prova e veredito de TSB."""
+
+    def test_taper_race_tem_fases(self):
+        # segunda 2026-09-28 .. +12d (= ate 2026-10-09); prova 2026-10-08 (qui)
+        start = date(2026, 9, 28)
+        plan = build_plan([], 5, ftp=182, days=15, start=start,
+                          goal="race", race_date="2026-10-08")
+        by_day = {w["day"]: w for w in plan}
+        # D-6 (2026-10-02, sex): unico ultimo estimulo de qualidade
+        self.assertIn("Ultimo estimulo (pre-prova)",
+                      by_day["2026-10-02"]["name"])
+        n = sum(1 for w in plan if "Ultimo estimulo (pre-prova)" in w["name"])
+        self.assertEqual(n, 1)
+        # D-2/D-1 (2026-10-06/07): spin muito leve (<60% FTP)
+        for d in ("2026-10-06", "2026-10-07"):
+            self.assertTrue("Spin leve (pre-prova)" in by_day[d]["name"],
+                            f"{d} deveria ser spin")
+            self.assertLessEqual(by_day[d]["params"]["on_power"], 0.50)
+        # D-3 (2026-10-05): recuperacao curta, sem intensidade
+        self.assertTrue("Recuperacao (pre-prova)" in by_day["2026-10-05"]["name"])
+        self.assertLessEqual(by_day["2026-10-05"]["params"]["on_power"], 0.60)
+        # D+1 (2026-10-09, sex): recuperacao pos-prova
+        self.assertIn("Recuperacao (pos-prova)",
+                      by_day["2026-10-09"]["name"])
+        # passa de TAPER_DAYS ou pos-prova: normal, sem marca de taper
+        self.assertNotIn("pre-prova", by_day["2026-09-30"]["name"])
+        self.assertNotIn("pre-prova", by_day["2026-10-12"]["name"])
+
+    def test_prova_entra_mesmo_fora_da_agenda(self):
+        # prova no sabado 2026-10-03 (fora seg-sex): evento garantido
+        start = date(2026, 9, 28)
+        plan = build_plan([], 0, ftp=182, days=8, start=start,
+                          goal="race", race_date="2026-10-03")
+        by_day = {w["day"]: w for w in plan}
+        self.assertIn("Prova: dia de prova", by_day["2026-10-03"]["name"])
+        self.assertEqual(by_day["2026-10-03"]["tss"], 0.0,
+                         "prova e marcador: carga real entra pela API")
+        # D+1 domingo: descanso natural, nao cria nada
+        self.assertNotIn("2026-10-04", by_day)
+
+    def test_sem_race_date_nao_muda_comportamento(self):
+        start = date(2026, 9, 28)
+        base = build_plan([], 5, ftp=182, days=7, start=start, goal="race")
+        self.assertTrue(all("pre-prova" not in w["name"] for w in base))
+        self.assertTrue(all("Prova" not in w["name"] for w in base))
+
+
+class RaceTsbVerdictTest(unittest.TestCase):
+    def test_faixa_alvo(self):
+        self.assertEqual(_tsb_race_verdict(-15), "cansado")
+        self.assertEqual(_tsb_race_verdict(-10), "ok")
+        self.assertEqual(_tsb_race_verdict(5), "ok")
+        self.assertEqual(_tsb_race_verdict(20), "ok")
+        self.assertEqual(_tsb_race_verdict(25), "acima")
 
 
 if __name__ == "__main__":

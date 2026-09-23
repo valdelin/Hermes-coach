@@ -17,7 +17,8 @@ try:
                       reconcile, save_plan, orphan_external_ids,
                       parse_training_days, parse_goal, parse_weekly_hours,
                       parse_long_day, parse_fthr, GOAL_LABELS, FOCUS_LABELS_PT,
-                      REST, DEFAULT_FTP, CUE_LANGS, GOALS, adherence_report)
+                      REST, DEFAULT_FTP, CUE_LANGS, GOALS, adherence_report,
+                      _tsb_race_verdict)
     import ftp_scan
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
@@ -30,7 +31,7 @@ except ImportError:
                        parse_training_days, parse_goal, parse_weekly_hours,
                        parse_long_day, parse_fthr, GOAL_LABELS,
                        FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS,
-                       adherence_report)
+                       adherence_report, _tsb_race_verdict)
     from . import ftp_scan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -454,7 +455,33 @@ def cmd_build(args):
              else ""))
     for w in plan:
         print(f"  {w['day']} {w['name']:<30} {w['planned_duration'] // 60:>3}m TSS {w['tss']:.0f}")
+    if goal == "race" and race_date:
+        _print_race_tsb_projection(events, plan, metrics, race_date)
     return plan
+
+
+def _print_race_tsb_projection(events, plan, metrics, race_date):
+    """Projeta o TSB no dia da prova a partir do Expected PMC e compara com a
+    faixa-alvo da literatura (Joe Friel ~+20; Science to Sport -10..+20 por
+    atleta = #16). Aviso para o atleta/treinador, nao bloqueia o plano."""
+    if metrics is None or metrics.ctl is None or metrics.atl is None:
+        print("Projecao de TSB no dia da prova: indisponivel (metricas da API "
+              "nao carregadas).")
+        return
+    fc = forecast_pmc(events, plan, initial_ctl=metrics.ctl,
+                      initial_atl=metrics.atl, horizon=race_date)
+    row = next((r for r in fc["series"] if r["day"] == race_date), None)
+    if row is None:
+        print("Projecao de TSB no dia da prova: fora do horizonte do plano "
+              "(prova alem de 'days-plan').")
+        return
+    hint = {
+        "ok": "dentro da faixa-alvo",
+        "cansado": "chega a prova CANSADO (TSB < -10): considere antecipar o taper",
+        "acima": "ACIMA do pico (TSB > +20): passou da faixa-alvo",
+    }[_tsb_race_verdict(row["tsb"])]
+    print(f"Projecao de TSB no dia da prova {race_date}: {row['tsb']:+.1f} -> "
+          f"{hint} | alvo -10..+20 (Friel ~+20; por atleta = #16)")
 
 
 def cmd_reconcile(args):

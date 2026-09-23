@@ -290,9 +290,37 @@ BLOCK_VARIANTS = {
     ],
 }
 
-# Janela de tapper antes da prova (GOAL=race): os treinos dentro destes dias
-# antes de RACE_DATE viram recuperacao leve.
+# Janela de taper antes da prova (GOAL=race): os treinos dentro destes dias
+# antes de RACE_DATE viram preparacao progressiva (ver _taper_focus). Baseado
+# na periodizacao do Joe Friel (case study 2010): ultimo estimulo de qualidade
+# ~uma semana antes, depois recuperacao, com D-2/D-1 muito leves para
+# descarregar fatigue sem derreter o fitness (CTL decai devagar no EWMA 42).
 TAPER_DAYS = 7
+# Estimulo de qualidade da semana pre-prova: quantos dias antes da prova.
+RACE_SHARPENING_DELTA = 6
+# Faixa-alvo de projecao de TSB no dia da prova (Science to Sport: `-5..+5` a
+# `+10..+20` por atleta; Joe Friel usa ~+20 no dia). Personalizavel = #16.
+RACE_TSB_LOW = -10.0
+RACE_TSB_HIGH = 20.0
+
+RACE_PHASE_LABELS = {
+    "sharpening": "Ultimo estimulo (pre-prova)",
+    "recovery": "Recuperacao (pre-prova)",
+    "spin": "Spin leve (pre-prova)",
+}
+
+
+def _tsb_race_verdict(tsb):
+    """Veredito da preparacao pelo TSB projetado no dia da prova:
+    - 'cansado': TSB < RACE_TSB_LOW (chega a prova fatigado; aumentar taper);
+    - 'ok'     : dentro da faixa-alvo (RACE_TSB_LOW..RACE_TSB_HIGH);
+    - 'acima'  : TSB > RACE_TSB_HIGH (passou do pico).
+    A faixa e individual (#16); aqui usa-se o default da literatura."""
+    if tsb < RACE_TSB_LOW:
+        return "cansado"
+    if tsb > RACE_TSB_HIGH:
+        return "acima"
+    return "ok"
 
 
 def parse_goal(value):
@@ -412,8 +440,8 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         focus = weekly[slots.index(day.weekday()) % len(weekly)]
         taper = _taper_focus(goal, day, race_date)
         if taper is not None:
-            focus, params = taper
-            day_name = f"{day.isoformat()} - Taper (pre-prova)"
+            focus, params, phase = taper
+            day_name = f"{day.isoformat()} - {RACE_PHASE_LABELS[phase]}"
         else:
             params = WorkoutParams(focus=focus, **_block_for(focus, i, goal))
             params = _scale_duration(params, volume_scale)
@@ -444,6 +472,8 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
     # teste (D0) e a recuperacao pos-teste (D+1).
     plan = _protect_ftp_test(plan, ftp_test_date, training_days,
                              start, days, ftp)
+    # Dia da prova (GOAL=race): garante o evento na data, mesmo fora da agenda.
+    plan = _protect_race(plan, race_date, training_days, start, days, ftp)
     # Modo FC (#3): prescricao sem medidor de potencia (%FTHR + RPE). Todos os
     # workouts do plano carregam a marca para o push escolher HEART_RATE.
     if hr_mode:
@@ -462,22 +492,48 @@ def _block_for(focus, slot, goal):
 
 
 def _taper_focus(goal, day, race_date):
-    """GOAL=race com prova proxima: últimos TAPER_DAYS antes de RACE_DATE viram
-    recuperacao leve (Z2 curto). Retorna (focus, params) ou None."""
+    """GOAL=race com prova proxima: ultima semana antes de RACE_DATE vira
+    preparacao progressiva (periodizacao de Joe Friel):
+
+    - D-6        -> `sharpening`: ultimo estimulo de qualidade curto
+                    (Limiar ~2x6') — "abrir a perna" antes de descarregar;
+    - D-5..D-3   -> `recovery`: Z2 curto (descarregar fatigue);
+    - D-2/D-1    -> `spin`: muito leve (<60% FTP) — o dia antes importa mais
+                    que o estimulo (o CTL decai devagar, a fatigue cai rapido).
+
+    Retorna (focus, params, fase) ou None. O dia da prova (D0) e tratado por
+    `_protect_race` (evento usando, fora da agenda)."""
     if goal != "race" or not race_date:
         return None
     try:
         race = date.fromisoformat(race_date)
     except (TypeError, ValueError):
         return None
-    if (race - day).days < 0:
+    delta = (race - day).days
+    if delta < 0:
         return None  # prova ja passou: volta ao template normal
-    if (race - day).days < TAPER_DAYS:
-        params = WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=1200,
-                               off_sec=0, on_power=0.60, off_power=0.55,
-                               cadence=90, cadence_rest=90)
-        return FOCUS_ZONE2, params
-    return None
+    if delta >= TAPER_DAYS:
+        return None
+    if delta == RACE_SHARPENING_DELTA:
+        # Ultimo estimulo: Limiar curto (2x6' ~rFTP), tipo-prova.
+        return (FOCUS_THRESHOLD,
+                WorkoutParams(focus=FOCUS_THRESHOLD, repeats=2, on_sec=360,
+                              off_sec=180, on_power=0.97, off_power=0.55,
+                              cadence=90, cadence_rest=90),
+                "sharpening")
+    if delta in (1, 2):
+        # Spin: muito leve, so para nao zerar o dia por completo.
+        return (FOCUS_ZONE2,
+                WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=1080,
+                              off_sec=0, on_power=0.50, off_power=0.50,
+                              cadence=90, cadence_rest=90),
+                "spin")
+    # D-5..D-3: recuperacao Z2 curta.
+    return (FOCUS_ZONE2,
+            WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=1200,
+                          off_sec=0, on_power=0.60, off_power=0.55,
+                          cadence=90, cadence_rest=90),
+            "recovery")
 
 
 def _prep_workout(day, kind, ftp):
@@ -533,6 +589,70 @@ def _protect_ftp_test(plan, ftp_test_date, training_days, start, days, ftp):
         if d != test and d.weekday() not in training_days:
             continue  # descanso natural do dia fora da agenda: nada a criar
         kept.append(_as_dict(_prep_workout(d, kind, ftp)))
+    kept.sort(key=lambda w: w["day"])
+    return kept
+
+
+def _race_workout(day):
+    """Evento do dia da prova (GOAL=race): marcador no calendario com TSS 0 —
+    a carga real da prova entra pela API depois. O TSB projetado nesse dia
+    reflete o estado de chegada (descansado), como quer a periodizacao."""
+    params = WorkoutParams(focus=FOCUS_ZONE2, repeats=0, on_sec=0, off_sec=0,
+                           on_power=0.60, off_power=0.55, cadence=90,
+                           cadence_rest=90)
+    duration = sum((params.warmup_sec,
+                    params.repeats * (params.on_sec + params.off_sec),
+                    params.cooldown_sec))
+    return PlannedWorkout(
+        day=day.isoformat(), focus=FOCUS_ZONE2,
+        planned_duration=duration,
+        name=f"{day.isoformat()} - Prova: dia de prova",
+        params=_params_dict(params), tss=0.0,
+        external_id=f"{EXTERNAL_ID_PREFIX}-race-{day.isoformat()}",
+    )
+
+
+def _race_recovery(day, ftp):
+    """Recuperacao pos-prova (D+1): spin leve para o corpo voltar ao normal
+    depois do esforco de prova."""
+    params = WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=1080,
+                           off_sec=0, on_power=0.50, off_power=0.50,
+                           cadence=90, cadence_rest=90)
+    tss = estimate_tss(params, ftp)
+    return PlannedWorkout(
+        day=day.isoformat(), focus=FOCUS_ZONE2,
+        planned_duration=sum((params.warmup_sec,
+                              params.repeats * (params.on_sec + params.off_sec),
+                              params.cooldown_sec)),
+        name=f"{day.isoformat()} - Recuperacao (pos-prova)",
+        params=_params_dict(params), tss=float(tss),
+        external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
+    )
+
+
+def _protect_race(plan, race_date, training_days, start, days, ftp):
+    """Garante o dia da prova no plano (GOAL=race): o evento 'Prova' entra
+    SEMPRE na data, mesmo fora da agenda de treino (o atleta corre em qualquer
+    dia); D+1 vira recuperacao leve quando for dia de treino."""
+    if not race_date:
+        return plan
+    try:
+        race = date.fromisoformat(race_date)
+    except (TypeError, ValueError):
+        return plan
+    horizon_start = start
+    horizon_end = start + timedelta(days=days)
+    if race < horizon_start or race >= horizon_end:
+        return plan  # prova fora do horizonte do plano: nada a fazer
+    preps = {race: "race", race + timedelta(days=1): "after"}
+    kept = [w for w in plan if date.fromisoformat(w["day"]) not in preps]
+    for d, kind in sorted(preps.items()):
+        if d < horizon_start or d >= horizon_end:
+            continue
+        if kind == "after" and d.weekday() not in training_days:
+            continue  # descanso natural: nada a criar
+        w = _race_workout(d) if kind == "race" else _race_recovery(d, ftp)
+        kept.append(_as_dict(w))
     kept.sort(key=lambda w: w["day"])
     return kept
 

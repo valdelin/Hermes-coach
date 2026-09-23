@@ -105,14 +105,14 @@ class RaceTaperTest(unittest.TestCase):
         plan = build_plan([], 5, ftp=182, days=7, start=self.START,
                           goal="race", race_date=None)
         self.assertTrue(plan)
-        self.assertFalse(any("Taper" in w["name"] for w in plan),
+        self.assertFalse(any("pre-prova" in w["name"] for w in plan),
                          "sem RACE_DATE nao ha tapper")
 
     def test_race_com_prova_proxima_aplica_tapper(self):
         race_date = "2026-10-16"  # sexta-feira, 2 semanas apos o start
         plan = build_plan([], 0, ftp=182, days=14, start=self.START,
                           goal="race", race_date=race_date)
-        tapers = [w for w in plan if "Taper" in w["name"]]
+        tapers = [w for w in plan if "pre-prova" in w["name"]]
         self.assertTrue(tapers, "deve haver dias de tapper antes da prova")
         for w in tapers:
             self.assertEqual(w["focus"], FOCUS_ZONE2,
@@ -124,7 +124,7 @@ class RaceTaperTest(unittest.TestCase):
         # prova longe: nenhum treino na janela de 14 dias vira tapper
         plan = build_plan([], 0, ftp=182, days=14, start=self.START,
                           goal="race", race_date="2027-01-15")
-        self.assertFalse(any("Taper" in w["name"] for w in plan),
+        self.assertFalse(any("pre-prova" in w["name"] for w in plan),
                          "prova longe nao pode gerar tapper agora")
 
 
