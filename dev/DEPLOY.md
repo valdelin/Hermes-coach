@@ -83,23 +83,34 @@ ssh -i ~/.ssh/hermes_vps ubuntu@$IP
 # dentro da VPS:
 sudo apt update && sudo apt install -y docker.io docker-compose-v2
 sudo usermod -aG docker ubuntu
+exit
 ```
 
-Roundtrip SSH (para `sg`-containers não precisarem de senha a cada chamada):
-
-```bash
-eval "$(ssh-agent)" && ssh-add ~/.ssh/hermes_vps
-```
+> O `usermod -aG docker ubuntu` só vale na **próxima sessão** (grupo é avaliado
+> no login). Depois do `exit`, reconecte com o `ssh` de cima antes do passo 3.
+> Alternativa sem reconectar: entrar com `newgrp docker`.
 
 **Deploy key read-only** do repo privado: em *Settings → Deploy keys* no GitHub,
 adicionar a chave pública (`hermes_vps.pub`), permissão **read-only**.
 
+O `git clone` na VPS autentica com sua chave via **agent forwarding**: na sua
+máquina, adicione a chave ao agent e conecte **com `-A`**:
+
 ```bash
-# dentro da VPS (com a chave no agent):
+eval "$(ssh-agent)" && ssh-add ~/.ssh/hermes_vps
+ssh -A -i ~/.ssh/hermes_vps ubuntu@$IP
+
+# dentro da VPS (usa a chave do seu agent):
 ssh-keyscan github.com >> ~/.ssh/known_hosts
 git clone --depth 1 git@github.com:valdelin/Hermes-coach.git /opt/hermes-coach
 cd /opt/hermes-coach
+exit
 ```
+
+> Na VPS, **sempre reconstruir a imagem** (`docker compose build`) — nunca
+> transportar a imagem local. A instância A1 é **ARM64** e seu `docker build`
+> local gera imagem **amd64** (o Dockerfile baixa o supercronic certo para cada
+> arquitetura via `TARGETARCH`).
 
 ## 3. Deploy
 
@@ -114,7 +125,7 @@ scp -i ~/.ssh/hermes_vps -r logs/      ubuntu@$IP:/opt/hermes-coach/data/logs/
 > `mkdir -p /opt/hermes-coach/data/logs`
 
 ```bash
-# dentro da VPS:
+# dentro da VPS (em UMA NOVA sessão SSH — o grupo docker já vale aqui):
 sudo chmod 600 .env
 mkdir -p data/logs
 cp plan.json data/plan.json
