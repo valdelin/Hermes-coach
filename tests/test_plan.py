@@ -577,6 +577,15 @@ class AdherenceReportTest(unittest.TestCase):
         self.assertIsNone(report["summary"]["pct"],
                           "sem treinos ocorridos -> percentual nulo")
 
+    def test_treino_de_hoje_ainda_nao_conta_como_perdido(self):
+        # today = 2026-09-24; treino de hoje sem conclusao -> pendente,
+        # nunca perdido (so o que ja venceu - dia anterior - e perdido)
+        plan = self._plan([], ["2026-09-23"], ["2026-09-24"])
+        report = adherence_report(plan, [], today=self.TODAY)
+        self.assertEqual(report["summary"]["pending"], 1)
+        self.assertEqual(report["summary"]["missed"], 1)  # 23 (ontem) sim
+        self.assertEqual(report["summary"]["pct"], 0.0)
+
     def test_feito_nao_conta_como_perdido(self):
         plan = self._plan(["2026-09-22"], ["2026-09-23"], [])
         report = adherence_report(plan, self._events(["2026-09-22", "x"]),

@@ -997,8 +997,9 @@ def adherence_report(plan, events, today=None):
     """Relatorio de cumprimento do plano (Expected Plan Adherence) por semana.
 
     Cada treino planejado e classificado como `feito` (evento hermes concluido
-    com external_id), `pendente` (dia futuro) ou `perdido` (dia passado sem
-    conclusao), usando o mesmo criterio do reconcile (`_done_and_extra`).
+    com external_id), `pendente` (dia de hoje ou futuro) ou `perdido` (dia
+    passado sem conclusao), usando o mesmo criterio do reconcile
+    (`_done_and_extra`): so o que ja venceu conta como perdido.
     Agrega por semana ISO com % de cumprimento sobre os treinos ja ocorridos.
 
     Retorna {"today", "weeks": [{week, week_start, done, missed, pending,
@@ -1013,7 +1014,7 @@ def adherence_report(plan, events, today=None):
         bucket = weeks.setdefault(
             key, {"week_start": _week_start(day),
                   "done": 0, "missed": 0, "pending": 0})
-        if day > today:
+        if day >= today:
             bucket["pending"] += 1
         elif w.get("external_id") in done_ids:
             bucket["done"] += 1
