@@ -45,6 +45,9 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ### Adicionado
 
+- **Glossário de acrônimos** — `docs/GLOSSARIO.md`: dicionário do domínio
+  (FTP, FTHR, TSS, CTL/ATL/TSB, IF, RPE, PMC, CP/W′, HRV, FIT/ERG, …) com
+  status **no motor** vs **contexto**; espelhado no vault.
 - **Portal de acesso (desenho, sem código)** — `docs/PORTAL-UI-DESIGN.md`: mapa
   de telas v0 do portal multi-usuário (papéis admin/coach/atleta). Decisões
   fixadas: conexão Intervals via OAuth, aprovação solo (atleta decide) / com
