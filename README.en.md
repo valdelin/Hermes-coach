@@ -144,6 +144,8 @@ config lives at `~/.config/opencode/agent/` **inside WSL**.
    cd ~/Work/hermes-coach
    cp .env.example .env
    ```
+   > **Private repo:** cloning requires your GitHub account to be logged in
+   > (SSH or `gh auth login`); third parties have no access without an invite.
 4. Link the agent (same as Linux, inside WSL):
    ```
    mkdir -p ~/.config/opencode/agent

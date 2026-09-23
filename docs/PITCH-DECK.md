@@ -237,6 +237,7 @@ Cálculo da proposta:
 
 - Versão atual: **v0.0.16** · 181 testes OK · CI verde · timer systemd rodando.
 - Pricing concorrentes verificado em 22/09/2026 (fontes oficiais).
-- Repo público: `github.com/valdelin/Hermes-coach` · docs em `docs/`.
+- Repo **privado** (`github.com/valdelin/Hermes-coach`) — código sob demanda
+  (demonstração/NDA para investidores); docs públicos resumidos no pitch.
 - Non-goals (ADR-003): **não** reimplementar tracking/sync de dispositivos —
   usamos Intervals.icu como backend de dados.
