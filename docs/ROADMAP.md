@@ -187,6 +187,23 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
     Expected PMC; (c) a ressalva "zonas variam por atleta" reforça a
     parametrização existente (FTP/FTHR/GOAL/horas) e o **#16** (TSB-alvo
     pessoal).
+  - **Joe Friel — "Case Study: Periodization for First A Race of Season"**
+    (https://joefrieltraining.com/case-study-periodization-for-first-a-race-of-season/):
+    caso real (WKO+) de periodização até a 1ª prova A — macrociclo
+    Transition→Prep→Base→Build→Peak→Race; **ATL é bem mais sensível que CTL**
+    (fitness só sobe se a carga gera fatigue); **Build** empurra TSB bem
+    negativo com CTL/ATL subindo, fechando com semana de R&R; **Peak** = treino
+    tipo-prova a cada 72h + 2 dias fáceis (TSB oscila em torno de 0 por 2
+    semanas); **Race week** = leve com intensidade alta **decrescente**,
+    limitando a **perda de fitness a ≤10%** enquanto descarrega fatigue.
+    **Alvo de forma no dia da prova ~+20 TSB** (acertou +19,7 e venceu a
+    categoria). Ressalva: **forma alta sem prova à vista = ruim** (descarrega
+    fitness à toa; converse com a nossa zona `transition > +25` #17 — lá o
+    recado é "descanso longo", no dele é "volte a construir"). **O que
+    justifica:** **#16** (TSB-alvo pessoal — dá um alvo concreto de prova) e um
+    reforço do **`GOAL=race`/taper** (o `_taper_focus` atual é simplificação —
+    só 3 dias Z2; o dele é R&R + race week com intensidade decrescente e teto
+    de perda de fitness).
   - **Mike Posthumus — "Monitoring Cyclist Training Load Part 1"** (Science to
     Sport/UCT, https://www.sciencetosport.com/monitoring-training-load/):
     **valida o modelo EWMA 42/7** já usado pelo engine
