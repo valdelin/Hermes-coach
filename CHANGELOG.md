@@ -9,7 +9,7 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
-## [Unreleased]
+## [0.0.17] - 2026-09-22
 
 ### Corrigido
 
@@ -26,6 +26,18 @@ própria — foram agrupadas na tag/release v0.0.7.
   quebrar: `dev/DIAGNOSTICO.md` (fluxo de investigação passo a passo) +
   `dev/diagnose.sh` (snapshot de estado: versão, timer systemd, log, `plan.json`,
   `.env` sanitizado, health check via `info` e suíte de testes).
+- **Docs: benchmark de mercado + avaliação comercial** — Xert/Pillar/TriDot/
+  RunDot (preços, prescrição, posicionamento) e avaliação de produto
+  (ADR-003 como treinador automático por cima do Intervals, não app de tracking).
+- **Docs: pitch deck para investidor** — `docs/PITCH-DECK.md` (12 slides,
+  texto de tela + notas do apresentador) + `docs/PITCH-DECK-SLIDES.md` (versão
+  só-slides para importar no Gamma). Ask proposto: US$ 25k, meta 100 atletas +
+  3 treinadores (~US$ 82k ARR). Estratégia de beta testers (treinadores
+  conhecidos) embutida nos slides 7/9/12 e no ROTEIRO-TREINADOR.
+- **Docs: diagramas UML do sistema** — `docs/DIAGRAMAS.md` com 6 diagramas
+  Mermaid (componentes, sequência do timer diário, ciclo manual
+  build/reconcile/push, classes, decisão de foco, estados de evento) + PNGs
+  renderizados em `docs/diagramas/` para o pitch deck.
 
 ## [0.0.16] - 2026-09-22
 
