@@ -9,6 +9,18 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [Unreleased]
+
+### Adicionado
+
+- **Containerização + deploy em nuvem** — o sistema agora tem `Dockerfile`
+  (python slim + supercronic v0.2.49 fixado com SHA-1 verificado), `crontab`
+  (job diário de meia-noite idêntico ao timer systemd), `docker-compose.yml`
+  (serviço sempre-ligado, `.env`/`plan.json`/`logs/` fora da imagem via
+  bind-mounts) e `.dockerignore`. Guia completo de deploy no Oracle Cloud Free
+  Tier (instância, chave SSH, deploy key, build, atualização) em
+  `dev/DEPLOY.md`.
+
 ## [0.0.17] - 2026-09-22
 
 ### Corrigido

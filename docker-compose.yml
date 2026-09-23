@@ -1,0 +1,18 @@
+services:
+  coach:
+    build:
+      context: .
+    image: hermes-coach:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./data/plan.json:/app/plan.json
+      - ./data/logs:/app/logs
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
