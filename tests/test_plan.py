@@ -5,7 +5,7 @@ from src.plan import (build_plan, event_payload, reconcile, templates,
                       weekly_template, workout_text, orphan_external_ids,
                       parse_training_days, _next_training_day,
                       _reduce_next_hard, parse_fthr, hr_target_bpm,
-                      rpe_for_focus, FOCUS_VO2,
+                      rpe_for_focus, adherence_report, FOCUS_VO2,
                       DEFAULT_TRAINING_DAYS,
                       REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2)
 
@@ -539,6 +539,78 @@ class HeartRateModeTest(unittest.TestCase):
         self.assertIn("HR threshold", desc)
         self.assertIn("RPE", desc)
         self.assertNotIn("Agora voce vai entrar", desc)
+
+
+class AdherenceReportTest(unittest.TestCase):
+    TODAY = date(2026, 9, 24)
+
+    def _plan(self, done_days, missed_days, pending_days):
+        entries = []
+        for day in done_days + missed_days:
+            entries.append({"day": day, "name": f"{day} - Treino",
+                            "external_id": f"hermes-plan-{day}"})
+        for day in pending_days:
+            entries.append({"day": day, "name": f"{day} - Treino",
+                            "external_id": f"hermes-plan-{day}"})
+        return entries
+
+    def _events(self, done_days):
+        return [{"external_id": f"hermes-plan-{day}",
+                 "paired_activity_id": "555",
+                 "start_date_local": f"{day}T10:00:00"}
+                for day in done_days]
+
+    def test_tudo_em_dia_passado_classifica(self):
+        plan = self._plan(["2026-09-22", "2026-09-23"], ["2026-09-21"], [])
+        report = adherence_report(plan, self._events(["2026-09-22",
+                                                      "2026-09-23"]),
+                                  today=self.TODAY)
+        self.assertEqual(report["summary"]["done"], 2)
+        self.assertEqual(report["summary"]["missed"], 1)
+        self.assertEqual(report["summary"]["pct"], 66.66666666666666)
+
+    def test_dia_futuro_e_pendente(self):
+        plan = self._plan([], [], ["2026-09-25"])
+        report = adherence_report(plan, [], today=self.TODAY)
+        self.assertEqual(report["summary"]["pending"], 1)
+        self.assertEqual(report["summary"]["missed"], 0)
+        self.assertIsNone(report["summary"]["pct"],
+                          "sem treinos ocorridos -> percentual nulo")
+
+    def test_feito_nao_conta_como_perdido(self):
+        plan = self._plan(["2026-09-22"], ["2026-09-23"], [])
+        report = adherence_report(plan, self._events(["2026-09-22", "x"]),
+                                  today=self.TODAY)
+        self.assertEqual(report["summary"]["done"], 1)
+        self.assertEqual(report["summary"]["missed"], 1)
+
+    def test_agrupa_por_semana_com_week_start(self):
+        # 2026-09-21 e 2026-09-22 caem na mesma semana ISO (seg 21/09)
+        plan = self._plan(["2026-09-21", "2026-09-22"], [], [])
+        report = adherence_report(plan, self._events(["2026-09-21",
+                                                      "2026-09-22"]),
+                                  today=self.TODAY)
+        self.assertEqual(len(report["weeks"]), 1)
+        week = report["weeks"][0]
+        self.assertEqual(week["week"], "2026-W39")
+        self.assertEqual(week["week_start"], "2026-09-21")
+        self.assertEqual(week["pct"], 100.0)
+
+    def test_semanas_diferentes_ficam_separadas(self):
+        # 2026-09-18 (W38) e 2026-09-23 (W39)
+        plan = self._plan(["2026-09-18"], ["2026-09-23"], [])
+        report = adherence_report(plan, self._events(["2026-09-18"]),
+                                  today=self.TODAY)
+        self.assertEqual(len(report["weeks"]), 2)
+        self.assertEqual(report["weeks"][0]["week"], "2026-W38")
+        self.assertEqual(report["weeks"][0]["pct"], 100.0)
+        self.assertEqual(report["weeks"][1]["week"], "2026-W39")
+        self.assertEqual(report["weeks"][1]["pct"], 0.0)
+
+    def test_plano_vazio(self):
+        report = adherence_report([], [], today=self.TODAY)
+        self.assertEqual(report["weeks"], [])
+        self.assertEqual(report["summary"]["pct"], None)
 
 
 if __name__ == "__main__":

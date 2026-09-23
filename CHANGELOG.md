@@ -9,6 +9,28 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [0.0.18] - 2026-09-22
+
+### Adicionado
+
+- **Expected PMC (projeção de CTL/ATL/TSB do plano)** — nova
+  `forecast_pmc()` em `src/impulse_response.py` mistura o real com o
+  planejado: carga dos eventos até hoje (com dias de descanso zerados, sem
+  comprimir o decaimento exponencial) + `tss` do `plan.json` de amanhã em
+  diante. Retorna a série diária `(data, CTL, ATL, TSB)`, além de **alertas
+  quando a projeção cruza TSB ≤ −10** (mesmo gatilho do portal). O `model`
+  agora imprime a tabela da projeção e o aviso; com `initial_ctl/atl` da API
+  simula só o futuro, e sem elas o histórico real estabelece o ponto de
+  partida (fallback).
+- **Plan Adherence (relatório de cumprimento)** — nova `adherence_report()`
+  em `src/plan.py` reutiliza o critério de conclusão do `reconcile`
+  (`_done_and_extra`): cada treino planejado é `feito`/`perdido`/`pendente`,
+  agregado por semana ISO com % de cumprimento. Novo subcomando `adherence`
+  imprime o relatório (hoje o `build` só listava os `missed` de passagem).
+- **Testes**: +16 (181 → 197) — ancoragem de data, decaimento em dia de
+  descanso, múltiplos treinos no mesmo dia, horizonte, alerta TSB, agrupamento
+  semanal e classificação done/missed/pending.
+
 ## [Unreleased]
 
 ### Adicionado
@@ -398,6 +420,7 @@ Ao criar uma nova versão (bump de `VERSION`):
 
 ## Comparações (links)
 
+- [v0.0.17…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.17...master)
 - [v0.0.9…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.9...master)
 - [v0.0.8…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.8...master)
 - [v0.0.7…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.7...master)

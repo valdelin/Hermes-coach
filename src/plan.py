@@ -988,6 +988,57 @@ def _done_and_extra(events):
     return done_ids, extras
 
 
+def _week_start(day):
+    """Segunda-feira da semana ISO da data (o plano treina seg-sex)."""
+    return day - timedelta(days=day.weekday())
+
+
+def adherence_report(plan, events, today=None):
+    """Relatorio de cumprimento do plano (Expected Plan Adherence) por semana.
+
+    Cada treino planejado e classificado como `feito` (evento hermes concluido
+    com external_id), `pendente` (dia futuro) ou `perdido` (dia passado sem
+    conclusao), usando o mesmo criterio do reconcile (`_done_and_extra`).
+    Agrega por semana ISO com % de cumprimento sobre os treinos ja ocorridos.
+
+    Retorna {"today", "weeks": [{week, week_start, done, missed, pending,
+    total, pct}], "summary": {done, missed, pending, pct}}.
+    """
+    today = today or date.today()
+    done_ids, _ = _done_and_extra(events)
+    weeks = {}
+    for w in plan:
+        day = date.fromisoformat(str(w["day"])[:10])
+        key = day.isocalendar()[:2]
+        bucket = weeks.setdefault(
+            key, {"week_start": _week_start(day),
+                  "done": 0, "missed": 0, "pending": 0})
+        if day > today:
+            bucket["pending"] += 1
+        elif w.get("external_id") in done_ids:
+            bucket["done"] += 1
+        else:
+            bucket["missed"] += 1
+    weeks_out = []
+    for (year, iso_week), bucket in sorted(weeks.items()):
+        occurred = bucket["done"] + bucket["missed"]
+        weeks_out.append({
+            "week": f"{year}-W{iso_week:02d}",
+            "week_start": bucket["week_start"].isoformat(),
+            "done": bucket["done"], "missed": bucket["missed"],
+            "pending": bucket["pending"],
+            "total": occurred + bucket["pending"],
+            "pct": (bucket["done"] / occurred * 100) if occurred else None,
+        })
+    summary = {"done": sum(b["done"] for _, b in weeks.items()),
+               "missed": sum(b["missed"] for _, b in weeks.items()),
+               "pending": sum(b["pending"] for _, b in weeks.items())}
+    occurred = summary["done"] + summary["missed"]
+    summary["pct"] = (summary["done"] / occurred * 100) if occurred else None
+    return {"today": today.isoformat(), "weeks": weeks_out,
+            "summary": summary}
+
+
 def _adjust_for_extra_workouts(plan, extras, ftp,
                                training_days=DEFAULT_TRAINING_DAYS,
                                extra_window_days=7, cap=None,

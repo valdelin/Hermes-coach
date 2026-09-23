@@ -70,6 +70,17 @@ def daily_tss_series(events, window_days: int = 60, today=None) -> list:
     Eventos sem carga (None/0) sao ignorados. Mesmo criterio de carga usado
     no reconcile (src/plan.py::_done_and_extra).
     """
+    by_day = daily_load_by_date(events, window_days=window_days, today=today)
+    return [tss for _, tss in sorted(by_day.items())]
+
+
+def daily_load_by_date(events, window_days: int = 60, today=None) -> dict:
+    """Mapa `{date: carga}` dos eventos dentro da janela (dias com carga 0
+    ficam de fora — o preenchimento com zeros e responsabilidade do consumo).
+
+    Mesmo criterio de carga da `daily_tss_series`: campo `tss`, fallback
+    `icu_training_load`, ignorando dias sem carga.
+    """
     today = today or date.today()
     cutoff = today - timedelta(days=window_days)
     by_day = {}
@@ -82,7 +93,91 @@ def daily_tss_series(events, window_days: int = 60, today=None) -> list:
         if day < cutoff or day > today:
             continue
         by_day[day] = by_day.get(day, 0.0) + float(load)
-    return [tss for _, tss in sorted(by_day.items())]
+    return by_day
+
+
+PMC_ALERT_TSB = -10.0
+
+_ALERT_THRESHOLD = PMC_ALERT_TSB
+
+
+def forecast_pmc(events, plan, initial_ctl: float = None,
+                 initial_atl: float = None, today=None, horizon=None,
+                 window_days: int = 60) -> dict:
+    """Expected PMC: projeta CTL/ATL/TSB misturando o real com o planejado.
+
+    - Fase real: os eventos (carga real) ate `today`, incluindo dias com
+      carga 0 para o decaimento exponencial nao sofrer compressao de tempo.
+      Se `initial_ctl`/`initial_atl` vierem da API (estado atual autoritativo),
+      essa fase e pulada e a simulacao parte desse estado em `today`;
+      caso contrario o proprio historico real estabelece o ponto de partida.
+    - Fase planejada: treinos do plano (campo `tss`, TSS somado por dia) de
+      `today + 1` ate o fim do plano (ou `horizon`, se menor que o fim).
+
+    Retorna {"series": [{"day", "ctl", "atl", "tsb"} por dia de hoje ao fim],
+    "alerts": [{"day", "tsb"} nos dias onde TSB <= PMC_ALERT_TSB],
+    "end": {"ctl_fitness", "atl_fatigue", "tsb_form"}}.
+    Sem plano futuro retorna series vazia e end None.
+    """
+    today = today or date.today()
+    planned = {}
+    for w in plan:
+        day = date.fromisoformat(str(w["day"])[:10])
+        if day <= today:
+            continue
+        load = _num(w.get("tss"))
+        if load and load > 0:
+            planned[day] = planned.get(day, 0.0) + float(load)
+    if not planned:
+        return {"series": [], "alerts": [], "end": None}
+
+    end_day = today + timedelta(days=1)
+    for day in planned:
+        if day > end_day:
+            end_day = day
+    if horizon is not None and date.fromisoformat(str(horizon)[:10]) < end_day:
+        end_day = date.fromisoformat(str(horizon)[:10])
+
+    engine = ImpulseResponseEngine()
+    ctl = initial_ctl if initial_ctl is not None else 0.0
+    atl = initial_atl if initial_atl is not None else 0.0
+
+    if initial_ctl is None:
+        # fase real (sem estado inicial): simula o historico incluindo zeros
+        real = daily_load_by_date(events, window_days=window_days, today=today)
+        if real:
+            start = min(real)
+            day_list = [real.get(start + timedelta(days=i), 0.0)
+                        for i in range((today - start).days + 1)]
+        else:
+            day_list = []
+        m = engine.compute_metrics(day_list, initial_ctl=ctl, initial_atl=atl)
+        ctl, atl = m["ctl_fitness"], m["atl_fatigue"]
+
+    k_ctl = 1 - math.exp(-1 / engine.tc_ctl)
+    k_atl = 1 - math.exp(-1 / engine.tc_atl)
+    series = [{"day": today.isoformat(),
+               "ctl": round(ctl, 1), "atl": round(atl, 1),
+               "tsb": round(ctl - atl, 1)}]
+    d = today + timedelta(days=1)
+    while d <= end_day:
+        tss = planned.get(d, 0.0)
+        ctl = ctl + (tss - ctl) * k_ctl
+        atl = atl + (tss - atl) * k_atl
+        series.append({"day": d.isoformat(),
+                       "ctl": round(ctl, 1), "atl": round(atl, 1),
+                       "tsb": round(ctl - atl, 1)})
+        d += timedelta(days=1)
+
+    alerts = [{"day": row["day"], "tsb": row["tsb"]}
+              for row in series if row["tsb"] <= _ALERT_THRESHOLD]
+    last = series[-1]
+    return {
+        "series": series,
+        "alerts": alerts,
+        "end": {"ctl_fitness": last["ctl"], "atl_fatigue": last["atl"],
+                "tsb_form": last["tsb"]},
+    }
 
 
 def _day(item):

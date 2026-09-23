@@ -11,23 +11,26 @@ try:
     from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                        wellness_summary, format_wellness)
     from intervals_client import IntervalsClient
-    from impulse_response import ImpulseResponseEngine, daily_tss_series
+    from impulse_response import (ImpulseResponseEngine, daily_tss_series,
+                                  forecast_pmc)
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
                       reconcile, save_plan, orphan_external_ids,
                       parse_training_days, parse_goal, parse_weekly_hours,
                       parse_long_day, parse_fthr, GOAL_LABELS, FOCUS_LABELS_PT,
-                      REST, DEFAULT_FTP, CUE_LANGS, GOALS)
+                      REST, DEFAULT_FTP, CUE_LANGS, GOALS, adherence_report)
     import ftp_scan
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
     from .intervals_client import IntervalsClient
-    from .impulse_response import ImpulseResponseEngine, daily_tss_series
+    from .impulse_response import (ImpulseResponseEngine, daily_tss_series,
+                                   forecast_pmc)
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                        parse_training_days, parse_goal, parse_weekly_hours,
                        parse_long_day, parse_fthr, GOAL_LABELS,
-                       FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS)
+                       FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS,
+                       adherence_report)
     from . import ftp_scan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -325,15 +328,45 @@ def cmd_model(args):
     except FileNotFoundError:
         plan = []
     if plan and api and api.ctl is not None and api.atl is not None:
-        plan_tss = [w["tss"] for w in plan]
-        last_day = plan[-1]["day"]
-        end = engine.compute_metrics(plan_tss, initial_ctl=api.ctl,
-                                     initial_atl=api.atl)
-        print(f"Projecao seguindo o plano ate {last_day}: "
-              f"CTL {end['ctl_fitness']} / ATL {end['atl_fatigue']} / "
-              f"TSB {end['tsb_form']}")
+        fc = forecast_pmc(events, plan, initial_ctl=api.ctl, initial_atl=api.atl)
+        if fc["series"]:
+            end = fc["end"]
+            first = fc["series"][0]["day"]
+            last = fc["series"][-1]["day"]
+            print(f"Expected PMC (real + plano) de {first} a {last}: "
+                  f"CTL {end['ctl_fitness']} / ATL {end['atl_fatigue']} / "
+                  f"TSB {end['tsb_form']}")
+            for row in fc["series"]:
+                alert = "  <-- TSB <= -10" if row["tsb"] <= -10.0 else ""
+                print(f"  {row['day']}  CTL {row['ctl']:6.1f}  "
+                      f"ATL {row['atl']:6.1f}  TSB {row['tsb']:7.1f}{alert}")
+        else:
+            print("Expected PMC: sem treinos planejados para frente.")
     else:
         print("Projecao: sem plan.json ou metricas da API para projetar.")
+
+
+def cmd_adherence(args):
+    client = get_client()
+    newest = date.today()
+    oldest = newest - timedelta(days=args.days)
+    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
+    try:
+        plan = load_plan(PLAN_FILE)
+    except FileNotFoundError:
+        print("sem plan.json: rode `build` primeiro.")
+        return
+    report = adherence_report(plan, events)
+    print(f"Cumprimento do plano (plan.json) ate {report['today']}:")
+    for w in report["weeks"]:
+        pct = f"{w['pct']:.0f}%" if w["pct"] is not None else "  --"
+        print(f"  {w['week']:<9} feito {w['done']:>3}  perdido {w['missed']:>3}  "
+              f"pendente {w['pending']:>3}  -> {pct}")
+    s = report["summary"]
+    occurred = s["done"] + s["missed"]
+    pct = f"{s['pct']:.0f}%" if s["pct"] is not None else "-"
+    print(f"Total: {s['done']} feito / {s['missed']} perdido / "
+          f"{s['pending']} pendente -> {pct} dos {occurred} treinos ocorridos")
 
 
 def cmd_build(args):
@@ -610,6 +643,13 @@ def main(argv=None):
     p_model.add_argument("--days", type=int, default=60,
                          help="Janela de historico de TSS (dias)")
     p_model.set_defaults(func=cmd_model)
+
+    p_adh = sub.add_parser(
+        "adherence",
+        help="Relatorio de cumprimento do plano por semana (feito/perdido/pendente)")
+    p_adh.add_argument("--days", type=int, default=45,
+                       help="Janela de historico de eventos para casar (dias)")
+    p_adh.set_defaults(func=cmd_adherence)
 
     p_build = sub.add_parser("build", help="Gera o plano a partir do historico")
     p_build.add_argument("--days", type=int, default=60,

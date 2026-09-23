@@ -1,7 +1,9 @@
 import unittest
-from datetime import date
+import math
+from datetime import date, timedelta
 
-from src.impulse_response import ImpulseResponseEngine, daily_tss_series
+from src.impulse_response import (ImpulseResponseEngine, daily_tss_series,
+                                  daily_load_by_date, forecast_pmc)
 
 
 class CalculateTssTest(unittest.TestCase):
@@ -106,6 +108,105 @@ class DailyTssSeriesTest(unittest.TestCase):
         ]
         series = daily_tss_series(events, window_days=60, today=date(2026, 9, 10))
         self.assertEqual(series, [])
+
+
+class DailyLoadByDateTest(unittest.TestCase):
+    def test_mapa_por_data(self):
+        events = [
+            {"start_date_local": "2026-09-01T07:00:00", "icu_training_load": "40"},
+            {"start_date_local": "2026-09-01T18:00:00", "tss": "20"},
+            {"start_date_local": "2026-09-03T07:00:00", "tss": "50"},
+            {"no-load": True},
+        ]
+        m = daily_load_by_date(events, window_days=60, today=date(2026, 9, 10))
+        self.assertEqual(m[date(2026, 9, 1)], 60.0)
+        self.assertEqual(m[date(2026, 9, 3)], 50.0)
+        self.assertEqual(len(m), 2, "dias sem carga nao entram no mapa")
+
+    def test_respeita_janela(self):
+        events = [
+            {"start_date_local": "2026-06-01T07:00:00", "tss": "99"},
+            {"day": "2026-09-05", "tss": "30"},
+        ]
+        m = daily_load_by_date(events, window_days=30, today=date(2026, 9, 10))
+        self.assertEqual(m, {date(2026, 9, 5): 30.0})
+
+
+class ForecastPmcTest(unittest.TestCase):
+    TODAY = date(2026, 9, 10)
+
+    def _plan(self, pairs):
+        return [{"day": day, "tss": tss} for day, tss in pairs]
+
+    def test_serie_comeca_em_hoje_com_estado_inicial(self):
+        plan = self._plan([("2026-09-11", 100), ("2026-09-12", 100)])
+        fc = forecast_pmc([], plan, initial_ctl=50.0, initial_atl=40.0,
+                          today=self.TODAY)
+        self.assertEqual(fc["series"][0]["day"], "2026-09-10")
+        self.assertEqual(fc["series"][0]["ctl"], 50.0)
+        self.assertEqual(fc["series"][0]["atl"], 40.0)
+        self.assertEqual(fc["series"][0]["tsb"], 10.0)
+        self.assertEqual(fc["series"][-1]["day"], "2026-09-12")
+        self.assertEqual(fc["end"]["tsb_form"], fc["series"][-1]["tsb"])
+
+    def test_aplica_carga_esperada_no_primeiro_dia(self):
+        plan = self._plan([("2026-09-11", 100)])
+        fc = forecast_pmc([], plan, initial_ctl=0.0, initial_atl=0.0,
+                          today=self.TODAY)
+        row = fc["series"][1]
+        self.assertEqual(row["day"], "2026-09-11")
+        self.assertAlmostEqual(row["ctl"],
+                               round(100 * (1 - math.exp(-1 / 42)), 1), places=1)
+        self.assertAlmostEqual(row["atl"],
+                               round(100 * (1 - math.exp(-1 / 7)), 1), places=1)
+
+    def test_dia_de_descanso_decai_atl(self):
+        plan = self._plan([("2026-09-11", 200), ("2026-09-12", 0),
+                           ("2026-09-13", 200)])
+        fc = forecast_pmc([], plan, initial_ctl=0.0, initial_atl=0.0,
+                          today=self.TODAY)
+        by_day = {r["day"]: r for r in fc["series"]}
+        self.assertGreater(by_day["2026-09-12"]["atl"], 0.0)
+        self.assertLess(by_day["2026-09-12"]["atl"],
+                        by_day["2026-09-11"]["atl"],
+                        "zero no dia -> ATL decai em vez de subir")
+
+    def test_multiplos_treinos_no_mesmo_dia_somam(self):
+        plan = [{"day": "2026-09-11", "tss": 100},
+                {"day": "2026-09-11", "tss": 50}]
+        fc = forecast_pmc([], plan, initial_ctl=0.0, initial_atl=0.0,
+                          today=self.TODAY)
+        row = fc["series"][1]
+        self.assertAlmostEqual(row["atl"],
+                               round(150 * (1 - math.exp(-1 / 7)), 1), places=1)
+
+    def test_horizonte_limita_projecao(self):
+        plan = self._plan([("2026-09-11", 100), ("2026-09-13", 100)])
+        fc = forecast_pmc([], plan, initial_ctl=10.0, initial_atl=10.0,
+                          today=self.TODAY, horizon=date(2026, 9, 12))
+        self.assertEqual(fc["series"][-1]["day"], "2026-09-12")
+
+    def test_plano_vazio_retorna_sem_serie(self):
+        fc = forecast_pmc([], [], initial_ctl=10.0, initial_atl=10.0,
+                          today=self.TODAY)
+        self.assertEqual(fc["series"], [])
+        self.assertIsNone(fc["end"])
+
+    def test_sem_estado_inicial_usa_historico_real(self):
+        events = [{"day": "2026-09-09", "tss": "100"}]
+        plan = self._plan([("2026-09-11", 100)])
+        fc = forecast_pmc(events, plan, today=self.TODAY)
+        self.assertGreater(fc["series"][0]["ctl"], 0.0,
+                           "historico real (mesmo 1 dia) alimenta o estado atual")
+        self.assertEqual(fc["series"][-1]["day"], "2026-09-11")
+
+    def test_alerta_tsb_baixo(self):
+        plan = self._plan([("2026-09-11", 1000)])
+        fc = forecast_pmc([], plan, initial_ctl=50.0, initial_atl=5.0,
+                          today=self.TODAY)
+        self.assertTrue(fc["alerts"], "carga enorme deve cruzar TSB <= -10")
+        self.assertEqual(fc["alerts"][0]["day"], "2026-09-11")
+        self.assertLessEqual(fc["alerts"][0]["tsb"], -10.0)
 
 
 if __name__ == "__main__":
