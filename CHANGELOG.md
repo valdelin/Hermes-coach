@@ -31,6 +31,16 @@ própria — foram agrupadas na tag/release v0.0.7.
   descanso, múltiplos treinos no mesmo dia, horizonte, alerta TSB, agrupamento
   semanal e classificação done/missed/pending.
 
+### Corrigido
+
+- **`adherence` contava o treino de hoje como "perdido"** no meio do dia: só
+  o que efetivamente venceu (dia estritamente anterior) deve ser `perdido` —
+  o de hoje, ainda não concluído, é `pendente`. Alinhe com o critério do
+  `reconcile` (`w["day"] < today`). Sem o alinhamento, um plano com treinos
+  pela manhã mostrava % de cumprimento artificialmente baixo (ex.: W39 saía
+  `1 feito / 1 perdido` antes do treino do dia acontecer). Teste
+  `test_treino_de_hoje_ainda_nao_conta_como_perdido` cobre o caso. (198 testes)
+
 ## [Unreleased]
 
 ### Adicionado
