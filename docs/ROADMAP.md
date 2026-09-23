@@ -24,6 +24,8 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 10 | feature | **Nível do atleta** (iniciante/intermediário/avançado) como ajuste fino de volume/intensidade — hoje o TSB já calibra | — (benchmark 22/09) | **possível — validar c/ treinador** | 2 |
 | 11 | produto | **Catálogo de eventos estilo Pillar** (200+ provas) — onboarding por prova-alvo (distância/perfil) | — (benchmark 22/09) | **possível — validar c/ treinador** | 3 |
 | 12 | produto | **App comercial de ciclismo indoor** (posicionamento + preços — benchmark 22/09): consolidar #7/#8/#11 em produto com assinatura (tiers solo/coach), notificações (#2), catálogo de eventos e retenção | — (benchmark 22/09; ADR-003) | **possível — validar c/ treinador** (ROTEIRO-TREINADOR seções 3-4) | 3 |
+| 13 | produto | **Assistentes de IA no padrão Tredict** — análise do histórico e criação de planos via LLM (MCP server / apps ChatGPT/Claude) como interface do motor; o nosso é determinístico/auditável (diferencial de confiança), o deles é LLM aberto | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 3 |
+| 14 | decisão | **W′/CP — não implementar agora**: análise Tredict (post mai/2026) mostra modelo de critical power instável e pouco acionável para endurance; CP/W′ ficam como **contexto/candidata** (ver `docs/GLOSSARIO.md`) | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 2 |
 
 ## Fases
 
@@ -140,6 +142,31 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 ### Fase 4 — Multi-atleta / modo treinador
 - Dashboard por atleta, parâmetros por atleta, aprovação antes de publicar,
   alertas e relatório semanal. Depende da validação com treinador.
+
+- 📊 **Benchmark (2026-09-23) — Tredict** — concorrente conceitual mais
+  próximo. Plataforma de planejamento + análise (corrida/ciclismo/natação/
+  triathlon) com **previsão de forma** ("redundant effort calculation" ≈ nosso
+  Expected PMC), **detecção automática de FTP/LTHR** (≈ `ftp-scan`/#6),
+  **conexão coach↔atleta** (≈ Fase 4/#8), venda de planos e **integrações de
+  device** (Garmin Training API, Coros, Wahoo, Suunto, Zwift, Hammerhead,
+  Watchletic, Withings). **Desde 2026 adota IA no mesmo sentido da Fase 3**:
+  MCP server + apps ChatGPT/Claude que analisam histórico, estimam FTP e
+  **escrevem treinos que sincronizam no relógio** (backlog #13). **Lições:**
+  (1) **Expected PMC/TSB validado** — previsão de forma é o core deles
+  (múltiplas fontes de carga ⇒ não simplificar o nosso p/ métrica única);
+  (2) **independência de fornecedor = posicionamento deles** — capitalizam a
+  aquisição **Garmin→TrainingPeaks (jul/2026)** como "end of vendor
+  independence" ⇒ reforça o seam `AthleteContext` (Fase 0) e o OAuth: o nosso
+  produto sobrevive à troca de provedor, o deles É o provedor;
+  (3) **W′/CP** — post "Why Tredict does not calculate W-Prime" (mai/2026)
+  recusa W′-balance por instabilidade/baixa acionabilidade para endurance ⇒
+  CP/W′ ficam como **contexto/candidata** no glossário, **fora do motor por
+  ora** (backlog #14);
+  (4) **preço p/ coaches**: "prepaid credits for write access" (créditos por
+  escrita) — opção de monetização a validar na Fase 3;
+  (5) **posicionamento**: Tredict resolve "onde guardo/analiso/sincronizo"; o
+  Hermes resolve "quem pensa/planeja" ⇒ caminho (cérebro sobre o Intervals)
+  segue defensável; Tredict vira **benchmark vivo** das Fases 2-3.
 
 ## Regras transversais
 

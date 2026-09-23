@@ -48,6 +48,11 @@ própria — foram agrupadas na tag/release v0.0.7.
 - **Glossário de acrônimos** — `docs/GLOSSARIO.md`: dicionário do domínio
   (FTP, FTHR, TSS, CTL/ATL/TSB, IF, RPE, PMC, CP/W′, HRV, FIT/ERG, …) com
   status **no motor** vs **contexto**; espelhado no vault.
+- **Benchmark Tredict (23/09)** no ROADMAP — concorrente conceitual mais
+  próximo: valida Expected PMC/TSB, detecção auto de FTP/LTHR, coach↔atleta e
+  o caminho IA (MCP server); posicionamento "independência de fornecedor"
+  (aquisição Garmin→TrainingPeaks) reforça o seam `AthleteContext`; decisão
+  **W′/CP fica fora do motor por ora** (backlog #13/#14).
 - **Portal de acesso (desenho, sem código)** — `docs/PORTAL-UI-DESIGN.md`: mapa
   de telas v0 do portal multi-usuário (papéis admin/coach/atleta). Decisões
   fixadas: conexão Intervals via OAuth, aprovação solo (atleta decide) / com
