@@ -11,6 +11,10 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+_Próximas mudanças a documentar._
+
+## [0.0.20] - 2026-09-23
+
 ### Adicionado
 
 - **Taper progressivo para `GOAL=race`** (periodização do Joe Friel, case
@@ -456,6 +460,7 @@ Ao criar uma nova versão (bump de `VERSION`):
 
 ## Comparações (links)
 
+- [v0.0.19…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.19...master)
 - [v0.0.18…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.18...master)
 - [v0.0.17…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.17...master)
 - [v0.0.9…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.9...master)
