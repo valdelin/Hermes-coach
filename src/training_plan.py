@@ -428,11 +428,34 @@ def cmd_build(args):
         existing = load_plan(PLAN_FILE)
     except FileNotFoundError:
         existing = None
+    recovery_ramp = None
+    ramp_label = None
+    if getattr(args, "recovery", False):
+        # #19: `build --recovery` ora o plano pelos tetos da rampa segura de
+        # retorno a forma (mesma prescricao do CLI `recovery`).
+        all_events = recovery.fetch_full_history(client)
+        daily = recovery.actual_daily_load(all_events)
+        rows = recovery.pmc_series(daily)
+        if rows:
+            st = recovery.state(rows)
+            vol = recovery.weekly_volume(daily)
+            ramp_pts = getattr(args, "ramp_pts", 9)
+            weeks = max(getattr(args, "recovery_weeks", 12),
+                        (args.days_plan + 6) // 7)
+            schedule = recovery.ramp_schedule(st["peak_ctl"], vol, ramp_pts,
+                                              weeks=weeks)
+            recovery_ramp = schedule
+            ramp_label = (f"teto semanal de retorno (CTL pico {st['peak_ctl']:.0f}; "
+                          f"rampa +{ramp_pts}/sem): {schedule[0]:.0f} -> "
+                          f"{schedule[-1]:.0f} TSS")
+        else:
+            print("aviso: sem treinos feitos com carga no historico; "
+                  "`--recovery` ignorado (orcamento padrao).")
     plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
                       existing=existing, training_days=get_training_days(),
                       goal=goal, race_date=race_date, ftp_test_date=ftp_test_date,
                       weekly_hours=weekly_hours, long_day=long_day,
-                      hr_mode=hr_mode)
+                      hr_mode=hr_mode, recovery_ramp=recovery_ramp)
     # Preserva candidatos de FTP ja registrados na meta (issue #6): o build
     # nao deve apagar o rastro de um ftp-scan anterior.
     existing_meta = load_plan_meta(PLAN_FILE)
@@ -453,6 +476,8 @@ def cmd_build(args):
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
     test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""
     print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
+    if ramp_label:
+        print(ramp_label)
     if hr_mode:
         print(f"Prescricao sem medidor de potencia: alvos em %FTHR + RPE "
               f"(FTHR {fthr} bpm); carga estimada por FC no Intervals.")
@@ -559,8 +584,8 @@ def cmd_recovery(args):
         # quebra de linha a cada 4 semanas para legibilidade
         for i in range(0, len(line), 4):
             print("  " + " | ".join(line[i:i + 4]))
-        print("  Dica: gere os treinos em si com `build` e `GOAL=back-to-fitness`")
-        print("  respeitando esses tetos semanais; valide a prescricao com o treinador.")
+        print("  Dica: gere os treinos respeitando esses tetos com "
+              "`build --recovery` (mesma rampa + deload).")
     else:
         print("\n(Dica: `recovery --weeks 12` imprime a rampa semanal segura.)")
     return st
@@ -968,6 +993,12 @@ def main(argv=None):
                        help="Agenda o Ramp Test (FTP) e protege as 48h antes")
     p_all.add_argument("--no-power", action="store_true",
                        help="Prescricao sem medidor de potencia (%%FTHR + RPE)")
+    p_all.add_argument("--recovery", action="store_true",
+                       help="Orca o plano pelos tetos da rampa de retorno a forma")
+    p_all.add_argument("--ramp-pts", type=int, default=9,
+                       help="Crescimento semanal de TSS da rampa (default 9)")
+    p_all.add_argument("--recovery-weeks", type=int, default=12,
+                       help="Semanas da rampa de retorno (default 12)")
     p_all.set_defaults(func=cmd_all)
 
     args = parser.parse_args(argv)

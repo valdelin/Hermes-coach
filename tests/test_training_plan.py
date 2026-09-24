@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from src import training_plan as tp
+from src import recovery as src_recovery
 from src.plan import (build_plan, load_plan, load_plan_meta, save_plan,
                       DEFAULT_FTP, DEFAULT_TRAINING_DAYS)
 
@@ -526,6 +527,56 @@ class RecoveryCliTest(unittest.TestCase):
             self.assertRegex(out, r"pico de CTL: \d")
         finally:
             tp.get_client = orig_client
+
+
+class BuildRecoveryTest(unittest.TestCase):
+    """#19: `build --recovery` ora o plano pelos tetos da rampa de retorno."""
+
+    def test_build_recovery_respeita_tetos_da_rampa(self):
+        tmp, root, env, path, orig = _scan_fixture()
+        try:
+            tp.get_client = lambda: _FakeClient()
+            tp.get_ftp = lambda: 182
+            tp.get_goal = lambda: None
+            tp.get_race_date = lambda: None
+            tp.get_weekly_hours = lambda: None
+            tp.get_long_day = lambda: None
+            tp.get_ftp_test_date = lambda: None
+            rows = [(date(2026, 8, 1), 30.0, 20.0, 10.0),
+                    (date(2026, 8, 2), 31.0, 21.0, 10.0)]
+            with mock.patch.object(tp.recovery, "fetch_full_history",
+                                   return_value=[]), \
+                 mock.patch.object(tp.recovery, "actual_daily_load",
+                                   return_value={date(2026, 8, 1): 30.0}), \
+                 mock.patch.object(tp.recovery, "pmc_series",
+                                   return_value=rows), \
+                 mock.patch.object(tp.recovery, "state") as st, \
+                 mock.patch.object(tp.recovery, "weekly_volume",
+                                   return_value=80.0):
+                st.return_value = {"current_ctl": 30.0, "current_atl": 20.0,
+                                   "current_tsb": 10.0, "peak_ctl": 50.0}
+                args = types.SimpleNamespace(days=60, days_plan=14, ftp_test=None,
+                                             recovery=True, ramp_pts=9,
+                                             recovery_weeks=12)
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    plan = tp.cmd_build(args)
+            self.assertIsNotNone(plan)
+            self.assertIn("teto semanal", out.getvalue())
+            ramp = src_recovery.ramp_schedule(50, 80, 9, weeks=14)[:2]
+            by_week = {0: 0.0, 1: 0.0}
+            for w in plan:
+                wk = (date.fromisoformat(w["day"]) - date.today()).days // 7
+                if wk in by_week:
+                    by_week[wk] += w["tss"]
+            slack = 30.0  # piso de TSS de um treino; veja RecoveryBudgetTest
+            self.assertLessEqual(by_week[0], ramp[0] + slack,
+                                 f"semana 1 estourou: {by_week[0]:.1f}")
+            self.assertLessEqual(by_week[1], ramp[1] + slack,
+                                 f"semana 2 estourou: {by_week[1]:.1f}")
+        finally:
+            _restore_scan(orig)
+            tmp.cleanup()
 
 
 if __name__ == "__main__":

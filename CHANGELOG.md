@@ -9,6 +9,31 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [Unreleased]
+
+_Próximas mudanças a documentar._
+
+## [0.0.24] - 2026-09-24
+
+### Adicionado
+
+- **`build --recovery` (#19)** — o `build` pode ser orçado pelos **tetos
+  semanais da rampa de retorno a forma**: consulta todo o histórico real do
+  Intervals (mesmo pipeline do `recovery`), calcula o pico de CTL e o volume
+  atual e usa `ramp_schedule` (crescimento `--ramp-pts`/sem, deload a cada 4
+  semanas, teto = carga que sustenta o CTL-alvo) como orçamento em vez do
+  padrão. Flags `--recovery`, `--ramp-pts`, `--recovery-weeks` (também no
+  `all`). O `recovery --weeks` agora aponta direto para o `build --recovery`.
+  A rampa é um teto, não um piso: o plano nunca fura o alvo além do piso de
+  TSS de um treino.
+
+### Testes
+
+- +4 (274 → **278**): orçamento semanal da rampa no `build_plan`
+  (`recovery_ramp` — semana apertada/solta, rampa curta mantém o último teto,
+  redução abaixo do orçamento padrão) e wiring do CLI `build --recovery` com
+  o pipeline do `recovery`.
+
 ## [0.0.23] - 2026-09-24
 
 ### Adicionado
@@ -41,10 +66,6 @@ própria — foram agrupadas na tag/release v0.0.7.
   com bloco `[data-theme]` e `--fresh`/`--risk`; `:root` antes).
 - Validação real no chromium headless: **os 22 temas** resolvem as três cores
   de zona corretamente.
-
-## [Unreleased]
-
-_Próximas mudanças a documentar._
 
 ## [0.0.22] - 2026-09-24
 

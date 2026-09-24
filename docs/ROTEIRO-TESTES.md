@@ -55,6 +55,11 @@
 > **22/22 temas** resolvem as três cores de zona corretas (bug: o `:root`
 > emitido no meio sobrescrevia 18 temas).
 
+> Resultado 24/09 (build --recovery, #19): baseline **278 testes OK** (+4 —
+> orçamento semanal da rampa no `build_plan` (`recovery_ramp`: aperta/sexta
+> semana, rampa curta mantém o último teto, redução abaixo do padrão) + wiring
+> do CLI `build --recovery` com o pipeline do `recovery`).
+
 ---
 
 ## 2. Regressão offline (código)

@@ -402,10 +402,19 @@ def weekly_budget(avg):
     return daily_tss_cap(avg) * 7
 
 
+def _recovery_budget(recovery_ramp, day_index, default):
+    """Teto semanal da rampa de retorno a forma (#19) para o dia `day_index`
+    (0-base a partir do inicio do plano). Semana = dia//7; alem do fim da
+    rampa, mantem o ultimo teto (nao deixa de capar)."""
+    if not recovery_ramp:
+        return default
+    return recovery_ramp[min(day_index // 7, len(recovery_ramp) - 1)]
+
+
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
-               hr_mode=False):
+               hr_mode=False, recovery_ramp=None):
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -422,7 +431,8 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          goal=goal, race_date=race_date,
                                          ftp_test_date=ftp_test_date,
                                          weekly_hours=weekly_hours,
-                                         long_day=long_day, hr_mode=hr_mode)
+                                         long_day=long_day, hr_mode=hr_mode,
+                                         recovery_ramp=recovery_ramp)
     weekly = weekly_template(tsb, goal)
     slots = sorted(training_days)
     weekly = _place_long_day(weekly, long_day, slots)
@@ -437,6 +447,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         day = start + timedelta(days=i)
         if day.weekday() not in training_days:
             continue
+        budget = _recovery_budget(recovery_ramp, i, cap * 7)
         focus = weekly[slots.index(day.weekday()) % len(weekly)]
         taper = _taper_focus(goal, day, race_date)
         if taper is not None:

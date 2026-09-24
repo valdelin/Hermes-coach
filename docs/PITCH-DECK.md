@@ -77,7 +77,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 ## Slide 5 — Produto (como funciona)
 
-**O motor já roda hoje** (v0.0.23, 274 testes OK)
+**O motor já roda hoje** (v0.0.24, 278 testes OK)
 
 - Motor Banister local: **CTL/ATL/TSB** → foco do dia por faixa (`<-15` → Z2;
   `-15..0` → Sweet Spot; `0..5` → Limiar; `>=+5` → VO2).
@@ -95,7 +95,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 - Integração: API do Intervals.icu (Garmin/Zwift/Wahoo/Polar/COROS...) + Zwift.
 
 > **Nota:** é o slide de maior densidade técnica — mantenha só o essencial e
-> mostre 1 print do calendário/`info` se possível. "274 testes OK" é sinal de
+> mostre 1 print do calendário/`info` se possível. "278 testes OK" é sinal de
 > engenharia séria; guarde detalhe para o Q&A.
 
 ---
@@ -138,7 +138,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
   ciência do treino + produto multi-atleta + pricing (perguntas 9–12 adicionadas).
 - **Acesso a treinadores via rede do fundador:** treinadores conhecidos entram
   como **beta testers** — primeiro piloto com custo de aquisição ~zero.
-- 274 testes automatizados; CI no GitHub.
+- 278 testes automatizados; CI no GitHub.
 
 > **Nota reta:** ainda não é tração comercial (zero pagantes) — seja honesto.
 > A validação até agora é de **motor + mercado + método**; o próximo marco é o
@@ -205,7 +205,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 **1 fundador (full-stack: produto + engenharia + ciência do treino)**
 
 - Construiu o motor completo: TSB, plano, reconcile, FTP scan, Expected PMC,
-  adherence, integração Intervals/Zwift, relatório com temas — 274 testes,
+  adherence, integração Intervals/Zwift, relatório com temas — 278 testes,
   rodando em produção.
 - Fez benchmarks de mercado e rascunhou o roteiro de validação com treinador.
 - [Se aplicar] Validando com treinador de ciclismo real (parceria de
@@ -248,7 +248,7 @@ Cálculo da proposta:
 
 ## Apêndice — fatos usados (para Q&A)
 
-- Versão atual: **v0.0.23** · 274 testes OK · CI verde · timer systemd rodando.
+- Versão atual: **v0.0.23** · 278 testes OK · CI verde · timer systemd rodando.
 - Pricing concorrentes verificado em 22/09/2026 (fontes oficiais).
 - Repo **privado** (`github.com/valdelin/Hermes-coach`) — código sob demanda
   (demonstração/NDA para investidores); docs públicos resumidos no pitch.

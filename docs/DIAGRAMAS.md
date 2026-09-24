@@ -1,6 +1,6 @@
 # Diagramas UML — Hermes Coach
 
-Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.23).
+Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.24).
 Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
 fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
 
@@ -301,7 +301,7 @@ stateDiagram-v2
 
 ## Notas
 
-- Diagramas gerados a partir do código real (`src/*.py`, v0.0.23, 274 testes OK) —
+- Diagramas gerados a partir do código real (`src/*.py`, v0.0.24, 278 testes OK) —
   não são genéricos. Se o código mudar, atualize aqui junto.
 - Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli.
 - O `.zwo` **não é gerado localmente** (o Intervals monta no app a partir do

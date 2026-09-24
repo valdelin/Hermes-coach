@@ -42,7 +42,7 @@ Ciclismo amador é grande e paga por assinatura
 
 # Produto
 
-O motor já roda hoje (v0.0.23, 274 testes OK)
+O motor já roda hoje (v0.0.24, 278 testes OK)
 
 - Motor Banister local: CTL/ATL/TSB → foco do dia por faixa (Z2, Sweet Spot, Limiar, VO2)
 - Expected PMC: projeta forma/fadiga com treinos reais + planejados (TSB hoje → próxima semana; alertas de sobrecarga)
@@ -76,7 +76,7 @@ O que já está provado
 - Benchmarks de mercado concluídos: Xert, Pillar, TriDot, RunDot, Zwift, Tredict
 - Roteiro de validação com treinador pronto: ciência + multi-atleta + pricing
 - Acesso a treinadores via rede do fundador: treinadores conhecidos entram como beta testers (primeiro piloto, custo ~zero)
-- 274 testes automatizados, CI no GitHub
+- 278 testes automatizados, CI no GitHub
 
 ---
 
@@ -116,7 +116,7 @@ Já implementado → próximas 3 fases
 # Time
 
 - 1 fundador full-stack: produto + engenharia + ciência do treino
-- Motor completo construído: TSB, plano, reconcile, FTP scan, Expected PMC, adherence, integração Intervals/Zwift, relatório com temas — 274 testes em produção
+- Motor completo construído: TSB, plano, reconcile, FTP scan, Expected PMC, adherence, integração Intervals/Zwift, relatório com temas — 278 testes em produção
 - Benchmarks de mercado e roteiro de validação com treinador prontos
 
 ---

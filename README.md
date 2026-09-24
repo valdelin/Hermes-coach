@@ -34,7 +34,7 @@ hermes-coach/
 │   ├── report.py                      # export HTML (SVG) / PDF via chromium (#21)
 │   ├── ftp_estimation.py              # estimativa de FTP de pedais não agendados (#6)
 │   └── training_plan.py               # CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 274 testes (stdlib unittest)
+├── tests/                             # 278 testes (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 
@@ -204,11 +204,15 @@ calendario.
 
 **Plano e cargas**
 - `info` — TSB/CTL/ATL atuais no Intervals.icu.
-- `build` — plano dos proximos 14 dias com ciclo de foco pelo TSB, orcamento de
+- `build` — plano dos próximos 14 dias com ciclo de foco pelo TSB, orcamento de
   TSS, preservacao do treino de hoje, escala por `WEEKLY_HOURS` e treino longo
-  em `LONG_DAY`. Opções: `--no-power` (prescricao em %FTHR + RPE, modo FC) e
-  `--ftp-test YYYY-MM-DD` (protege 48h antes do Ramp Test). Com `GOAL=race`
-  dentro do horizonte, mostra a **projecao de TSB no dia da prova**.
+  em `LONG_DAY`. Opções: `--no-power` (prescricao em %FTHR + RPE, modo FC),
+  `--ftp-test YYYY-MM-DD` (protege 48h antes do Ramp Test) e **`--recovery`**
+  (#19): ora cada semana pelos **tetos da rampa de retorno a forma** — consulta
+  todo o histórico real, usa a prescrição do `recovery` (mesma rampa `--ramp-pts`
+  e `--recovery-weeks`, deload a cada 4 semanas) como orçamento em vez do padrão.
+  Com `GOAL=race` dentro do horizonte, mostra a **projecao de TSB no dia da
+  prova**.
 - `adherence` — cumprimento semanal do plano: treinos feito/perdido/pendente e
   % de conclusão.
 - `recovery` — **retorno a forma**: varre todo o histórico real do Intervals
@@ -216,7 +220,8 @@ calendario.
   compara o hoje com o pico histórico (CTL, melhor mês, TSB). Estima o prazo
   (semanas/meses) para voltar a X% do CTL de pico sob rampas conservadora/
   realista/otimista e prescreve a **rampa semanal de TSS** (deload a cada 4
-  semanas, teto = carga que sustenta o CTL-alvo).
+  semanas, teto = carga que sustenta o CTL-alvo). Para gerar os treinos
+  respeitando esses tetos, rode `build --recovery`.
 - `summary` — **resumo dos treinos realizados** por período (dia/semana/mês,
   janela terminando no dia-ancla, por padrão ontem): sessões, carga total
   (TSS), tempo, distância, elevação, potência média/NP e FC média, com o
@@ -316,7 +321,7 @@ Testes:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(274 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+(278 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
 
 ## Automacao diaria (opcional)
 

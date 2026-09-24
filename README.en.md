@@ -35,7 +35,7 @@ hermes-coach/
 │   ├── report.py                      # HTML (SVG) / PDF export via chromium (#21)
 │   ├── ftp_estimation.py              # FTP estimation from unplanned hard rides (#6)
 │   └── training_plan.py               # plan CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 274 tests (stdlib unittest)
+├── tests/                             # 278 tests (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 
@@ -180,6 +180,7 @@ python3 src/training_plan.py info                        # current TSB/CTL/ATL
 python3 src/training_plan.py model                       # Expected PMC (Banister) + Friel zones + forecast
 python3 src/training_plan.py build --days 60 --days-plan 14   # generate plan
 python3 src/training_plan.py build --no-power            # HR mode: %FTHR + RPE targets
+python3 src/training_plan.py build --recovery            # budget weeks by the return-to-form ramp caps
 python3 src/training_plan.py adherence --show            # weekly plan adherence
 python3 src/training_plan.py recovery                     # return-to-form analysis + safe ramp
 python3 src/training_plan.py summary --period week     # week summary + charts (90d PMC, weekly load)
@@ -216,7 +217,7 @@ Tests:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(274 tests, stdlib-only — CI runs the same suite on every push/PR.)
+(278 tests, stdlib-only — CI runs the same suite on every push/PR.)
 
 ## Daily automation (optional)
 

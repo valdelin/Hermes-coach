@@ -671,6 +671,60 @@ class RaceTaperTest(unittest.TestCase):
         self.assertTrue(all("Prova" not in w["name"] for w in base))
 
 
+class RecoveryBudgetTest(unittest.TestCase):
+    """#19: `build` recebe os tetos semanais da rampa de retorno a forma
+    (`src.recovery.ramp_schedule`) e orca o plano dentro deles.
+
+    A rampa e um TETO: o plano nunca o fura alem do piso de TSS de um treino
+    (cada workout tem duracao minima, entao a janela rolante pode ficar ~um
+    treino acima do alvo). SLACK = folga de 2 dias de trabalho (~30 TSS)."""
+
+    SLACK = 30.0
+
+    def test_respeita_teto_de_cada_semana(self):
+        ramp = [120.0, 300.0]
+        plan = build_plan([], 0, ftp=182, days=14,
+                          start=date(2026, 9, 14), recovery_ramp=ramp)
+        by_week = {}
+        for w in plan:
+            day = date.fromisoformat(w["day"])
+            wk = (day - date(2026, 9, 14)).days // 7
+            by_week[wk] = by_week.get(wk, 0.0) + w["tss"]
+        self.assertLessEqual(by_week[0], ramp[0] + self.SLACK,
+                             f"semana 1 estourou: {by_week[0]:.1f}")
+        self.assertLessEqual(by_week[1], ramp[1] + self.SLACK,
+                             f"semana 2 estourou: {by_week[1]:.1f}")
+        self.assertGreater(by_week[1], by_week[0],
+                           "rampa crescente deveria permitir mais carga na 2a")
+
+    def test_rampa_reduz_carga_abaixo_do_orcamento_padrao(self):
+        # orcamento padrao (avg 40) = 266 TSS/sem; natural = 192; rampa 90 forca
+        ramp = [90.0]
+        plan = build_plan([], 0, ftp=182, days=7,
+                          start=date(2026, 9, 14), recovery_ramp=ramp)
+        janela = sum(w["tss"] for w in plan)
+        self.assertLessEqual(janela, ramp[0] + self.SLACK,
+                             f"rampa menor que orcamento deveria reduzir: {janela:.1f}")
+        base = build_plan([], 0, ftp=182, days=7,
+                          start=date(2026, 9, 14))
+        self.assertLess(janela, sum(w["tss"] for w in base),
+                        "com rampa o plano deveria carregar menos que o padrao")
+
+    def test_rampa_curta_mantem_ultimo_teto(self):
+        ramp = [100.0]
+        plan = build_plan([], 0, ftp=182, days=14,
+                          start=date(2026, 9, 14), recovery_ramp=ramp)
+        by_week = {}
+        for w in plan:
+            day = date.fromisoformat(w["day"])
+            wk = (day - date(2026, 9, 14)).days // 7
+            by_week[wk] = by_week.get(wk, 0.0) + w["tss"]
+        for wk, load in by_week.items():
+            self.assertLessEqual(load, ramp[0] + self.SLACK,
+                                 f"semana {wk} estourou o ultimo teto: {load:.1f}")
+            self.assertGreater(load, 0.0, f"semana {wk} vazia?")
+
+
 class RaceTsbVerdictTest(unittest.TestCase):
     def test_faixa_alvo(self):
         self.assertEqual(_tsb_race_verdict(-15), "cansado")
