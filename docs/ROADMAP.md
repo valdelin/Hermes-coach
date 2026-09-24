@@ -34,6 +34,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 20 | feature | ~~**`summary` — resumo dos treinos feitos por período**~~ (dia/semana/mês, janela terminando no dia-ancla, default ontem): sessões, carga total (TSS), tempo, distância, elevação, potência média/NP e FC média ponderadas pelo tempo + detalhe de cada treino; usa só atividades pareadas (`src/activity_summary.py`; CLI `summary --period --date`) | — (pedido 24/09 — "resumo do dia, semana, mes") | **implementado (v0.0.22)** | 2 ✅ |
 | 21 | feature | ~~**Gráficos no `summary`** (estilo Pillar "Advanced Progress Tracking"/Analog 90-day dashboards): **PMC CTL/ATL/TSB trailing 90d** em sparklines unicode (escala global compartilhada) + **barras de carga semanal** (TSS/semana ISO); `--chart auto|none|pmc|load|all` (default `auto` = PMC sempre + carga p/ semana/mês; `src/charts.py`); **`--export` para HTML/PDF** (SVG inline via `src/report.py`; PDF = mesmo HTML no chromium headless `--print-to-pdf`)~~ + **tema no relatório** (`src/brand.py`: 22 temas inspirados no Omarchy quattro; menu "Temas"/tecla T no HTML, `--theme` na CLI) e **linha de forma (TSB) por zona** (risco ≤ −10 / ideal / fresco ≥ +10, cores por tema) | — (benchmark Pillar/Analog 24/09) | **implementado (v0.0.23)** | 2 ✅ |
 | 22 | feature | **"Próximo passo" pós-treino** — post-ride insight → ação clara única (estilo Analog Sports "clear next action"; ex.: "amanhã: recuperação — cargas caíram, TSB vira +"...): ainda sob análise se vira `summary`/`reconcile` enrichment | — (benchmark Analog Sports 24/09) | **possível — validar c/ treinador** | 2 |
+| 23 | produto | **Portal do sistema + teste real de inscrição de outros atletas** — casca do produto (login/OAuth Intervals + onboarding por objetivo) pronta para receber um **2º atleta de verdade**: criar conta, conectar o Intervals, gerar plano e ver publicar no calendário dele; validar o fluxo ponta-a-ponta (não só o motor) num futuro não muito distante | — (decisão 24/09) | **aberto — futuro próximo** | 3 |
 
 ## Fases
 
@@ -282,7 +283,14 @@ Revisão dos itens (sessões de 23-24/09; releases v0.0.20 → v0.0.23):
   backlog; lição de UX/robustez registrada na Fase 4.
 - **Abertos:** #1 fantasmas (baixa), #2 notificações (Fase 1), #7/#8/#11/#12
   (produto, Fase 3), #9/#10/#13-#15/#22 (possível — validar c/ treinador).
-- Suíte: **274 testes OK** (24/09).
+- **#19 conectado ao build (v0.0.24, 24/09):** `build --recovery` ora o plano
+  pelos tetos semanais da rampa do `recovery` (`--ramp-pts`, `--recovery-weeks`;
+  também no `all`) — release v0.0.24 publicada.
+- **Novo no roadmap (#23, 24/09):** **portal do sistema + teste real de
+  inscrição de outros atletas** — futuro próximo: casca (login/OAuth Intervals
+  + onboarding por objetivo) pronta para receber um **2º atleta de verdade**
+  (criar conta, conectar, gerar plano, publicar no calendário).
+- Suíte: **278 testes OK** (24/09).
 
 ## Status atual (2026-09-22)
 
