@@ -316,7 +316,7 @@ Testes:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(233 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+(274 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
 
 ## Automacao diaria (opcional)
 

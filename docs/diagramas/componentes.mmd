@@ -1,6 +1,6 @@
 flowchart LR
     subgraph CLI["CLI — src/training_plan.py"]
-        CMD["info | ftp-check | ftp-scan | model<br/>build | reconcile | push | all"]
+        CMD["info | ftp-check | ftp-scan | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
     end
 
     subgraph CORE["Motor de coaching"]
@@ -8,6 +8,14 @@ flowchart LR
         PLAN["plan.py<br/>build_plan · reconcile · event_payload"]
         IR["impulse_response.py<br/>CTL/ATL/TSB local"]
         FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
+        AS["activity_summary.py<br/>resumo por período · pareamento"]
+        REC["recovery.py<br/>PMC real + prazo de retorno + rampa"]
+    end
+
+    subgraph REPORT["Relatório (#21)"]
+        CH["charts.py<br/>PMC 90d + carga semanal (texto)"]
+        RP["report.py<br/>HTML (SVG) / PDF"]
+        BR["brand.py<br/>22 temas + tokens de cor"]
     end
 
     subgraph API["intervals_client.py"]
@@ -20,15 +28,25 @@ flowchart LR
 
     INTERVALS["Intervals.icu API"]
     APPS["Zwift / Garmin / Wahoo<br/>(atividades + .zwo)"]
+    PDF["resumo.pdf<br/>(chromium headless)"]
 
     CMD --> COACH
     CMD --> PLAN
     CMD --> FTPS
+    CMD --> AS
+    CMD --> REC
+    CMD --> CH
+    CMD --> RP
     COACH --> IR
     CMD --> CLIENT
     PLAN --> PLANFILE
     COACH --> ENV
     PLAN --> ENV
+    AS --> CLIENT
+    REC --> CLIENT
     CLIENT --> INTERVALS
     INTERVALS <--> APPS
     SH --> CMD
+    RP --> CH
+    RP --> BR
+    RP --> PDF

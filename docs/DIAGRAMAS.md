@@ -1,18 +1,24 @@
 # Diagramas UML — Hermes Coach
 
-Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.20).
-Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub.
+Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.23).
+Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
+fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
 
 Legenda rápida dos módulos:
 
 | Módulo | Responsabilidade |
 |---|---|
-| `src/training_plan.py` | CLI: `info` / `ftp-check` / `ftp-scan` / `model` / `build` / `reconcile` / `push` / `all` |
+| `src/training_plan.py` | CLI: `info` / `ftp-check` / `ftp-scan` / `model` / `recovery` / `build` / `adherence` / `summary` / `reconcile` / `push` / `all` |
 | `src/coach.py` | Métricas (TSB/CTL/ATL), foco do dia, prescrição (`WorkoutParams`), TSS estimado |
 | `src/plan.py` | Plano semanal (`build_plan`), ajuste por carga (`_fit_budget`), `reconcile`, texto do treino, `event_payload` |
 | `src/impulse_response.py` | Motor Banister local (CTL/ATL/TSB) + séries diárias de TSS |
 | `src/intervals_client.py` | Cliente da API do Intervals.icu (events, wellness, activities, streams, sport-settings) |
 | `src/ftp_scan.py` / `ftp_estimation.py` | Análise de treinos fora do plano → proposta de FTP (20min × 0,95) |
+| `src/recovery.py` | Retorno a forma: PMC real (EWMA 42/7) + prazo + rampa segura com deload |
+| `src/activity_summary.py` | Resumo dos treinos feitos por dia/semana/mês (`summary`) |
+| `src/charts.py` | Gráficos em texto: PMC trailing 90d + carga semanal (TSS/ISO) |
+| `src/report.py` | Relatório com gráficos SVG: HTML direto / PDF via chromium headless (`--export`) |
+| `src/brand.py` | Identidade: 22 temas (Omarchy quattro) + tokens de cor por tema |
 | `plan.json` | Estado local do plano (treinos + meta: goal, race_date, ftp_candidates) |
 | `scripts/daily_reconcile.sh` | Timer systemd: reconcile + push à meia-noite |
 
@@ -23,7 +29,7 @@ Legenda rápida dos módulos:
 ```mermaid
 flowchart LR
     subgraph CLI["CLI — src/training_plan.py"]
-        CMD["info | ftp-check | ftp-scan | model<br/>build | reconcile | push | all"]
+        CMD["info | ftp-check | ftp-scan | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
     end
 
     subgraph CORE["Motor de coaching"]
@@ -31,6 +37,14 @@ flowchart LR
         PLAN["plan.py<br/>build_plan · reconcile · event_payload"]
         IR["impulse_response.py<br/>CTL/ATL/TSB local"]
         FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
+        AS["activity_summary.py<br/>resumo por período · pareamento"]
+        REC["recovery.py<br/>PMC real + prazo de retorno + rampa"]
+    end
+
+    subgraph REPORT["Relatório (#21)"]
+        CH["charts.py<br/>PMC 90d + carga semanal (texto)"]
+        RP["report.py<br/>HTML (SVG) / PDF"]
+        BR["brand.py<br/>22 temas + tokens de cor"]
     end
 
     subgraph API["intervals_client.py"]
@@ -43,18 +57,28 @@ flowchart LR
 
     INTERVALS["Intervals.icu API"]
     APPS["Zwift / Garmin / Wahoo<br/>(atividades + .zwo)"]
+    PDF["resumo.pdf<br/>(chromium headless)"]
 
     CMD --> COACH
     CMD --> PLAN
     CMD --> FTPS
+    CMD --> AS
+    CMD --> REC
+    CMD --> CH
+    CMD --> RP
     COACH --> IR
     CMD --> CLIENT
     PLAN --> PLANFILE
     COACH --> ENV
     PLAN --> ENV
+    AS --> CLIENT
+    REC --> CLIENT
     CLIENT --> INTERVALS
     INTERVALS <--> APPS
     SH --> CMD
+    RP --> CH
+    RP --> BR
+    RP --> PDF
 ```
 
 ---
@@ -188,12 +212,41 @@ classDiagram
         +best_candidate(candidates)
         +ride_settings(settings)
     }
+    class Recovery {
+        +actual_daily_load(events)
+        +pmc_series(daily)
+        +time_to_target(ctl_now, target, ramp, ...)
+        +safe_ramp(target_ctl, weeks, ...)
+    }
+    class SummaryAgg {
+        +int workouts
+        +float load
+        +str time
+        +float distance
+        +float elevation
+        +dict power
+        +int avg_hr
+    }
+    class ReportRenderer {
+        +render_summary_html(title, start, end, agg, rows,<br/>pmc_rows, weeks, theme)
+        +write(path, html)
+    }
+    class ThemeKit {
+        +str DEFAULT_THEME
+        +dict THEMES
+        +dict FORM_ZONE_COLORS
+    }
 
     IntervalsClient --> Metrics : retorna eventos
     plan_build_plan --> PlannedWorkout : gera
     plan_build_plan --> WorkoutParams : usa templates
     ImpulseResponseEngine --> Metrics : computa local
     FTPScan --> IntervalsClient : streams + atividades
+    Recovery --> IntervalsClient : eventos históricos
+    SummaryAgg <-- IntervalsClient : atividades pareadas
+    ReportRenderer --> ThemeKit : 22 temas (CSS vars)
+    ReportRenderer --> SummaryAgg : cards + tabela
+    ReportRenderer --> Recovery : pmc_series (PMC 90d)
 ```
 
 ---
@@ -248,8 +301,9 @@ stateDiagram-v2
 
 ## Notas
 
-- Diagramas gerados a partir do código real (`src/*.py`, v0.0.20, 216 testes OK) —
+- Diagramas gerados a partir do código real (`src/*.py`, v0.0.23, 274 testes OK) —
   não são genéricos. Se o código mudar, atualize aqui junto.
+- Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli.
 - O `.zwo` **não é gerado localmente** (o Intervals monta no app a partir do
   texto de `description`).
 - `plan.json` guarda a meta (goal, race_date, ftp_test_date, ftp_candidates)

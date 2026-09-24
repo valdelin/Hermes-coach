@@ -42,7 +42,7 @@ Ciclismo amador é grande e paga por assinatura
 
 # Produto
 
-O motor já roda hoje (v0.0.20, 216 testes OK)
+O motor já roda hoje (v0.0.23, 274 testes OK)
 
 - Motor Banister local: CTL/ATL/TSB → foco do dia por faixa (Z2, Sweet Spot, Limiar, VO2)
 - Expected PMC: projeta forma/fadiga com treinos reais + planejados (TSB hoje → próxima semana; alertas de sobrecarga)
@@ -51,6 +51,7 @@ O motor já roda hoje (v0.0.20, 216 testes OK)
 - 7 tipos de plano: base, FTP builder, gran-fondo, time-trial, climbing, off-season, race (com taper automático)
 - Novo FTP sem teste: best-20min × 0,95
 - Modo FC: sem medidor de potência → %FTHR
+- Relatório semanal: HTML/PDF com charts SVG, PMC 90d por zona da Forma, 22 temas
 - Integração: API do Intervals.icu (Garmin, Zwift, Wahoo, Polar, COROS...) + Zwift
 
 ---
@@ -75,7 +76,7 @@ O que já está provado
 - Benchmarks de mercado concluídos: Xert, Pillar, TriDot, RunDot, Zwift, Tredict
 - Roteiro de validação com treinador pronto: ciência + multi-atleta + pricing
 - Acesso a treinadores via rede do fundador: treinadores conhecidos entram como beta testers (primeiro piloto, custo ~zero)
-- 216 testes automatizados, CI no GitHub
+- 274 testes automatizados, CI no GitHub
 
 ---
 
@@ -94,7 +95,8 @@ Assinatura em 2 tiers (a validar com treinador)
 
 Já implementado → próximas 3 fases
 
-- Motor (Fases 0–2): plano, 7 objetivos, race/taper + TSB no dia da prova, FTP scan, modo FC, wellness, Expected PMC com zonas Friel, adherence — feito (v0.0.20)
+- Motor (Fases 0–2): plano, 7 objetivos, race/taper + TSB no dia da prova, FTP scan, modo FC, wellness, Expected PMC com zonas Friel, adherence — feito (v0.0.23)
+- Relatório (#21): `summary` com charts SVG + 22 temas + TSB por zona da Forma — feito (v0.0.23)
 - Comunicação (Fase 1): notificações Telegram → e-mail/WhatsApp — em andamento
 - Casca/produto (Fase 3): PWA + onboarding + assinatura + catálogo de eventos
 - Multi-atleta (Fase 4): dashboard por atleta, aprovação, alertas
@@ -114,7 +116,7 @@ Já implementado → próximas 3 fases
 # Time
 
 - 1 fundador full-stack: produto + engenharia + ciência do treino
-- Motor completo construído: TSB, plano, reconcile, FTP scan, Expected PMC, adherence, integração Intervals/Zwift — 216 testes em produção
+- Motor completo construído: TSB, plano, reconcile, FTP scan, Expected PMC, adherence, integração Intervals/Zwift, relatório com temas — 274 testes em produção
 - Benchmarks de mercado e roteiro de validação com treinador prontos
 
 ---

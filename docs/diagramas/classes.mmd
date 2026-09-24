@@ -54,9 +54,38 @@ classDiagram
         +best_candidate(candidates)
         +ride_settings(settings)
     }
+    class Recovery {
+        +actual_daily_load(events)
+        +pmc_series(daily)
+        +time_to_target(ctl_now, target, ramp, ...)
+        +safe_ramp(target_ctl, weeks, ...)
+    }
+    class SummaryAgg {
+        +int workouts
+        +float load
+        +str time
+        +float distance
+        +float elevation
+        +dict power
+        +int avg_hr
+    }
+    class ReportRenderer {
+        +render_summary_html(title, start, end, agg, rows,<br/>pmc_rows, weeks, theme)
+        +write(path, html)
+    }
+    class ThemeKit {
+        +str DEFAULT_THEME
+        +dict THEMES
+        +dict FORM_ZONE_COLORS
+    }
 
     IntervalsClient --> Metrics : retorna eventos
     plan_build_plan --> PlannedWorkout : gera
     plan_build_plan --> WorkoutParams : usa templates
     ImpulseResponseEngine --> Metrics : computa local
     FTPScan --> IntervalsClient : streams + atividades
+    Recovery --> IntervalsClient : eventos históricos
+    SummaryAgg <-- IntervalsClient : atividades pareadas
+    ReportRenderer --> ThemeKit : 22 temas (CSS vars)
+    ReportRenderer --> SummaryAgg : cards + tabela
+    ReportRenderer --> Recovery : pmc_series (PMC 90d)

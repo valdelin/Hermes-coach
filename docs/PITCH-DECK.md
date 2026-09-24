@@ -77,7 +77,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 ## Slide 5 — Produto (como funciona)
 
-**O motor já roda hoje** (v0.0.20, 216 testes OK)
+**O motor já roda hoje** (v0.0.23, 274 testes OK)
 
 - Motor Banister local: **CTL/ATL/TSB** → foco do dia por faixa (`<-15` → Z2;
   `-15..0` → Sweet Spot; `0..5` → Limiar; `>=+5` → VO2).
@@ -90,10 +90,12 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
   da prova).
 - **`ftp-scan`:** sugere novo FTP sem teste protocolado (best-20min × 0,95).
 - **Modo FC:** sem medalha de potência → %FTHR + RPE.
+- **Relatório semanal (`summary`):** HTML/PDF com gráficos SVG, PMC 90d por
+  zona da Forma (risco/fresco), 22 temas integrados ao visual da marca.
 - Integração: API do Intervals.icu (Garmin/Zwift/Wahoo/Polar/COROS...) + Zwift.
 
 > **Nota:** é o slide de maior densidade técnica — mantenha só o essencial e
-> mostre 1 print do calendário/`info` se possível. "216 testes OK" é sinal de
+> mostre 1 print do calendário/`info` se possível. "274 testes OK" é sinal de
 > engenharia séria; guarde detalhe para o Q&A.
 
 ---
@@ -136,7 +138,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
   ciência do treino + produto multi-atleta + pricing (perguntas 9–12 adicionadas).
 - **Acesso a treinadores via rede do fundador:** treinadores conhecidos entram
   como **beta testers** — primeiro piloto com custo de aquisição ~zero.
-- 216 testes automatizados; CI no GitHub.
+- 274 testes automatizados; CI no GitHub.
 
 > **Nota reta:** ainda não é tração comercial (zero pagantes) — seja honesto.
 > A validação até agora é de **motor + mercado + método**; o próximo marco é o
@@ -168,7 +170,8 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 | Fase | Entrega | Status |
 |---|---|---|
-| Motor (0–2) | Plano, GOAL×7, race/taper + TSB no dia da prova, FTP scan, modo FC, wellness, Expected PMC com zonas Friel, adherence | ✅ feito (v0.0.20) |
+| Motor (0–2) | Plano, GOAL×7, race/taper + TSB no dia da prova, FTP scan, modo FC, wellness, Expected PMC com zonas Friel, adherence | ✅ feito (v0.0.23) |
+| Relatório (#21) | `summary` com charts SVG + 22 temas + TSB por zona da Forma (HTML/PDF) | ✅ feito (v0.0.23) |
 | Comunicação (1) | Notificações Telegram → e-mail/WhatsApp | 🔜 issue #2 |
 | Casca/produto (3) | PWA + onboarding + assinatura + catálogo de eventos | 📋 Fase 3 (#7/#11/#12) |
 | Multi-atleta (4) | Dashboard por atleta, aprovação, alertas | 📋 Fase 4 (#8) |
@@ -202,7 +205,8 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 **1 fundador (full-stack: produto + engenharia + ciência do treino)**
 
 - Construiu o motor completo: TSB, plano, reconcile, FTP scan, Expected PMC,
-  adherence, integração Intervals/Zwift — 216 testes, rodando em produção.
+  adherence, integração Intervals/Zwift, relatório com temas — 274 testes,
+  rodando em produção.
 - Fez benchmarks de mercado e rascunhou o roteiro de validação com treinador.
 - [Se aplicar] Validando com treinador de ciclismo real (parceria de
   validação/consultoria).
@@ -244,7 +248,7 @@ Cálculo da proposta:
 
 ## Apêndice — fatos usados (para Q&A)
 
-- Versão atual: **v0.0.20** · 216 testes OK · CI verde · timer systemd rodando.
+- Versão atual: **v0.0.23** · 274 testes OK · CI verde · timer systemd rodando.
 - Pricing concorrentes verificado em 22/09/2026 (fontes oficiais).
 - Repo **privado** (`github.com/valdelin/Hermes-coach`) — código sob demanda
   (demonstração/NDA para investidores); docs públicos resumidos no pitch.

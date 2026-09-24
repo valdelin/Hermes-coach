@@ -216,7 +216,7 @@ Tests:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(246 tests, stdlib-only — CI runs the same suite on every push/PR.)
+(274 tests, stdlib-only — CI runs the same suite on every push/PR.)
 
 ## Daily automation (optional)
 
