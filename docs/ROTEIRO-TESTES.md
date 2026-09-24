@@ -35,6 +35,9 @@
 > Resultado 23/09 (v0.0.21): baseline **233 testes OK** (+17 `recovery` —
 > `tests/test_recovery.py` + CLI `recovery`); suíte roda igual no CI.
 
+> Resultado 24/09 (pós-v0.0.21): baseline **246 testes OK** (+13 `summary` —
+> `tests/test_activity_summary.py` + CLI `summary`); suíte roda igual no CI.
+
 ---
 
 ## 2. Regressão offline (código)

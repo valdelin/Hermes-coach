@@ -21,6 +21,7 @@ try:
                       _tsb_race_verdict)
     import ftp_scan
     import recovery
+    import activity_summary
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
@@ -35,6 +36,7 @@ except ImportError:
                        adherence_report, _tsb_race_verdict)
     from . import ftp_scan
     from . import recovery
+    from . import activity_summary
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -569,6 +571,59 @@ def _fmt_weeks(weeks):
 
 
 
+def cmd_summary(args):
+    """Resumo dos treinos FEITOS por periodo (dia/semana/mes).
+
+    Janela terminando no dia-ancla (por padrao, ontem): dia = 1 dia, semana =
+    7 dias, mes = 30 dias. Usa apenas atividades pareadas (planejado-nao-feito
+    fica fora).
+    """
+    client = get_client()
+    anchor = args.date or (date.today() - timedelta(days=1))
+    start, end = activity_summary.period_range(anchor, args.period)
+    rows = activity_summary.done_activities(client, start, end)
+    agg = activity_summary.summarize(rows)
+
+    label = activity_summary.PERIOD_LABELS[args.period]
+    article = "DA" if args.period == "week" else "DO"
+    print(f"=== RESUMO {article} {label.upper()} ({start} a {end}) ===")
+    if not rows:
+        print("Nenhum treino feito no periodo.")
+        return agg
+
+    print(f"Treinos feitos: {agg['sessions']} | "
+          f"carga total: {agg['load']:.0f} TSS")
+    parts = [
+        f"Tempo: {activity_summary.fmt_time(agg['time_s'])}",
+        f"Distancia: {activity_summary.fmt_dist(agg['distance_m'])}",
+    ]
+    if agg["elevation_m"]:
+        parts.append(f"Elevacao: +{agg['elevation_m']:.0f} m")
+    print(" | ".join(parts))
+    power_parts = []
+    if agg["avg_power"] is not None:
+        power_parts.append(f"media {agg['avg_power']:.0f} W")
+    if agg["np"] is not None:
+        power_parts.append(f"NP {agg['np']:.0f} W")
+    if power_parts:
+        print("Potencia: " + " | ".join(power_parts))
+    if agg["avg_hr"] is not None:
+        print(f"FC: {agg['avg_hr']:.0f} bpm media")
+
+    print("\nDetalhe por treino:")
+    for r in rows:
+        bits = [f"{r['day']}  {r['name']}"]
+        if r["type"]:
+            bits.append(f"({r['type']})")
+        bits.append(activity_summary.fmt_time(r["time_s"]))
+        if r["distance_m"]:
+            bits.append(activity_summary.fmt_dist(r["distance_m"]))
+        if r["load"]:
+            bits.append(f"{r['load']:.0f} TSS")
+        print("  " + "  ".join(bits))
+    return agg
+
+
 def cmd_reconcile(args):
     plan = load_plan(PLAN_FILE)
     client = get_client()
@@ -782,6 +837,17 @@ def main(argv=None):
     p_rec.add_argument("--ramp-pts", type=int, default=9,
                        help="Crescimento semanal de TSS na prescricao (default 9)")
     p_rec.set_defaults(func=cmd_recovery)
+
+    p_sum = sub.add_parser(
+        "summary",
+        help="Resumo dos treinos feitos por periodo: dia/semana/mes")
+    p_sum.add_argument(
+        "--period", choices=("day", "week", "month"), default="day",
+        help="Janela do resumo (default: dia)")
+    p_sum.add_argument(
+        "--date", metavar="YYYY-MM-DD",
+        help="Dia-ancla do periodo (default: ontem)")
+    p_sum.set_defaults(func=cmd_summary)
 
     p_build = sub.add_parser("build", help="Gera o plano a partir do historico")
     p_build.add_argument("--days", type=int, default=60,

@@ -29,9 +29,10 @@ hermes-coach/
 │   ├── plan.py                        # weekly plan (build/reconcile/adherence/race taper)
 │   ├── plan_run.py                    # running prototype (#18): %LTHR/RPE/pace, no power meter
 │   ├── recovery.py                    # return to form: real PMC + time estimate + safe ramp
+│   ├── activity_summary.py            # summary of done workouts by day/week/month
 │   ├── ftp_estimation.py              # FTP estimation from unplanned hard rides (#6)
-│   └── training_plan.py               # plan CLI (info/model/build/adherence/recovery/reconcile/push)
-├── tests/                             # 233 tests (stdlib unittest)
+│   └── training_plan.py               # plan CLI (info/model/build/adherence/recovery/summary/reconcile/push)
+├── tests/                             # 246 tests (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, ...
 ```
 
@@ -178,6 +179,7 @@ python3 src/training_plan.py build --days 60 --days-plan 14   # generate plan
 python3 src/training_plan.py build --no-power            # HR mode: %FTHR + RPE targets
 python3 src/training_plan.py adherence --show            # weekly plan adherence
 python3 src/training_plan.py recovery                     # return-to-form analysis + safe ramp
+python3 src/training_plan.py summary --period week        # summary of done workouts of the week
 python3 src/training_plan.py reconcile --show         # detect missed workouts
 python3 src/training_plan.py push --start 2026-09-16  # publish to Intervals (upsert)
 python3 src/training_plan.py all                      # full flow
@@ -207,7 +209,7 @@ Tests:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(233 tests, stdlib-only — CI runs the same suite on every push/PR.)
+(246 tests, stdlib-only — CI runs the same suite on every push/PR.)
 
 ## Daily automation (optional)
 

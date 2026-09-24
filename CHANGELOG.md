@@ -13,6 +13,22 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 _Próximas mudanças a documentar._
 
+## [0.0.22] - 2026-09-24
+
+### Adicionado
+
+- **`summary` — resumo dos treinos realizados** por período (dia/semana/mês):
+  janela terminando no dia-ancla (por padrão ontem), usando só atividades
+  pareadas (planejado-não-feito fica fora). Agrega sessões, carga total (TSS),
+  tempo, distância, elevação, potência média/NP e FC média (ponderadas pelo
+  tempo), e lista o detalhe de cada treino feito. Módulo `src/activity_summary.py`.
+
+### Testes
+
+- +13 (233 → **246**): `tests/test_activity_summary.py` (janela de período,
+  filtro de treinos feitos, agregados ponderados, formatação) e CLI `summary`
+  no `tests/test_training_plan.py`.
+
 ## [0.0.21] - 2026-09-23
 
 ### Adicionado
@@ -479,6 +495,7 @@ Ao criar uma nova versão (bump de `VERSION`):
 
 ## Comparações (links)
 
+- [v0.0.21…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.21...master)
 - [v0.0.20…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.20...master)
 - [v0.0.19…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.19...master)
 - [v0.0.18…master](https://github.com/valdelin/Hermes-coach/compare/v0.0.18...master)

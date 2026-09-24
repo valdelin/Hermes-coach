@@ -405,6 +405,43 @@ class _RecoveryClient(_FakeClient):
         return []
 
 
+class _SummaryClient(_FakeClient):
+    """1 treino feito (dia) + 1 planejado-nao-feito que deve ficar fora."""
+
+    def activity(self, aid):
+        return {"name": "Zwift - Treino de Limiar FTP", "type": "VirtualRide",
+                "moving_time": 3225, "distance": 24732.67,
+                "total_elevation_gain": 175.0, "icu_training_load": 58,
+                "icu_average_watts": 133, "icu_weighted_avg_watts": 147,
+                "average_heartrate": 153}
+
+    def events(self, **params):
+        return [
+            {"id": "s1", "paired_activity_id": "i1",
+             "start_date_local": "2026-09-23T15:37:38",
+             "name": "Treino de Limiar FTP"},
+            {"id": "s2", "start_date_local": "2026-09-23T00:00:00",
+             "name": "nao feito"},
+        ]
+
+
+class SummaryCliTest(unittest.TestCase):
+    def test_cmd_summary_relata_dia_e_detalhe_por_treino(self):
+        orig_client = tp.get_client
+        tp.get_client = lambda: _SummaryClient()
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                tp.cmd_summary(types.SimpleNamespace(
+                    period="day", date=date(2026, 9, 23)))
+            out = buf.getvalue()
+            self.assertIn("=== RESUMO DO DIA", out)
+            self.assertIn("carga total: 58 TSS", out)
+            self.assertIn("Treino de Limiar", out)
+        finally:
+            tp.get_client = orig_client
+
+
 class RecoveryCliTest(unittest.TestCase):
     def test_cmd_recovery_relata_estado_e_pico(self):
         orig_client = tp.get_client
