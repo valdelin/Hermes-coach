@@ -31,7 +31,9 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 17 | feature | ~~**Indicadores de zona extrema no Expected PMC**~~ **implementado (v0.0.19)**: Friel — `TSB < −30` = risco alto (R&R), `> +25` = transição (descanso longo); `forecast_pmc()` etiqueta a zona por dia (`_tsb_zone`) e o `model` avisa | — (Joe Friel 23/09) | **implementado** | 2 ✅ |
 | 18 | feature | **Módulo de corrida a pé (esporte #2)** — `sport` no domínio (plan.json/workouts/eventos), limiar por pace/LTHR, `rftp-scan`, carga via Intervals (rTSS/gCTB), workouts de corrida em FIT, metas 5K/10K/meia/maratona (estilo RunDot), **PMC único multi-esporte** (TSS de todos os esportes no mesmo CTL/ATL — abordagem tri). Fora de escopo: passada/forma, Stryd/RunPower. **Prescrição SEM power meter** (protótipo `src/plan_run.py`): variável de controle é **p/ template**, não global — contínua/longa = `hr` (%LTHR; estado estável), tempo/limiar/VO2 = `pace` (ritmo-alvo do rFTP, FC como âncora), **fartlek = `rpe`** (surto < 2' nunca alcança a zona de FC; prescreve esforço "ritmo 5-10K"); sem `RFTP_PACE`, alvo `pace` cai p/ `hr`. Atleta escolhe no build; **decisão final: validação c/ treinador** (quando usar cada controle) | — (análise 23/09) | **possível — validar c/ treinador** | 2 |
 | 19 | feature | **`recovery` — retorno a forma** (prazo realista + prescrição segura de rampa): varre **todo** o histórico real do Intervals (paginação com hiatos), reconstrói o PMC por dia (EWMA 42/7; zero nos hiatos para o decaimento não comprimir o tempo) e compara o hoje com o pico histórico (CTL, melhor mês, TSB). Estima semanas/meses para voltar a 90%/99% do CTL de pico sob rampas conservador/realista/otimista e entrega a rampa semanal de TSS com deload a cada 4 sem e teto = carga que sustenta o CTL-alvo (`src/recovery.py`; CLI `recovery`) | — (análise 23/09 — seu histórico real) | **implementado (v0.0.21)** — validar a rampa c/ treinador; conectar ao `build` (gerar os treinos respeitando os tetos) em aberto | 2 |
-| 20 | feature | **`summary` — resumo dos treinos feitos por período** (dia/semana/mês, janela terminando no dia-ancla, default ontem): sessões, carga total (TSS), tempo, distância, elevação, potência média/NP e FC média ponderadas pelo tempo + detalhe de cada treino; usa só atividades pareadas (`src/activity_summary.py`; CLI `summary --period --date`) | — (pedido 24/09 — "resumo do dia, semana, mes") | **implementado (em dev)** | 2 |
+| 20 | feature | ~~**`summary` — resumo dos treinos feitos por período**~~ (dia/semana/mês, janela terminando no dia-ancla, default ontem): sessões, carga total (TSS), tempo, distância, elevação, potência média/NP e FC média ponderadas pelo tempo + detalhe de cada treino; usa só atividades pareadas (`src/activity_summary.py`; CLI `summary --period --date`) | — (pedido 24/09 — "resumo do dia, semana, mes") | **implementado (v0.0.22)** | 2 ✅ |
+| 21 | feature | ~~**Gráficos no `summary`** (estilo Pillar "Advanced Progress Tracking"/Analog 90-day dashboards): **PMC CTL/ATL/TSB trailing 90d** em sparklines unicode (escala global compartilhada) + **barras de carga semanal** (TSS/semana ISO); `--chart auto|none|pmc|load|all` (default `auto` = PMC sempre + carga p/ semana/mês; `src/charts.py`); **`--export` para HTML/PDF** (SVG inline via `src/report.py`; PDF = mesmo HTML no chromium headless `--print-to-pdf`)~~ + **tema no relatório** (`src/brand.py`: 22 temas inspirados no Omarchy quattro; menu "Temas"/tecla T no HTML, `--theme` na CLI) e **linha de forma (TSB) por zona** (risco ≤ −10 / ideal / fresco ≥ +10, cores por tema) | — (benchmark Pillar/Analog 24/09) | **implementado (v0.0.23)** | 2 ✅ |
+| 22 | feature | **"Próximo passo" pós-treino** — post-ride insight → ação clara única (estilo Analog Sports "clear next action"; ex.: "amanhã: recuperação — cargas caíram, TSB vira +"...): ainda sob análise se vira `summary`/`reconcile` enrichment | — (benchmark Analog Sports 24/09) | **possível — validar c/ treinador** | 2 |
 
 ## Fases
 
@@ -217,12 +219,70 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
     alerta de sobrecarga) e **#16** (TSB-alvo de prova aprendido por
     correlação).
 
+- 📊 **Benchmark (2026-09-24) — Pillar + Analog Sports (Ana)** — dois
+  concorrentes de coaching com perfil oposto n/as reviews:
+  - **Pillar** (_trainwithpillar.com_): 4,9★ App Store; **Adaptive
+    Performance** com **200+ eventos** (Event Goals), taper na temporada de
+    provas, freshness **multi-esporte**, interval detection, conexões
+    Zwift/Garmin/Wahoo/TrainingPeaks e tema constante nas reviews (fórum
+    TrainerRoad): "pular/remodelar sessões sem ficar para trás" (plano
+    adaptativo). **Lições:** (a) o `summary` com gráficos (#21) espelha o
+    "Advanced Progress Tracking" deles; (b) catálogo de eventos já é o
+    backlog #11; (c) **progressão adaptativa ao perder treino** é o nosso
+    `reconcile` (recuperação/limiar reduzido) — validar c/ treinador.
+  - **Analog Sports (Ana)** — dev **Analog AI** (Abu Dhabi; time que usa:
+    UAE Team Emirates XRG/ADQ), `io.analog.sports.ana` no Play Store. App
+    Store **2,6★/5 (7 avaliações, todas negativas)**: "doesn't really sync
+    data", "AI interface weird and slow", "Unresponsive UI... annoying
+    voice", "slow, unresponsive, repetitive"; reviews citam ainda **privacy
+    policy ampla / entidade nos Emirados** como dealbreaker. **Produto, se
+    funcionasse:** dashboard de **90 dias** de form/fitness/fatigue (PMC),
+    HRV/RHR/CTL/ATL/TSB, post-ride insights → "clear next action", chat IA
+    em 32 idiomas, conexões Garmin/Wahoo/WHOOP/Oura/Ultrahuman/TrainingPeaks/
+    Zwift, wellness score (sono+stress+humor). **Lições:** (a) **falha de UX/
+    performance e sync derrubam o app mesmo com IA boa** — reforça o nosso
+    motor **determinístico/auditável** como diferencial (backlog #13:
+    LLM como interface, nunca como núcleo); (b) **os gráficos PMC de 90 dias
+    são valor percebido** — que é exatamente o #21; (c) "clear next action"
+    pós-treino vira backlog #22; (d) wellness score mapeia o #15; (e)
+    **privacidade/terminais é posicionamento**: self-host/Intervals/CLI é
+    vantagem de confiança.
+  - **Contraste útil p/ validação com o treinador:** UI/IA rica com reviews
+    ruins (Analog 2,6★) vs UX simples com reviews ótimas (Pillar 4,9★) ⇒ o
+    caminho do hermes (CLI determinístico, robusto, audável) está alinhado
+    com para onde o mercado apontaria, e a casca (#7) deve priorizar
+    **robustez/valor percebido** (gráficos, aderência, automação) sobre
+    enfeites de IA.
+
 ## Regras transversais
 
 - Toda implementação exige **testes** e docs (README/CHANGELOG/vault) no mesmo
   commit.
 - Mudanças que afetam carga/plano passam por **`--dry-run`** ou validação com
   dados reais antes de tocar o fluxo do timer diário.
+
+## Status atual (2026-09-24)
+
+Revisão dos itens (sessões de 23-24/09; releases v0.0.20 → v0.0.23):
+
+- **Implementados:** #16 (semente TSB-alvo no `race`), #17 (zonas extremas no
+  Expected PMC), #19 `recovery` (v0.0.21), #20 `summary` (v0.0.22), **#21
+  gráficos + relatório (v0.0.23)** — ver abaixo.
+- **#21 publicado (v0.0.23):** `src/charts.py` (PMC 90d + carga semanal) e
+  `src/report.py` (`--export` HTML/PDF com SVG); **temas** (`src/brand.py`:
+  22 temas do Omarchy quattro; menu "Temas"/tecla T no HTML, `--theme` na CLI
+  — com o `:root` do padrão emitido antes dos `[data-theme]` no CSS para
+  nenhum tema ser sobrescrito) e **linha de forma (TSB) por zona** (risco ≤
+  −10 / ideal / fresco ≥ +10). **274 testes OK**; validado no chromium:
+  22/22 temas com as 3 cores de zona corretas. Kit portátil dos temas:
+  `docs/TEMAS.md`.
+- **Benchmark (24/09):** Pillar (4,9★; plano adaptativo,cadastro 200+ eventos)
+  e Analog Sports Ana (2,6★ App Store; 90-day PMC dashboards, IA chat, mas
+  sync/UX ruim) → **#21** implementado, **#22** (clear next action) no
+  backlog; lição de UX/robustez registrada na Fase 4.
+- **Abertos:** #1 fantasmas (baixa), #2 notificações (Fase 1), #7/#8/#11/#12
+  (produto, Fase 3), #9/#10/#13-#15/#22 (possível — validar c/ treinador).
+- Suíte: **274 testes OK** (24/09).
 
 ## Status atual (2026-09-22)
 

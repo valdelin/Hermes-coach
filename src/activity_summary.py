@@ -38,6 +38,7 @@ def done_activities(client, start, end):
         rows.append({
             "name": (a.get("name") or e.get("name") or "Treino").strip(),
             "day": day,
+            "_day": date.fromisoformat(day),
             "type": a.get("type") or "",
             "time_s": int(a.get("moving_time") or a.get("elapsed_time") or 0),
             "distance_m": float(a.get("distance") or 0),

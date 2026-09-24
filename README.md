@@ -29,10 +29,13 @@ hermes-coach/
 │   ├── plan_run.py                    # protótipo de corrida (#18): %LTHR/RPE/pace, sem power meter
 │   ├── recovery.py                    # retorno a forma: PMC real + estimativa de prazo + rampa segura
 │   ├── activity_summary.py            # resumo dos treinos feitos por dia/semana/mês
+│   ├── brand.py                       # identidade: 22 temas + tokens de cor (#21)
+│   ├── charts.py                      # gráficos em texto: PMC + carga semanal (#21)
+│   ├── report.py                      # export HTML (SVG) / PDF via chromium (#21)
 │   ├── ftp_estimation.py              # estimativa de FTP de pedais não agendados (#6)
 │   └── training_plan.py               # CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 246 testes (stdlib unittest)
-└── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, ...
+├── tests/                             # 274 testes (stdlib unittest)
+└── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 
 ## Documentação
@@ -218,7 +221,18 @@ calendario.
   janela terminando no dia-ancla, por padrão ontem): sessões, carga total
   (TSS), tempo, distância, elevação, potência média/NP e FC média, com o
   detalhe de cada treino feito. Usa só atividades pareadas — o
-  planejado-não-feito fica fora.
+  planejado-não-feito fica fora. **Gráficos** opcionais no espírito do
+  "Advanced Progress Tracking": `--chart auto` (padrão) traz o **PMC** dos
+  últimos 90 dias (CTL/ATL/TSB em sparklines, escala compartilhada) e a
+  **carga semanal** (barras de TSS/semana ISO); `--chart none|pmc|load|all`
+  escolhe o modo. **`--export arquivo`** gera o relatório com gráficos SVG:
+  `.html` salva direto; `.pdf` renderiza o mesmo HTML no **chromium headless**
+  (`--print-to-pdf`) — independente de `--chart`, sempre leva os dois gráficos.
+  O relatório tem **`--theme TEMA`** (22 temas, default `tokyo-night`); no
+  HTML o leitor troca pelo menu **"Temas"** ou tecla **T** e a escolha é
+  lembrada (`localStorage`). A **linha de forma (TSB) muda de cor pelo estado**
+  do atleta: vermelho = alto risco (TSB ≤ −10), verde = treino ideal, azul =
+  fresco e em forma (`docs/TEMAS.md` tem o kit portátil dos temas).
 - `reconcile` — treino perdido vira recuperacao no proximo dia + proximo Limiar
   -5%; treino **extra fora do plano** com carga cheia insere recuperacao e
   reduz o Limiar.
@@ -268,7 +282,11 @@ python3 src/training_plan.py build --days 60 --days-plan 14   # gera plano
 python3 src/training_plan.py build --no-power            # modo FC: alvos em %FTHR + RPE
 python3 src/training_plan.py adherence --show            # cumprimento semanal do plano
 python3 src/training_plan.py recovery                    # retorno a forma: estimativa + rampa segura
-python3 src/training_plan.py summary --period week       # resumo dos treinos feitos da semana
+python3 src/training_plan.py summary --period week       # resumo da semana + gráficos (PMC 90d, carga semanal)
+python3 src/training_plan.py summary --chart none        # só os números, sem gráficos
+python3 src/training_plan.py summary --export resumo.html  # relatório com gráficos SVG
+python3 src/training_plan.py summary --export resumo.pdf   # PDF via chromium headless
+python3 src/training_plan.py summary --theme matte-black --export resumo.pdf  # tema
 python3 src/training_plan.py reconcile --show         # detecta treinos perdidos
 python3 src/training_plan.py push --start 2026-09-16  # publica no Intervals (upsert)
 python3 src/training_plan.py all                      # fluxo completo

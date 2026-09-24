@@ -9,6 +9,39 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [0.0.23] - 2026-09-24
+
+### Adicionado
+
+- **Temas no relatório (`--theme TEMA`)** — o export HTML/PDF leva os **22
+  temas** do kit de identidade `src/brand.py` (inspirados nos color schemes do
+  Omarchy quattro; hex dos `colors.toml` reais). No HTML o leitor troca pelo
+  menu **"Temas"** (ou tecla **T**) a qualquer momento; a escolha fica no
+  `localStorage` (`hc-theme`); PDF honra o tema passado na CLI. Corrigido bug
+  de cascata do CSS: o `:root` (tema padrão) agora é emitido **antes** de todos
+  os `[data-theme]` — mesma especificidade, e quem vem depois vence (antes, o
+  tokyo-night sobrescrevia os 18 temas listados antes dele no CSS).
+- **Forma (TSB) colorida por zona do atleta** — a linha de forma muda de cor
+  conforme o estado (como no Intervals/Friel): **risco** (TSB ≤ −10, vermelho),
+  **ideal** (−10..+10, verde) e **fresco** (≥ +10, azul). Cores por tema
+  (`fresh`/`risk`); segmento Bezier a segmento + ponto final e chip **"Estado"**
+  no resumo do PMC. Descrição do PMC reescrita (explicação S2S/Friel + refs:
+  *Monitoring your training load* — Science2Sport; *Managing Training Using
+  TSB* — Joe Friel).
+- **`docs/TEMAS.md`** — kit portátil dos temas: tokens documentados, consumo
+  em CSS (com a regra de ouro da ordem do `:root`), switcher JS mínimo e o
+  módulo completo copiável para outro projeto.
+- Gráficos do `summary` (PMC 90d + carga semanal) e `--export` HTML/PDF
+  (gráficos + temas) — seção 0.0.23 (mesma release).
+
+### Testes
+
+- +6 (268 → **274**): zonas da forma (segmentos risco/ideal/fresco + estado de
+  risco + refs na descrição) e regressão da ordem do CSS (todos os 22 temas
+  com bloco `[data-theme]` e `--fresh`/`--risk`; `:root` antes).
+- Validação real no chromium headless: **os 22 temas** resolvem as três cores
+  de zona corretamente.
+
 ## [Unreleased]
 
 _Próximas mudanças a documentar._

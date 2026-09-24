@@ -22,6 +22,8 @@ try:
     import ftp_scan
     import recovery
     import activity_summary
+    import charts
+    import report
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
@@ -37,6 +39,8 @@ except ImportError:
     from . import ftp_scan
     from . import recovery
     from . import activity_summary
+    from . import charts
+    from . import report
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -580,6 +584,11 @@ def cmd_summary(args):
     """
     client = get_client()
     anchor = args.date or (date.today() - timedelta(days=1))
+    theme = getattr(args, "theme", None)
+    if theme and theme not in report.THEMES:
+        raise SystemExit(
+            f"Tema invalido: {theme!r}. Temas disponiveis: "
+            + ", ".join(report.THEMES))
     start, end = activity_summary.period_range(anchor, args.period)
     rows = activity_summary.done_activities(client, start, end)
     agg = activity_summary.summarize(rows)
@@ -621,7 +630,71 @@ def cmd_summary(args):
         if r["load"]:
             bits.append(f"{r['load']:.0f} TSS")
         print("  " + "  ".join(bits))
+
+    _summary_charts(client, args.period, anchor, rows, args.chart)
+    _summary_export(client, args, anchor, rows, agg, start, end)
     return agg
+
+
+def _summary_chart_data(client, period, anchor, rows):
+    """Dados dos graficos do resumo: (pmc_rows, weeks).
+
+    `pmc_rows` = serie (day, ctl, atl, tsb) trailing 90d; `weeks` =
+    carga semanal ISO ([]) quando `period` == dia.
+    """
+    start = anchor - timedelta(days=89)
+    events = client.events(oldest=start.isoformat(), newest=anchor.isoformat())
+    daily = recovery.actual_daily_load(events)
+    pmc_rows = [r for r in recovery.pmc_series(daily) if start <= r[0] <= anchor]
+    if period == "day":
+        return pmc_rows, []
+    return pmc_rows, charts.weekly_load(rows)
+
+
+def _summary_charts(client, period, anchor, rows, chart):
+    """Graficos do resumo (padrao Pillar/Analog 'dashboard de 90 dias').
+
+    PMC (trailing 90d) sempre em `auto`; barras de carga semanal apenas para
+    semana/mes (ja que sai dos proprios treinos do periodo). `--chart none`
+    desliga; `--chart pmc|load|all` escolhe um.
+    """
+    if chart == "none":
+        return
+    pmc_rows, weeks = _summary_chart_data(client, period, anchor, rows)
+    pmc_parts = charts.pmc_chart(pmc_rows) if chart in ("auto", "all", "pmc") else []
+    load_parts = (charts.load_chart(weeks)
+                  if chart in ("auto", "all", "load") and period != "day"
+                  else [])
+
+    if pmc_parts:
+        print("\n=== PMC (fitness/fadiga/form) ===")
+        for line in pmc_parts:
+            print("  " + line)
+    if load_parts:
+        print("\n=== CARGA SEMANAL ===")
+        for line in load_parts:
+            print("  " + line)
+    return
+
+
+def _summary_export(client, args, anchor, rows, agg, start, end):
+    """Exporta (--export) o resumo com graficos em SVG para HTML/PDF.
+
+    A extensao do caminho decide: .html escreve direto; .pdf renderiza o HTML
+    via chromium headless. Nao altera a saida no terminal.
+    """
+    path = getattr(args, "export", None)
+    if not path:
+        return
+    pmc_rows, weeks = _summary_chart_data(client, args.period, anchor, rows)
+    theme = getattr(args, "theme", None) or report.DEFAULT_THEME
+    html = report.render_summary_html(
+        title=(f"Resumo {activity_summary.PERIOD_LABELS[args.period]}"
+               f" - {start} a {end}"),
+        start=start, end=end, agg=agg, rows=rows,
+        pmc_rows=pmc_rows, weeks=weeks, theme=theme)
+    report.write(path, html)
+    print(f"Exportado: {path}")
 
 
 def cmd_reconcile(args):
@@ -847,6 +920,21 @@ def main(argv=None):
     p_sum.add_argument(
         "--date", metavar="YYYY-MM-DD",
         help="Dia-ancla do periodo (default: ontem)")
+    p_sum.add_argument(
+        "--chart", choices=("auto", "none", "pmc", "load", "all"),
+        default="auto",
+        help="Graficos no resumo: PMC CTL/ATL/TSB + carga semanal "
+             "(default auto = PMC sempre + carga p/ semana/mes)")
+    p_sum.add_argument(
+        "--export", metavar="ARQUIVO",
+        help="Exporta o resumo com graficos (SVG) para um arquivo; "
+             "a extensao decide o formato: .html direto, .pdf via chromium "
+             "headless")
+    p_sum.add_argument(
+        "--theme", metavar="TEMA",
+        help=f"Tema do relatorio (default: {report.DEFAULT_THEME}); no HTML "
+             "o leitor pode trocar pelo menu (tecla T). Temas: "
+             + ", ".join(report.THEMES))
     p_sum.set_defaults(func=cmd_summary)
 
     p_build = sub.add_parser("build", help="Gera o plano a partir do historico")

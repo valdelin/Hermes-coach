@@ -30,10 +30,13 @@ hermes-coach/
 │   ├── plan_run.py                    # running prototype (#18): %LTHR/RPE/pace, no power meter
 │   ├── recovery.py                    # return to form: real PMC + time estimate + safe ramp
 │   ├── activity_summary.py            # summary of done workouts by day/week/month
+│   ├── brand.py                       # identity: 22 themes + color tokens (#21)
+│   ├── charts.py                      # text charts: PMC + weekly load (#21)
+│   ├── report.py                      # HTML (SVG) / PDF export via chromium (#21)
 │   ├── ftp_estimation.py              # FTP estimation from unplanned hard rides (#6)
 │   └── training_plan.py               # plan CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 246 tests (stdlib unittest)
-└── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, ...
+├── tests/                             # 274 tests (stdlib unittest)
+└── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 
 ## Documentation
@@ -179,7 +182,11 @@ python3 src/training_plan.py build --days 60 --days-plan 14   # generate plan
 python3 src/training_plan.py build --no-power            # HR mode: %FTHR + RPE targets
 python3 src/training_plan.py adherence --show            # weekly plan adherence
 python3 src/training_plan.py recovery                     # return-to-form analysis + safe ramp
-python3 src/training_plan.py summary --period week        # summary of done workouts of the week
+python3 src/training_plan.py summary --period week     # week summary + charts (90d PMC, weekly load)
+python3 src/training_plan.py summary --chart none      # numbers only, no charts
+python3 src/training_plan.py summary --export resumo.html  # report with SVG charts
+python3 src/training_plan.py summary --export resumo.pdf   # PDF via chromium headless
+python3 src/training_plan.py summary --theme matte-black --export resumo.pdf  # theme
 python3 src/training_plan.py reconcile --show         # detect missed workouts
 python3 src/training_plan.py push --start 2026-09-16  # publish to Intervals (upsert)
 python3 src/training_plan.py all                      # full flow

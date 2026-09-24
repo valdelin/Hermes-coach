@@ -4,7 +4,7 @@ import os
 import tempfile
 import types
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -406,23 +406,52 @@ class _RecoveryClient(_FakeClient):
 
 
 class _SummaryClient(_FakeClient):
-    """1 treino feito (dia) + 1 planejado-nao-feito que deve ficar fora."""
+    """1 treino feito (dia) + 1 planejado-nao-feito que deve ficar fora.
+
+    `many_loads=True` gera uma temporada deterministic de treinos seg-sex
+    nos ultimos ~70 dias, para exercitar PMC e carga semanal.
+    """
+
+    def __init__(self, many_loads=False):
+        self.many_loads = many_loads
 
     def activity(self, aid):
-        return {"name": "Zwift - Treino de Limiar FTP", "type": "VirtualRide",
-                "moving_time": 3225, "distance": 24732.67,
-                "total_elevation_gain": 175.0, "icu_training_load": 58,
-                "icu_average_watts": 133, "icu_weighted_avg_watts": 147,
-                "average_heartrate": 153}
+        if not self.many_loads:
+            return {"name": "Zwift - Treino de Limiar FTP", "type": "VirtualRide",
+                    "moving_time": 3225, "distance": 24732.67,
+                    "total_elevation_gain": 175.0, "icu_training_load": 58,
+                    "icu_average_watts": 133, "icu_weighted_avg_watts": 147,
+                    "average_heartrate": 153}
+        day = date.fromisoformat(aid.split("_")[1])
+        return {"name": "Treino", "type": "VirtualRide",
+                "moving_time": 3600, "distance": 30000.0 + (day.toordinal() % 97) * 100,
+                "icu_training_load": 30 + day.toordinal() % 41,
+                "icu_average_watts": 140, "icu_weighted_avg_watts": 148,
+                "average_heartrate": 150}
 
     def events(self, **params):
-        return [
-            {"id": "s1", "paired_activity_id": "i1",
-             "start_date_local": "2026-09-23T15:37:38",
-             "name": "Treino de Limiar FTP"},
-            {"id": "s2", "start_date_local": "2026-09-23T00:00:00",
-             "name": "nao feito"},
-        ]
+        if not self.many_loads:
+            return [
+                {"id": "s1", "paired_activity_id": "i1",
+                 "start_date_local": "2026-09-23T15:37:38",
+                 "name": "Treino de Limiar FTP",
+                 "icu_training_load": 58},
+                {"id": "s2", "start_date_local": "2026-09-23T00:00:00",
+                 "name": "nao feito"},
+            ]
+        oldest = date.fromisoformat(params.get("oldest", "")[:10])
+        newest = date.fromisoformat(params.get("newest", "")[:10])
+        out = []
+        d = oldest
+        while d <= newest:
+            if d.weekday() < 5:  # seg-sex, igual ao padrao do plano
+                out.append({"id": f"s_{d.isoformat()}",
+                            "paired_activity_id": f"a_{d.isoformat()}",
+                            "start_date_local": f"{d}T18:00:00",
+                            "name": "Treino",
+                            "icu_training_load": 30 + d.toordinal() % 41})
+            d += timedelta(days=1)
+        return out
 
 
 class SummaryCliTest(unittest.TestCase):
@@ -433,11 +462,50 @@ class SummaryCliTest(unittest.TestCase):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 tp.cmd_summary(types.SimpleNamespace(
-                    period="day", date=date(2026, 9, 23)))
+                    period="day", date=date(2026, 9, 23), chart="none"))
             out = buf.getvalue()
             self.assertIn("=== RESUMO DO DIA", out)
             self.assertIn("carga total: 58 TSS", out)
             self.assertIn("Treino de Limiar", out)
+        finally:
+            tp.get_client = orig_client
+
+    def test_cmd_summary_com_pmc_traer_graficos(self):
+        orig_client = tp.get_client
+        tp.get_client = lambda: _SummaryClient(many_loads=True)
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                tp.cmd_summary(types.SimpleNamespace(
+                    period="week", date=date(2026, 9, 23), chart="auto",
+                    export=None))
+            out = buf.getvalue()
+            self.assertIn("=== PMC (fitness/fadiga/form) ===", out)
+            self.assertIn("CTL", out)
+            self.assertIn("ATL", out)
+            self.assertIn("TSB", out)
+            self.assertIn("=== CARGA SEMANAL ===", out)
+            self.assertIn("TSS/semana", out)
+        finally:
+            tp.get_client = orig_client
+
+    def test_cmd_summary_export_html_gera_arquivo(self):
+        orig_client = tp.get_client
+        tp.get_client = lambda: _SummaryClient()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "resumo.html")
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    tp.cmd_summary(types.SimpleNamespace(
+                        period="day", date=date(2026, 9, 23), chart="none",
+                        export=path))
+                self.assertIn(f"Exportado: {path}", buf.getvalue())
+                with open(path, encoding="utf-8") as f:
+                    html = f.read()
+                self.assertIn("Treino de Limiar FTP", html)
+                self.assertIn("<svg ", html)
+                self.assertIn("58 TSS", html)
         finally:
             tp.get_client = orig_client
 

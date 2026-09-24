@@ -38,6 +38,23 @@
 > Resultado 24/09 (pós-v0.0.21): baseline **246 testes OK** (+13 `summary` —
 > `tests/test_activity_summary.py` + CLI `summary`); suíte roda igual no CI.
 
+> Resultado 24/09 (gráficos #21): baseline **261 testes OK** (+15 `charts` —
+> `tests/test_charts.py` + CLI `summary --chart` no `tests/test_training_plan.py`);
+> corrigido `weekly_load` (agrupava por dia da semana em vez de semana ISO).
+
+> Resultado 24/09 (export #21): baseline **268 testes OK** (+7 `report` —
+> `tests/test_report.py`: HTML com 2 SVGs, escape de conteúdo, HTML/PDF via
+> chromium mockado + CLI `--export`). Validação real: `summary --export
+> resumo.pdf` gerou `%PDF-1.4` válido no chromium headless.
+
+> Resultado 24/09 (temas + zona da forma, v0.0.23): baseline **274 testes OK**
+> (+6 `report` — segmentos da Forma por zona risco/ideal/fresco, chip de
+> estado, refs na descrição e regressão da ordem do CSS: `:root` do tema
+> padrão antes de todos os `[data-theme]`, todos os 22 temas com
+> `--fresh`/`--risk` e bloco próprio). Validação real no chromium headless:
+> **22/22 temas** resolvem as três cores de zona corretas (bug: o `:root`
+> emitido no meio sobrescrevia 18 temas).
+
 ---
 
 ## 2. Regressão offline (código)
