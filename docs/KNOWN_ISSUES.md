@@ -56,20 +56,38 @@ como uma atividade** no feed:
   (`source: MANUAL`, sem `fit_file`, duração ≈ planejada), não pela origem do
   evento — cobre eventos de qualquer criador.
 
-### Reconhecimento por `external_id` (gap para 2 treinos no mesmo dia)
+### Reconhecimento por `external_id` (o que conta como "extra")
 
 O `reconcile` marca "concluído" pelo `external_id` **começando com
 `hermes-plan`** (`_done_and_extra`, `orphan_external_ids`); hoje o plano é 1
-treino/dia (bike), então basta. Quando houver **2 treinos no mesmo dia**:
+treino/dia (bike), então basta. A classificação de **"treino extra fora do
+plano"** vale para **qualquer evento pareado cujo `external_id` não comece com
+`hermes-plan`** — o código não olha esporte nem "mesmo dia":
 
-- bike + bike: não ocorre hoje (1/dia); se ocorresse, os dois eventos de hermes
-  **colidiriam** no `external_id = hermes-plan-<dia>` do upsert.
-- bike + corrida (#18): o evento de corrida (`hermes-run-<dia>`) **não** começa
-  com `hermes-plan` → ao ser pareado entra como **treino fora do plano**
-  ("extra", `_done_and_extra`) → soma TSS e pode injetar recuperação + Limiar
-  −5% (`_adjust_for_extra_workouts`, efeito da dupla gravação — ver
-  `SYNC-PLATAFORMAS.md` §13). Ajuste futuro (#18): reconhecer por conjunto de
-  prefixos ou por `sport`/categoria do evento.
+- corrida planejada num dia de **brick** (bike + run — triatleta);
+- corrida **sozinha** num dia só de corrida (#18);
+- natação (futuro módulo swim);
+- treino do planner do Zwift executado e pareado (§13 do
+  `SYNC-PLATAFORMAS.md`).
+
+O gatilho **não é por treino individual**, e sim por **acúmulo na janela de 7
+dias**: `_adjust_for_extra_workouts` soma a carga dos extras e só age se
+`soma >= cap`, com `cap = max(35, min(200, avg_load * 0.95))`. Com `avg_load`
+baixo (ex.: 40 → cap ≈ 38 TSS), **uma única corrida de brick de ~45 TSS já
+estoura** e injeta recuperação + Limiar −5%; com `avg_load` alto (ex.: 60 →
+cap 57), o mesmo treino não muda nada.
+
+Ajuste futuro (#18, multi-esporte): o reconcile precisa conhecer **o que o
+hermes planejou** — unificar bike/run/swim no mesmo `plan.json` (cada treino
+com seu prefixo ou marcado por `sport`) e fazer `_done_and_extra`/
+`orphan_external_ids` reconhecerem o **conjunto de prefixos hermes**; o "extra"
+passa a existir só para o que é **genuinamente não-planejado** (rides soltos,
+dupla gravação).
+
+Conflito de `external_id` no mesmo dia:
+- bike + bike: não ocorre hoje (1/dia); se ocorresse, os dois eventos
+  **colidiriam** em `hermes-plan-<dia>` no upsert (os prefixos precisariam de
+  sufixo).
 
 ### Restrição de API
 

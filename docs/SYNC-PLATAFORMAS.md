@@ -283,11 +283,15 @@ lado do evento `hermes-plan*` gerado pelo hermes.
   o real; o hermes também não os vê até serem pareados.
 - Se um desses eventos for executado e pareado com a atividade, o fantasma é o
   **mesmo** do `KNOWN_ISSUES.md` #1 — limitação do Intervals, não do Hermes.
-- **Cross-sport no mesmo dia (ex.: ciclismo + corrida)**: o Intervals trata por
-  esporte (sem conflito). No hermes hoje o reconhecimento de "concluído" é por
-  prefixo `hermes-plan` (`src/plan.py::_done_and_extra`) — um evento `hermes-run-*`
-  pareado entraria como **treino fora do plano** (recuperação + Limiar −5%) até
-  o suporte do #18 (ver `KNOWN_ISSUES.md` #1).
+- **Cross-sport no mesmo dia (ex.: ciclismo + corrida — brick)**: o Intervals
+  trata por esporte (sem conflito; cada evento pareia com a atividade do seu
+  esporte). Atenção no hermes: a classificação de "concluído" é por prefixo
+  `hermes-plan` (`src/plan.py::_done_and_extra`), então **qualquer evento
+  pareado fora desse prefixo** — `hermes-run-*`, natação, planner do Zwift —
+  entra como **treino fora do plano**: só vira recuperação + Limiar −5% quando
+  a soma dos extras dos últimos 7 dias alcança o cap diário
+  (`max(35, min(200, avg_load * 0.95))`), mesmo que o treino estivesse
+  planejado (multi-esporte é o #18; ver `KNOWN_ISSUES.md` #1).
 - **Prevenção**: não agendar no app do Zwift; usar só os eventos `hermes-plan*`
   (baixar o `.zwo` no app). Os eventos do Zwift reaparecem sempre que você
   agenda lá.
