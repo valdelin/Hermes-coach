@@ -938,9 +938,10 @@ def main(argv=None):
 
     p_sum = sub.add_parser(
         "summary",
-        help="Resumo dos treinos feitos por periodo: dia/semana/mes")
+        help="Resumo dos treinos feitos por periodo: dia/semana/mes/trimestre")
     p_sum.add_argument(
-        "--period", choices=("day", "week", "month"), default="day",
+        "--period", choices=("day", "week", "month", "quarter"),
+        default="day",
         help="Janela do resumo (default: dia)")
     p_sum.add_argument(
         "--date", metavar="YYYY-MM-DD",

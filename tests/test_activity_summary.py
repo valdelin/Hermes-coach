@@ -44,6 +44,10 @@ class PeriodRangeTest(unittest.TestCase):
         self.assertEqual(s.period_range(date(2026, 9, 23), "month"),
                          (date(2026, 8, 25), date(2026, 9, 23)))
 
+    def test_trimestre_sao_90_dias_terminando_no_ancla(self):
+        self.assertEqual(s.period_range(date(2026, 9, 23), "quarter"),
+                         (date(2026, 6, 26), date(2026, 9, 23)))
+
     def test_periodo_invalido_rejeitado(self):
         with self.assertRaises(ValueError):
             s.period_range(date(2026, 9, 23), "ano")

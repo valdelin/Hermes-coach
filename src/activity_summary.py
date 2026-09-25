@@ -1,14 +1,16 @@
-"""Resumo de treinos realizados por periodo (dia / semana / mes).
+"""Resumo de treinos realizados por periodo (dia / semana / mes / trimestre).
 
 Usa apenas atividades PAREDAS (treinos feitos) no Intervals; o planejado-
 nao-feito fica fora. O periodo e uma janela que termina no dia-ancla (por
-padrao, ontem): dia = 1 dia, semana = 7 dias, mes = 30 dias.
+padrao, ontem): dia = 1 dia, semana = 7 dias, mes = 30 dias, trimestre = 90
+dias.
 """
 
 from datetime import date, timedelta
 
-PERIODS = ("day", "week", "month")
-PERIOD_LABELS = {"day": "dia", "week": "semana", "month": "mes"}
+PERIODS = ("day", "week", "month", "quarter")
+PERIOD_LABELS = {"day": "dia", "week": "semana", "month": "mes",
+                 "quarter": "trimestre"}
 
 
 def period_range(anchor, period):
@@ -19,6 +21,8 @@ def period_range(anchor, period):
         return anchor - timedelta(days=6), anchor
     if period == "month":
         return anchor - timedelta(days=29), anchor
+    if period == "quarter":
+        return anchor - timedelta(days=89), anchor
     raise ValueError(f"periodo invalido: {period!r}")
 
 
