@@ -74,7 +74,8 @@ Custom → intervals.icu*).
 **Notas:**
 - Só funciona com a **conexão direta** — um ride do Zwift gravado via
    Garmin/Wahoo não vira atividade "Zwift" no Intervals (vem como atividade
-   do respectivo aparelho; pode duplicar se as duas fontes estiverem ativas).
+   do respectivo aparelho; pode duplicar se as duas fontes estiverem ativas —
+   ver **seção 13**).
 - Ideal para quem treina no Zwift: mantenha Zwift + só uma fonte de backup
    (ou desative download do Zwift se o Garmin já puxa os rides).
 
@@ -206,11 +207,65 @@ não tem conexão nativa com a Apple.
 
 ---
 
+## 13. Dupla gravação: Zwift + Garmin (procedimento)
+
+Cenário comum: o atleta grava o mesmo ride **dentro do Zwift** e **também no
+relógio/Edge Garmin** ao mesmo tempo. As duas fontes estão conectadas ao
+Intervals e **ambas** importam o treino.
+
+### O que acontece
+
+- O Intervals recebe **2 FITs diferentes** (Zwift e Garmin) do mesmo ride.
+- Como são **fontes não-Strava**, o Intervals **não deduplica** — o auto-match
+  só ocorre entre Strava e outra fonte com **arquivo idêntico**. Cada FIT vira
+  uma atividade.
+- Resultado no dia: **3 entradas**:
+  1. a **fantasma** — o evento planejado (`hermes-plan-*`) materializado como
+     atividade `MANUAL`, sem fit (`tss: null`): **cosmética**, não afeta
+     CTL/ATL/TSB (ver `KNOWN_ISSUES.md` #1);
+  2. o ride **Zwift** (completo) e
+  3. o ride **Garmin** (completo) → **ambos contam TSS/load** → a carga do dia
+     fica **~2× a real**, inflando CTL/ATL/TSB.
+- **Efeito no hermes-coach** (lê a API do Intervals): `recovery`/`build
+  --recovery` usam a carga do dia (CTL inflado); `reconcile` vê o ride do
+  Garmin como **treino extra fora do plano** e pode injetar recuperação +
+  Limiar −5% sem motivo (`src/plan.py::_adjust_for_extra_workouts`).
+
+### Como detectar
+
+- Activities → mostra a coluna **Source** (ou abra o dia no calendário):
+  **2 linhas quase idênticas** (mesmo horário/duração) de fontes diferentes
+  (ex.: `Zwift` e `Garmin Connect`) + 1 linha `MANUAL` sem fit.
+
+### Procedimento de limpeza (por duplicação)
+
+1. **Manter** o ride da fonte mais completa — para treino indoor, o **Zwift**
+   (potência/cadência/FC do trainer; se o Garmin gravou melhor a FC, inverter).
+2. **Deletar** o outro ride real e a **fantasma MANUAL** (o Intervals não tem
+   merge pela API/UI — deleção é o único caminho).
+3. **Parear**: arrastar o ride mantido sobre o evento `hermes-plan-*` no
+   calendário → o treino fica "feito" para o `reconcile` e evita recriar a
+   fantasma.
+4. Alternativa **sem excluir dados**: editar a duplicata e **zerar o load**
+   (a atividade sai do PMC e do painel de carga, mas o registro permanece).
+
+### Prevenção (regra de ouro 1)
+
+- **Uma fonte de rides por treino.** Configure o filtro de tipos em
+  Settings → Connections: a fonte secundária **não baixa virtual/indoor** (ex.:
+  Garmin continua trazendo wellness, e o Zwift fornece os rides) — ou o
+  contrário, se o Garmin é a fonte primária de rides e o download do Zwift
+  fica desligado.
+- Ou simplesmente **não grave o ride no relógio** durante o Zwift (o Garmin
+  segue sincronizando wellness normalmente).
+
+---
+
 ## Regras de ouro (vale para todas)
 
 1. **Uma fonte de atividades por treino** — evite duplicatas. Prefira a fonte
    direta (Garmin/COROS/Suunto/Polar) e desative o download do Strava se ele
-   for redundante.
+   for redundante. Dupla gravação Zwift + Garmin: procedimento na **seção 13**.
 2. **Wellness**: monte a matriz de fontes no Intervals (quem manda peso, quem
    manda sono, quem manda HRV) e **não deixe 2 fontes no mesmo campo**.
 3. Conexões paradas por muito tempo **"dormem"** — use *Download old data*
