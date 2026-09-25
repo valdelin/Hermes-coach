@@ -14,7 +14,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 |---|---|---|---|---|
 | 1 | bug | Limpeza de "fantasmas" (atividades MANUAL criadas pelo Intervals ao parear treino) — **prioridade baixa** (cosmético, bug do Intervals, não do agente) | [#1](https://github.com/valdelin/Hermes-coach/issues/1) | 0 |
 | 2 | feature | Notificações de treino (Telegram → e-mail/WhatsApp) | [#2](https://github.com/valdelin/Hermes-coach/issues/2) | 1 |
-| 3 | feature | ~~Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE)~~ **implementado e issue fechada** (v0.0.16, modo FC %FTHR+RPE; validado 23/09 — 202 testes) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 ✅ |
+| 3 | feature | ~~Treinos sem medidor de potência (outdoor/FC: FTHR, hrTSS, %FTHR/RPE)~~ **implementado e issue fechada** (v0.0.16, modo FC %FTHR+RPE; validado 23/09 — 202 testes e 25/09 contra a API real — target HR) | [#3](https://github.com/valdelin/Hermes-coach/issues/3) | 2 ✅ |
 | 4 | feature | ~~Ativar sync de wellness~~ **implementado e issue fechada** (RHR/sono no `info`; HRV sem suporte no FR935) | [#4](https://github.com/valdelin/Hermes-coach/issues/4) | 0 ✅ |
 | 5 | feature | ~~Tipos de plano de treino (`GOAL`)~~ **implementado e issue fechada** (v0.0.9) — 7 tipos + `RACE_DATE`/tapper + variedade | [#5](https://github.com/valdelin/Hermes-coach/issues/5) | 2 ✅ |
 | 6 | feature | ~~FTP sugerido a partir de treinos não agendados~~ (prova/treino livre) **implementado e issue fechada** (v0.0.15, `ftp-scan`: best-20min × 0,95 com gates + confirmação) | [#6](https://github.com/valdelin/Hermes-coach/issues/6) | 2 ✅ |
@@ -57,7 +57,8 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 - Regra: envio **assíncrono e não-bloqueante** (não derruba o timer diário).
 
 ### Fase 2 — Dados incompletos (issue #3) + tipos de plano (#5) + FTP sugerido (#6)
-- ✅ **Sem medidor de potência (issue #3) — implementado (próxima release)**:
+- ✅ **Sem medidor de potência (issue #3) — implementado (v0.0.25, validado
+  contra a API real)**:
   `FTHR` no `.env` (`parse_fthr`/`get_fthr`); `build --no-power` carimba
   `hr_mode` nos workouts e o `push` envia `target: HR` com texto em
   **%FTHR + RPE** (`FOCUS_HR_PCT`/`FOCUS_RPE`/`FOCUS_HR_HINT`); reconcile

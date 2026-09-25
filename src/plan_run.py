@@ -110,7 +110,7 @@ def run_workout(focus, *, r_lthr=170, target=None, day=None, name=None):
 
     `params` herda os campos do ciclismo (foco/repeats/on_sec/off_sec) e soma
     `sport: "run"` + `hr_mode: True`; o push correspondente vai com
-    `target: HEART_RATE` e `type: Run`.
+    `target: HR` e `type: Run`.
 
     `target` escolhe a linguagem da serie: "pace" (ritmo-alvo do rFTP, mais
     facil de controlar), "hr" (zona LTHR + RPE) ou "rpe" (fartlek — esforco,
