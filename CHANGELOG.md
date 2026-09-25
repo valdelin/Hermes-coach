@@ -9,6 +9,32 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [0.0.25] - 2026-09-25
+
+### Corrigido
+
+- **`target: HR` no push do modo FC (#3)** — o Intervals usa o enum `HR` (não
+  `HEART_RATE`) no campo `target` dos eventos: `build --no-power` + `push`
+  recusava com HTTP 400 ("JSON parse error") na API real. O mesmo valia para
+  os eventos de corrida (`event_payload_run`). Peguei num smoke test real da
+  API (25/09) com FTHR estimado dos rides reais; os testes com client fake não
+  acusavam porque só gravavam o payload, sem validar o enum emitido.
+
+### Validado
+
+- **Smoke test real do modo FC (sem pedalar)**: `build --no-power` → plano em
+  15 de FC (FTHR 168 bpm provisional, estimado do melhor 20 min dos rides) →
+  `push --dry-run` → push real (HTTP 200, 10 eventos) → `GET` confirmando
+  `target: HR`, texto °FTHR + RPE e `icu_training_load` calculado pelo
+  Intervals a partir do texto. Teste **revertido** (plano/.env/calendário
+  de volta a `target: POWER`). O `.env` segue **sem FTHR** — o valor real
+  será definido quando o atleta usar o modo FC na rua.
+
+### Testes
+
+- 278 testes OK (contagem estável: 3 asserts do enum `target` atualizados de
+  `HEART_RATE` para `HR`). ROTEIRO-TESTES documenta a validação real.
+
 ## [Unreleased]
 
 _Próximas mudanças a documentar._

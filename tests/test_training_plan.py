@@ -368,7 +368,7 @@ class NoPowerModeTest(unittest.TestCase):
             _client.create_events = fake_create_events
             args = types.SimpleNamespace(start="2026-09-28", dry_run=False)
             tp.cmd_push(args)
-            self.assertEqual(sent[0]["target"], "HEART_RATE")
+            self.assertEqual(sent[0]["target"], "HR")
             self.assertIn("FTHR", sent[0]["description"])
             self.assertIn("RPE", sent[0]["description"])
             tp.get_client, tp.PLAN_FILE = orig_client, orig_plan_file

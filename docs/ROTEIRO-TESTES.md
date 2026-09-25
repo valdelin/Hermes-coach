@@ -60,6 +60,16 @@
 > semana, rampa curta mantém o último teto, redução abaixo do padrão) + wiring
 > do CLI `build --recovery` com o pipeline do `recovery`).
 
+> Resultado 25/09 (smoke test real modo FC, #3): baseline **278 testes OK**
+> (contagem estável — os 3 testes do enum `target` foram atualizados de
+> `HEART_RATE` para `HR`, sem novos). Smoke test contra a **API real**:
+> `build --no-power` com FTHR provisional estimado dos rides → `push --dry-run`
+> → push real → `GET` confirmando `target: HR`, texto °FTHR + RPE e
+> `icu_training_load` calculado. Pegou o **bug do enum**: o Intervals aceita
+> `AUTO/POWER/HR/PACE` e rejeita `HEART_RATE` (HTTP 400 "JSON parse error") —
+> os testes com client fake não acusavam porque só gravavam o payload.
+> Validação feita e **revertida** (plano/.env/calendário de volta a `POWER`).
+
 ---
 
 ## 2. Regressão offline (código)

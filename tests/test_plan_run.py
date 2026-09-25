@@ -49,7 +49,7 @@ class RunWorkoutTest(unittest.TestCase):
         w = run_workout("sweetspot", r_lthr=168)
         payload = event_payload_run(w)
         self.assertEqual(payload["type"], "Run")
-        self.assertEqual(payload["target"], "HEART_RATE")
+        self.assertEqual(payload["target"], "HR")
         self.assertIn("LTHR", payload["description"])
 
     def test_fartlek_controla_por_rpe_nao_fc(self):

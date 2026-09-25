@@ -42,7 +42,7 @@ Ciclismo amador é grande e paga por assinatura
 
 # Produto
 
-O motor já roda hoje (v0.0.24, 278 testes OK)
+O motor já roda hoje (v0.0.25, 278 testes OK)
 
 - Motor Banister local: CTL/ATL/TSB → foco do dia por faixa (Z2, Sweet Spot, Limiar, VO2)
 - Expected PMC: projeta forma/fadiga com treinos reais + planejados (TSB hoje → próxima semana; alertas de sobrecarga)

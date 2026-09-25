@@ -480,7 +480,7 @@ class FthrTest(unittest.TestCase):
 
 class HeartRateModeTest(unittest.TestCase):
     """Modo FC (#3): build --no-power carimba hr_mode, o texto usa %FTHR + RPE
-    e o evento vai com target HEART_RATE."""
+    e o evento vai com target HR (enum do Intervals; nao HEART_RATE)."""
 
     def _fc_plan(self, fthr=182, days=1, start=None):
         start = start or date(2026, 9, 28)  # segunda
@@ -512,10 +512,10 @@ class HeartRateModeTest(unittest.TestCase):
             self.assertIsNone(_re.search(r"\d+[hms]", cue),
                               f"cue nao pode ter duracao abreviada: {cue!r}")
 
-    def test_evento_fc_vai_com_target_heart_rate(self):
+    def test_evento_fc_vai_com_target_hr(self):
         plan = self._fc_plan()
         payload = event_payload(plan[0], ftp=182, fthr=182)
-        self.assertEqual(payload["target"], "HEART_RATE")
+        self.assertEqual(payload["target"], "HR")
         self.assertIn("FTHR", payload["description"])
         self.assertIn("RPE", payload["description"])
 

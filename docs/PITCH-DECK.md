@@ -77,7 +77,7 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 ## Slide 5 — Produto (como funciona)
 
-**O motor já roda hoje** (v0.0.24, 278 testes OK)
+**O motor já roda hoje** (v0.0.25, 278 testes OK)
 
 - Motor Banister local: **CTL/ATL/TSB** → foco do dia por faixa (`<-15` → Z2;
   `-15..0` → Sweet Spot; `0..5` → Limiar; `>=+5` → VO2).
@@ -248,7 +248,7 @@ Cálculo da proposta:
 
 ## Apêndice — fatos usados (para Q&A)
 
-- Versão atual: **v0.0.23** · 278 testes OK · CI verde · timer systemd rodando.
+- Versão atual: **v0.0.25** · 278 testes OK · CI verde · timer systemd rodando.
 - Pricing concorrentes verificado em 22/09/2026 (fontes oficiais).
 - Repo **privado** (`github.com/valdelin/Hermes-coach`) — código sob demanda
   (demonstração/NDA para investidores); docs públicos resumidos no pitch.

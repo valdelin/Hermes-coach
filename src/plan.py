@@ -486,7 +486,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
     # Dia da prova (GOAL=race): garante o evento na data, mesmo fora da agenda.
     plan = _protect_race(plan, race_date, training_days, start, days, ftp)
     # Modo FC (#3): prescricao sem medidor de potencia (%FTHR + RPE). Todos os
-    # workouts do plano carregam a marca para o push escolher HEART_RATE.
+    # workouts do plano carregam a marca para o push escolher HR.
     if hr_mode:
         for w in plan:
             w["hr_mode"] = True
@@ -825,7 +825,8 @@ def rpe_for_focus(focus):
 def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None,
                   fthr=None):
     """Evento do calendario. Com `fthr` e o workout marcado `hr_mode` (#3), o
-    target vira HEART_RATE e o texto usa %FTHR + RPE; senao, POWER (%FTP)."""
+    target vira HR e o texto usa %FTHR + RPE; senao, POWER (%FTP). Nota: o
+    Intervals usa o enum `HR` (nao `HEART_RATE`) no campo `target`."""
     hr = bool(workout.get("hr_mode")) and bool(fthr)
     return {
         "start_date_local": f"{workout['day']}T{START_TIME}",
@@ -834,7 +835,7 @@ def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None,
         "description": desc or workout_text(workout, ftp, lang=lang, prev=prev,
                                             fthr=fthr),
         "planned_duration": workout["planned_duration"],
-        "target": "HEART_RATE" if hr else "POWER",
+        "target": "HR" if hr else "POWER",
         "external_id": workout["external_id"],
     }
 

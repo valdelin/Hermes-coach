@@ -26,7 +26,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 12 | produto | **App comercial de ciclismo indoor** (posicionamento + preços — benchmark 22/09): consolidar #7/#8/#11 em produto com assinatura (tiers solo/coach), notificações (#2), catálogo de eventos e retenção | — (benchmark 22/09; ADR-003) | **possível — validar c/ treinador** (ROTEIRO-TREINADOR seções 3-4) | 3 |
 | 13 | produto | **Assistentes de IA no padrão Tredict** — análise do histórico e criação de planos via LLM (MCP server / apps ChatGPT/Claude) como interface do motor; o nosso é determinístico/auditável (diferencial de confiança), o deles é LLM aberto | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 3 |
 | 14 | decisão | **W′/CP — não implementar agora**: análise Tredict (post mai/2026) mostra modelo de critical power instável e pouco acionável para endurance; CP/W′ ficam como **contexto/candidata** (ver `docs/GLOSSARIO.md`) | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 2 |
-| 15 | feature | **Input subjetivo de wellness** (RPE/"como se sentiu" pós-sessão via Intervals) no cálculo/alerta de sobrecarga — Science to Sport (23/09): sensibilidade a overreaching pode ser **maior** que métricas de potência; complementa o alerta `TSB ≤ −10` do Expected PMC | — (Science to Sport 23/09) | **possível — validar c/ treinador** | 1 |
+| 15 | feature | **Wellness objetivo no alerta de sobrecarga** — dados coletados das plataformas via Intervals (Google Fit: peso, RC em repouso, sono, SpO2, tensão arterial, hidratação, kCal, gordura corporal; Garmin: + pontuação/qualidade do sono, VO2max, HRV rMSSD, passos) complementando o alerta `TSB ≤ −10` do Expected PMC. **Não é RPE/"como se sentiu"** (RPE continua âncora do modo FC — ver `docs/GLOSSARIO.md`); S2S (23/09): métricas de recuperação detectam overreaching | — (Science to Sport 23/09) | **possível — validar c/ treinador** | 1 |
 | 16 | feature | **TSB-alvo pessoal de prova** — aprender o TSB ótimo de corrida correlacionando os melhores dias de forma com o TSB do dia (S2S: ótimo varia, `−5..+5` a `+10..+20` por atleta); usar para ajustar o taper do `GOAL=race`. **Semente implementada (v0.0.20)** no `GOAL=race`: o `build` projeta o TSB no dia da prova (Expected PMC) e compara com a faixa `−10..+20` (`_tsb_race_verdict`: cansado/ok/acima); falta o aprendizado pessoal | — (Science to Sport 23/09; Friel case study 2010) | **semente implementada — aprendizado pessoal: validar c/ treinador** | 2 |
 | 17 | feature | ~~**Indicadores de zona extrema no Expected PMC**~~ **implementado (v0.0.19)**: Friel — `TSB < −30` = risco alto (R&R), `> +25` = transição (descanso longo); `forecast_pmc()` etiqueta a zona por dia (`_tsb_zone`) e o `model` avisa | — (Joe Friel 23/09) | **implementado** | 2 ✅ |
 | 18 | feature | **Módulo de corrida a pé (esporte #2)** — `sport` no domínio (plan.json/workouts/eventos), limiar por pace/LTHR, `rftp-scan`, carga via Intervals (rTSS/gCTB), workouts de corrida em FIT, metas 5K/10K/meia/maratona (estilo RunDot), **PMC único multi-esporte** (TSS de todos os esportes no mesmo CTL/ATL — abordagem tri). Fora de escopo: passada/forma, Stryd/RunPower. **Prescrição SEM power meter** (protótipo `src/plan_run.py`): variável de controle é **p/ template**, não global — contínua/longa = `hr` (%LTHR; estado estável), tempo/limiar/VO2 = `pace` (ritmo-alvo do rFTP, FC como âncora), **fartlek = `rpe`** (surto < 2' nunca alcança a zona de FC; prescreve esforço "ritmo 5-10K"); sem `RFTP_PACE`, alvo `pace` cai p/ `hr`. Atleta escolhe no build; **decisão final: validação c/ treinador** (quando usar cada controle) | — (análise 23/09) | **possível — validar c/ treinador** | 2 |
@@ -59,7 +59,7 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 ### Fase 2 — Dados incompletos (issue #3) + tipos de plano (#5) + FTP sugerido (#6)
 - ✅ **Sem medidor de potência (issue #3) — implementado (próxima release)**:
   `FTHR` no `.env` (`parse_fthr`/`get_fthr`); `build --no-power` carimba
-  `hr_mode` nos workouts e o `push` envia `target: HEART_RATE` com texto em
+  `hr_mode` nos workouts e o `push` envia `target: HR` com texto em
   **%FTHR + RPE** (`FOCUS_HR_PCT`/`FOCUS_RPE`/`FOCUS_HR_HINT`); reconcile
   preserva o modo FC ao reescrever treinos (recuperação/limiar); `info`/
   `reconcile` avisam "sem potência — carga por FC (icu_training_load)".
@@ -216,9 +216,9 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
     (implementado na v0.0.18, `adherence`); mostra que input **subjetivo**
     (RPE/"how do you feel") pode detectar overreaching mais cedo que métricas
     de potência; CTL/TSB ótimos são **individuais** (CTL 70→140; TSB de prova
-    `−5..+5` a `+10..+20`). **O que justifica:** **#15** (wellness subjetivo no
-    alerta de sobrecarga) e **#16** (TSB-alvo de prova aprendido por
-    correlação).
+    `−5..+5` a `+10..+20`). **O que justifica:** **#15** (wellness objetivo —
+    métricas das plataformas — no alerta de sobrecarga) e **#16** (TSB-alvo de
+    prova aprendido por correlação).
 
 - 📊 **Benchmark (2026-09-24) — Pillar + Analog Sports (Ana)** — dois
   concorrentes de coaching com perfil oposto n/as reviews:

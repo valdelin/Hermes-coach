@@ -210,11 +210,11 @@ def _pace_hint(pace_sec, focus):
 
 
 def event_payload_run(workout, desc=None):
-    """Evento de corrida no calendario: `type: Run`, `target: HEART_RATE`.
+    """Evento de corrida no calendario: `type: Run`, `target: HR`.
 
     O Garmin (935 suporta) executa a sessao por zona de FC diretamente no
     relogio; `rftp_pace` so aparece como dica no texto. `.zwo` (ERG) nao se
-    aplica a corrida.
+    aplica a corrida. Nota: o Intervals usa o enum `HR` (nao `HEART_RATE`).
     """
     return {
         "start_date_local": f"{workout['day']}T{START_TIME}",
@@ -224,6 +224,6 @@ def event_payload_run(workout, desc=None):
         "description": desc or run_text(workout),
         "planned_duration": workout["planned_duration"],
         # corrida sem power meter: alvo por FC
-        "target": "HEART_RATE",
+        "target": "HR",
         "external_id": workout["external_id"],
     }
