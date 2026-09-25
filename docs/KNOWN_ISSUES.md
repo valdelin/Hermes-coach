@@ -39,6 +39,38 @@ como uma atividade** no feed:
 2. Apagar a fantasma no app ou via `DELETE /api/v1/activity/{id}` — seguro,
    pois é um registro órfão.
 
+### Não é específico do Hermes — limitação do Intervals
+
+- O gatilho do fantasma é o **pareamento de qualquer evento planejado** com uma
+  atividade real — não depende de quem criou o evento (API do Hermes, planner do
+  Zwift, biblioteca de treinos, outro app). Prova no fórum do Intervals: coaches
+  relatam treino planejado concluído "logging separately and creating a new
+  workout", e há feature request aberto (2026-08) para remover o bloco "Workout"
+  duplicado em atividades concluídas.
+- Observado em 2026-09-25: treinos agendados no **planner do Zwift** (ex.:
+  "Tempo 2026-09-29 (rescheduled)", "SweetSpot 2026-09-30", "Endurance
+  2026-10-02") chegam ao calendário com `workout_doc` e **sem `external_id`** → 
+  ficam fora do escopo do `reconcile`/`push` (não são `hermes-plan` nem órfãos);
+  se executados e pareados, espera-se o **mesmo fantasma**.
+- **Implicação para a limpeza futura:** detectar fantasmas por **conteúdo**
+  (`source: MANUAL`, sem `fit_file`, duração ≈ planejada), não pela origem do
+  evento — cobre eventos de qualquer criador.
+
+### Reconhecimento por `external_id` (gap para 2 treinos no mesmo dia)
+
+O `reconcile` marca "concluído" pelo `external_id` **começando com
+`hermes-plan`** (`_done_and_extra`, `orphan_external_ids`); hoje o plano é 1
+treino/dia (bike), então basta. Quando houver **2 treinos no mesmo dia**:
+
+- bike + bike: não ocorre hoje (1/dia); se ocorresse, os dois eventos de hermes
+  **colidiriam** no `external_id = hermes-plan-<dia>` do upsert.
+- bike + corrida (#18): o evento de corrida (`hermes-run-<dia>`) **não** começa
+  com `hermes-plan` → ao ser pareado entra como **treino fora do plano**
+  ("extra", `_done_and_extra`) → soma TSS e pode injetar recuperação + Limiar
+  −5% (`_adjust_for_extra_workouts`, efeito da dupla gravação — ver
+  `SYNC-PLATAFORMAS.md` §13). Ajuste futuro (#18): reconhecer por conjunto de
+  prefixos ou por `sport`/categoria do evento.
+
 ### Restrição de API
 
 Não existe endpoint de **merge** de atividades na API pública do Intervals

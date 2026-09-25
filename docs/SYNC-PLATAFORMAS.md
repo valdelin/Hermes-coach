@@ -268,6 +268,30 @@ Intervals e **ambas** importam o treino.
 - Ou simplesmente **não grave o ride no relógio** durante o Zwift (o Garmin
   segue sincronizando wellness normalmente).
 
+### Eventos agendados no planner do Zwift (duplicatas de calendário)
+
+Além da dupla gravação acima, o app do Zwift cria **eventos de treino no
+calendário do Intervals** quando você agenda um workout lá (ex.: "Tempo
+2026-09-29 (rescheduled)", "SweetSpot 2026-09-30", "Endurance 2026-10-02").
+Eles chegam com `workout_doc`, **sem `external_id`**, e **duplicam o dia** ao
+lado do evento `hermes-plan*` gerado pelo hermes.
+
+- O `reconcile` **não os remove** (não são `hermes-plan*` nem órfãos) — limpeza
+  manual via app ou API (bulk-delete por `id`).
+- Dia com **2 eventos planejados do mesmo esporte** confunde pareamento e
+  compliance: o Intervals soma o planejado do dia (mesmo esporte) e compara com
+  o real; o hermes também não os vê até serem pareados.
+- Se um desses eventos for executado e pareado com a atividade, o fantasma é o
+  **mesmo** do `KNOWN_ISSUES.md` #1 — limitação do Intervals, não do Hermes.
+- **Cross-sport no mesmo dia (ex.: ciclismo + corrida)**: o Intervals trata por
+  esporte (sem conflito). No hermes hoje o reconhecimento de "concluído" é por
+  prefixo `hermes-plan` (`src/plan.py::_done_and_extra`) — um evento `hermes-run-*`
+  pareado entraria como **treino fora do plano** (recuperação + Limiar −5%) até
+  o suporte do #18 (ver `KNOWN_ISSUES.md` #1).
+- **Prevenção**: não agendar no app do Zwift; usar só os eventos `hermes-plan*`
+  (baixar o `.zwo` no app). Os eventos do Zwift reaparecem sempre que você
+  agenda lá.
+
 ---
 
 ## Regras de ouro (vale para todas)
