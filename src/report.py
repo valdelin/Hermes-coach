@@ -263,6 +263,112 @@ def _theme_js():
 """
 
 
+def _chart_js():
+    """Tooltip tematico dos graficos (PMC + carga semanal).
+
+    Usa os design tokens da pagina (--surface/--ctl/--atl/--tsb/...), entao o
+    card segue o tema do relatorio e troca junto com ele (tecla T). Sem
+    dependencias: so DOM/SVG puro.
+    """
+    return """
+<script>
+  (function () {
+    function row(label, value, tok) {
+      return '<div class="tt-row"><span class="tt-dot" style="background:var('
+        + tok + ')"></span><span class="tt-muted">' + label + '</span>'
+        + '<span class="v">' + value + '</span></div>';
+    }
+    function place(card, ev, host) {
+      var r = host.getBoundingClientRect();
+      var x = ev.clientX - r.left + 14;
+      var y = ev.clientY - r.top - 14;
+      if (x + card.offsetWidth > r.width - 6) {
+        x = ev.clientX - r.left - card.offsetWidth - 14;
+      }
+      if (y + card.offsetHeight > r.height - 6) {
+        y = ev.clientY - r.top - card.offsetHeight - 14;
+      }
+      card.style.left = Math.max(4, x) + "px";
+      card.style.top = Math.max(4, y) + "px";
+    }
+    function fmtTsb(v) {
+      return (v > 0 ? "+" : "") + v.toFixed(1);
+    }
+    function attachPmc(svg) {
+      var host = svg.parentElement;
+      var card = host.querySelector(".tt-card");
+      var guide = svg.querySelector(".pmc-guide");
+      var line = guide.querySelector("line");
+      var dots = guide.querySelectorAll("circle");
+      var d = JSON.parse(svg.getAttribute("data-pmc"));
+      var n = d.days.length;
+      var denom = Math.max(n - 1, 1);
+      svg.addEventListener("mousemove", function (ev) {
+        var r = svg.getBoundingClientRect();
+        var vbX = (ev.clientX - r.left) / r.width * d.w;
+        var i = Math.round((vbX - d.ml) / d.pw * denom);
+        i = Math.max(0, Math.min(n - 1, i));
+        var x = d.ml + d.pw * i / denom;
+        var yOf = function (v) {
+          return d.mt + d.ph * (d.hi - v) / (d.hi - d.lo);
+        };
+        var vals = [d.ctl[i], d.atl[i], d.tsb[i]];
+        line.setAttribute("x1", x);
+        line.setAttribute("x2", x);
+        for (var k = 0; k < 3; k++) {
+          dots[k].setAttribute("cx", x);
+          dots[k].setAttribute("cy", yOf(vals[k]));
+        }
+        guide.setAttribute("visibility", "visible");
+        card.innerHTML = '<div class="tt-date">' + d.days[i] + '</div>'
+          + row("CTL", d.ctl[i].toFixed(1), "--ctl")
+          + row("ATL", d.atl[i].toFixed(1), "--atl")
+          + row("TSB", fmtTsb(d.tsb[i]), "--tsb");
+        card.classList.add("on");
+        place(card, ev, host);
+      });
+      svg.addEventListener("mouseleave", function () {
+        guide.setAttribute("visibility", "hidden");
+        card.classList.remove("on");
+      });
+    }
+    function attachLoad(svg) {
+      var host = svg.parentElement;
+      var card = host.querySelector(".tt-card");
+      var d = JSON.parse(svg.getAttribute("data-load"));
+      var n = d.days.length;
+      var ml = d.ml;
+      var slot = d.pw / Math.max(n, 1);
+      svg.addEventListener("mousemove", function (ev) {
+        var r = svg.getBoundingClientRect();
+        var vbX = (ev.clientX - r.left) / r.width * d.w;
+        var i = Math.floor((vbX - ml) / slot);
+        i = Math.max(0, Math.min(n - 1, i));
+        card.innerHTML = '<div class="tt-date">' + d.days[i] + '</div>'
+          + row("Carga", d.tss[i].toFixed(0) + " TSS", "--accent");
+        card.classList.add("on");
+        place(card, ev, host);
+      });
+      svg.addEventListener("mouseleave", function () {
+        card.classList.remove("on");
+      });
+    }
+    function init() {
+      var p = document.querySelectorAll("svg[data-pmc]");
+      for (var i = 0; i < p.length; i++) attachPmc(p[i]);
+      var l = document.querySelectorAll("svg[data-load]");
+      for (var j = 0; j < l.length; j++) attachLoad(l[j]);
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  })();
+</script>
+"""
+
+
 def _page(title, body, slug):
     return f"""<!doctype html>
 <html lang="pt-BR" data-theme="{slug}"><head>
@@ -385,6 +491,27 @@ def _page(title, body, slug):
   .gp-bara {{ stop-color: var(--accent); }}
   .gp-barb {{ stop-color: var(--accent-2); }}
 
+  .pmc-chart, .load-chart {{ position: relative; }}
+  .pmc-hit, .load-hit {{ cursor: crosshair; }}
+  .pmc-guide line {{ stroke: var(--grid); stroke-width: 1; }}
+  .pmc-dot {{ fill: var(--surface); stroke: var(--surface); stroke-width: 2; }}
+  .pmc-dot.sc {{ fill: var(--ctl); }}
+  .pmc-dot.sa {{ fill: var(--atl); }}
+  .pmc-dot.ss {{ fill: var(--tsb); }}
+  .tt-card {{ position: absolute; z-index: 20; pointer-events: none;
+              opacity: 0; min-width: 132px; background: var(--surface);
+              color: var(--text); border: 1px solid var(--border);
+              border-radius: 10px; padding: 7px 11px; font-size: .78rem;
+              line-height: 1.5; box-shadow: 0 10px 28px -10px var(--shadow);
+              transition: opacity .08s; }}
+  .tt-card.on {{ opacity: 1; }}
+  .tt-date {{ font-weight: 700; margin-bottom: 3px; font-size: .8rem; }}
+  .tt-row {{ display: flex; align-items: center; gap: 6px;
+             font-variant-numeric: tabular-nums; }}
+  .tt-dot {{ width: 8px; height: 8px; border-radius: 50%; flex: none; }}
+  .tt-row .v {{ margin-left: auto; padding-left: 14px; font-weight: 700; }}
+  .tt-muted {{ color: var(--muted); }}
+
   .table-wrap {{ overflow-x: auto; }}
   table {{ border-collapse: collapse; width: 100%; font-size: .86rem; }}
   th, td {{ padding: 8px 10px; text-align: left; white-space: nowrap;
@@ -405,7 +532,7 @@ def _page(title, body, slug):
     footer {{ page-break-inside: avoid; }}
   }}
 </style>
-</head><body>{body}{_theme_js()}</body></html>
+</head><body>{body}{_theme_js()}{_chart_js()}</body></html>
 """
 
 
@@ -535,6 +662,11 @@ def _pmc_svg(pmc_rows, width=760, height=320):
 
     As cores vêm dos tokens da página (classes `sc`/`sa`/`ss` + `--ctl`/...),
     então o SVG troca de tema junto com a página sem regerar nada.
+
+    Cada serie carrega o tooltip tematico via JS (`_chart_js`): o SVG embute
+    os dados (`data-pmc`), uma linha-guia vertical com um ponto por serie
+    (`pmc-guide`) e um retangulo invisivel que captura o mouse (`pmc-hit`);
+    o card (`.tt-card`) usa os tokens da pagina e acompanha o tema.
     """
     ml, mr, mt, mb = 46, 14, 16, 30
     pw, ph = width - ml - mr, height - mt - mb
@@ -621,9 +753,28 @@ def _pmc_svg(pmc_rows, width=760, height=320):
             last_dot(ctl_pts, "sc"), last_dot(atl_pts, "sa"),
             last_dot(tsb_pts, tsb_zone_cls),
         ]))
-    return (f'<svg viewBox="0 0 {width} {height}" '
-            f'xmlns="http://www.w3.org/2000/svg" role="img" '
-            f'aria-label="PMC CTL ATL TSB">{defs}{"".join(grid)}{body_svg}</svg>')
+    guide = (
+        f'<g class="pmc-guide" visibility="hidden">'
+        f'<line x1="0" y1="{mt}" x2="0" y2="{mt + ph}" class="gl"/>'
+        f'<circle class="pmc-dot sc" r="4.5"/>'
+        f'<circle class="pmc-dot sa" r="4.5"/>'
+        f'<circle class="pmc-dot ss" r="4.5"/>'
+        f'</g>')
+    hit = (f'<rect class="pmc-hit" x="{ml}" y="{mt}" width="{pw}" '
+           f'height="{ph}" fill="transparent" pointer-events="all"/>')
+    payload = json.dumps({
+        "days": [str(r[0]) for r in pmc_rows],
+        "ctl": ctl, "atl": atl, "tsb": tsb,
+        "w": width, "ml": ml, "mt": mt, "pw": pw, "ph": ph,
+        "lo": lo, "hi": hi,
+    })
+    svg = (f'<svg viewBox="0 0 {width} {height}" '
+           f'xmlns="http://www.w3.org/2000/svg" role="img" '
+           f'aria-label="PMC CTL ATL TSB" data-pmc=\'{payload}\'>'
+           f'{defs}{"".join(grid)}{body_svg}{guide}{hit}</svg>')
+    return (f'<div class="pmc-chart">{svg}'
+            f'<div class="tt-card" role="status" aria-live="polite"></div>'
+            f'</div>')
 
 
 def _tsb_paths(pts, values):
@@ -681,10 +832,11 @@ def _smooth_d(pts):
 
 
 def _load_svg(weeks, width=760, height=240):
-    """Barras verticais com gradiente, rotulos e titulo hover.
+    """Barras verticais com gradiente, rotulos e tooltip tematico.
 
     Mesma logica do `_pmc_svg`: cor vem das classes/tokens, o tema troca na
-    hora sem regenerar o SVG.
+    hora sem regenerar o SVG; o card do tooltip (`.tt-card`) e o JS de
+    `_chart_js` (`data-load` + `load-hit`).
     """
     ml, mr, mt, mb = 46, 14, 20, 34
     pw, ph = width - ml - mr, height - mt - mb
@@ -718,12 +870,9 @@ def _load_svg(weeks, width=760, height=240):
         cx = ml + slot * i + slot / 2
         bh = ph * tss / vmax
         by = mt + ph - bh
-        title = (f'{monday:%d/%m/%Y} ({monday.year}-W{monday.isocalendar().week}) '
-                 f'{tss:.0f} TSS')
         bars.append(
             f'<rect x="{cx - bw / 2:.1f}" y="{by:.1f}" width="{bw:.1f}" '
-            f'height="{max(bh, 2):.1f}" rx="5" fill="url(#loadBar)">'
-            f'<title>{_e(title)}</title></rect>')
+            f'height="{max(bh, 2):.1f}" rx="5" fill="url(#loadBar)"/>')
         bars.append(
             f'<text class="tb" x="{cx:.1f}" y="{by - 6:.1f}" font-size="11" '
             f'font-weight="700" text-anchor="middle">{tss:.0f}</text>')
@@ -731,10 +880,21 @@ def _load_svg(weeks, width=760, height=240):
             f'<text class="tc" x="{cx:.1f}" y="{height - 9}" font-size="11" '
             f'text-anchor="middle">{monday.day:02d}/{monday.month:02d}</text>')
 
-    return (f'<svg viewBox="0 0 {width} {height}" '
-            f'xmlns="http://www.w3.org/2000/svg" role="img" '
-            f'aria-label="Carga semanal">'
-            f'{"".join(grid)}{"".join(bars)}</svg>')
+    hit = (f'<rect class="load-hit" x="{ml}" y="{mt}" width="{pw}" '
+           f'height="{ph}" fill="transparent" pointer-events="all"/>')
+    payload = json.dumps({
+        "days": [f"{monday:%d/%m/%Y} (W{monday.isocalendar().week:02d})"
+                 for monday, _ in weeks],
+        "tss": [tss for _, tss in weeks],
+        "w": width, "ml": ml, "pw": pw,
+    })
+    svg = (f'<svg viewBox="0 0 {width} {height}" '
+           f'xmlns="http://www.w3.org/2000/svg" role="img" '
+           f'aria-label="Carga semanal" data-load=\'{payload}\'>'
+           f'{"".join(grid)}{"".join(bars)}{hit}</svg>')
+    return (f'<div class="load-chart">{svg}'
+            f'<div class="tt-card" role="status" aria-live="polite"></div>'
+            f'</div>')
 
 
 def _today():

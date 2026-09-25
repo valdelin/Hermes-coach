@@ -157,6 +157,24 @@ class RenderHtmlTest(unittest.TestCase):
         self.assertIn("0", html)
         self.assertEqual(html.count(' role="img"'), 0)
 
+    def test_graficos_embutem_tooltip_tematico(self):
+        """Os cards de hover usam os tokens do tema (var(--surface)/--ctl/...)
+        e o JS vem embutido -- popup acompanha o tema, sem <title> nativo."""
+        agg = summarize(_rows())
+        html = report.render_summary_html(
+            title="R", start=date(2026, 9, 17), end=date(2026, 9, 23),
+            agg=agg, rows=_rows(), pmc_rows=_pmc_rows(), weeks=_weeks())
+        self.assertIn("tt-card", html)
+        self.assertIn("pmc-hit", html)
+        self.assertIn("load-hit", html)
+        self.assertIn("attachPmc", html)
+        self.assertIn("attachLoad", html)
+        self.assertIn("data-pmc=", html)
+        self.assertIn("data-load=", html)
+        self.assertIn("var(--surface)", html)  # card segue o tema
+        # so o <title> do documento; os SVGs nao tem <title> nativo do browser
+        self.assertEqual(html.count("<title>"), 1)
+
 
 class WriteTest(unittest.TestCase):
     def test_html_escreve_direto(self):
@@ -188,6 +206,61 @@ class WriteTest(unittest.TestCase):
             with mock.patch("subprocess.run", run):
                 with self.assertRaises(subprocess.CalledProcessError):
                     report.write(path, "<h1>oi</h1>")
+
+
+class PmcSvgHoverTest(unittest.TestCase):
+    """Tooltip tematico do PMC: o SVG embute os dados (`data-pmc`), a
+    linha-guia com os pontos por serie (`pmc-guide`), o alvo de mouse
+    (`pmc-hit`) e o card (`.tt-card`) que o JS preenche com o tema."""
+
+    ROWS = [
+        ("2026-09-01", 10.0, 20.0, -10.0),
+        ("2026-09-08", 12.5, 25.0, -12.5),
+        ("2026-09-15", 15.0, 30.0, -15.0),
+        ("2026-09-22", 17.5, 35.0, -17.5),
+    ]
+
+    def _payload(self, svg):
+        import json as _json
+        import re
+        m = re.search(r"data-pmc='([^']*)'", svg)
+        self.assertIsNotNone(m, "svg deve embutir data-pmc")
+        return _json.loads(m.group(1))
+
+    def test_svg_embute_dados_e_alvo_de_hover(self):
+        from src.report import _pmc_svg
+        svg = _pmc_svg(self.ROWS)
+        self.assertIn('class="pmc-hit"', svg)
+        self.assertIn('pointer-events="all"', svg)
+        self.assertIn('class="pmc-guide"', svg)
+        self.assertIn('class="tt-card"', svg)
+        self.assertNotIn("<title>", svg)  # tooltip nativo removido
+
+    def test_payload_cobre_todas_as_series(self):
+        from src.report import _pmc_svg
+        d = self._payload(_pmc_svg(self.ROWS))
+        self.assertEqual(len(d["days"]), 4)
+        self.assertEqual(d["days"][-1], "2026-09-22")
+        self.assertEqual(d["ctl"], [10.0, 12.5, 15.0, 17.5])
+        self.assertEqual(d["atl"], [20.0, 25.0, 30.0, 35.0])
+        self.assertEqual(d["tsb"], [-10.0, -12.5, -15.0, -17.5])
+
+    def test_guia_tem_uma_linha_e_tres_pontos(self):
+        from src.report import _pmc_svg
+        svg = _pmc_svg(self.ROWS)
+        guide = svg.split('class="pmc-guide"')[1].split("</g>")[0]
+        self.assertEqual(guide.count("<line"), 1)
+        self.assertEqual(guide.count("<circle"), 3)
+        # um ponto por serie, nas cores do tema
+        self.assertIn('class="pmc-dot sc"', guide)
+        self.assertIn('class="pmc-dot sa"', guide)
+        self.assertIn('class="pmc-dot ss"', guide)
+
+    def test_serie_unica_embute_dados(self):
+        from src.report import _pmc_svg
+        svg = _pmc_svg([("2026-09-01", 10.0, 20.0, -10.0)])
+        d = self._payload(svg)
+        self.assertEqual(len(d["days"]), 1)
 
 
 if __name__ == "__main__":
