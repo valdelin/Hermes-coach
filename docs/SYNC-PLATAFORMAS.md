@@ -249,6 +249,15 @@ Intervals e **ambas** importam o treino.
 4. Alternativa **sem excluir dados**: editar a duplicata e **zerar o load**
    (a atividade sai do PMC e do painel de carga, mas o registro permanece).
 
+> **Parear é como o treino planejado "recebe" os dados reais.** O Intervals
+> **não sobrescreve** o conteúdo do evento planejado com o FIT; ele **pareia**
+> evento ↔ atividade: o evento vira "feito" e passa a exibir os dados **reais**
+> (TSS/duração vêm da atividade pareada), mantendo a estrutura planejada como
+> referência e mostrando **planejado vs real** ("Show paired workout"). Não há
+> **merge** de dois FITs diferentes (ex.: power do Zwift + FC do Garmin numa
+> única atividade) — apenas edição da atividade mantida ou fusão externa dos
+> arquivos antes do upload.
+
 ### Prevenção (regra de ouro 1)
 
 - **Uma fonte de rides por treino.** Configure o filtro de tipos em
