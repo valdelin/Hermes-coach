@@ -226,10 +226,14 @@ Intervals e **ambas** importam o treino.
   2. o ride **Zwift** (completo) e
   3. o ride **Garmin** (completo) → **ambos contam TSS/load** → a carga do dia
      fica **~2× a real**, inflando CTL/ATL/TSB.
-- **Efeito no hermes-coach** (lê a API do Intervals): `recovery`/`build
-  --recovery` usam a carga do dia (CTL inflado); `reconcile` vê o ride do
-  Garmin como **treino extra fora do plano** e pode injetar recuperação +
-  Limiar −5% sem motivo (`src/plan.py::_adjust_for_extra_workouts`).
+- **Efeito no hermes-coach** (lê a API do Intervals): a carga duplicada
+  **infla** `avg_load` e o CTL/ATL usados por `build`/`recovery`. O ride **não
+  pareado** (o que ficou de fora do pareamento) é **invisível** para o
+  `reconcile` — `_done_and_extra` só lê `paired_activity_id`, nunca
+  `activity_id`, então ride solto não vira "extra" nem gera recuperação/Limiar.
+  O risco de "extra → recuperação" existe apenas se um **segundo treino
+  planejado** não-hermes (ex.: planner do Zwift) for executado e pareado
+  (ver `KNOWN_ISSUES.md` #1).
 
 ### Como detectar
 
@@ -291,7 +295,9 @@ lado do evento `hermes-plan*` gerado pelo hermes.
   entra como **treino fora do plano**: só vira recuperação + Limiar −5% quando
   a soma dos extras dos últimos 7 dias alcança o cap diário
   (`max(35, min(200, avg_load * 0.95))`), mesmo que o treino estivesse
-  planejado (multi-esporte é o #18; ver `KNOWN_ISSUES.md` #1).
+  planejado (multi-esporte é o #18; ver `KNOWN_ISSUES.md` #1). Já um **ride
+  solto sem evento planejado** (ex.: pedal outdoor gravado no Garmin, outro
+  pedal do dia sem agenda) é invisível ao `reconcile` — só sobe o `avg_load`.
 - **Prevenção**: não agendar no app do Zwift; usar só os eventos `hermes-plan*`
   (baixar o `.zwo` no app). Os eventos do Zwift reaparecem sempre que você
   agenda lá.

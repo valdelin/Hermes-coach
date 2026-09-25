@@ -70,6 +70,16 @@ plano"** vale para **qualquer evento pareado cujo `external_id` não comece com
 - treino do planner do Zwift executado e pareado (§13 do
   `SYNC-PLATAFORMAS.md`).
 
+**O que NÃO conta como extra:** um **ride solto sem evento planejado** (ex.:
+pedal outdoor no Garmin sem agenda, ou segundo pedal do dia apenas gravado)
+não entra em `_done_and_extra` — a função só itera eventos de calendário com
+`paired_activity_id` (nunca lê `activity_id`); atividade não pareada cai no
+`if not paired: continue` e é **invisível** ao reconcile. Seu único efeito no
+hermes é subir o `avg_load` (via `icu_training_load`), elevando levemente o
+cap/budget (×0.95) — **nunca** gera recuperação/Limiar. A natureza do esforço
+(com/sem potência, horário, indoor/outdoor) **não é lida**; só a magnitude do
+`load` importa para comparar com o cap na janela.
+
 O gatilho **não é por treino individual**, e sim por **acúmulo na janela de 7
 dias**: `_adjust_for_extra_workouts` soma a carga dos extras e só age se
 `soma >= cap`, com `cap = max(35, min(200, avg_load * 0.95))`. Com `avg_load`
@@ -81,8 +91,9 @@ Ajuste futuro (#18, multi-esporte): o reconcile precisa conhecer **o que o
 hermes planejou** — unificar bike/run/swim no mesmo `plan.json` (cada treino
 com seu prefixo ou marcado por `sport`) e fazer `_done_and_extra`/
 `orphan_external_ids` reconhecerem o **conjunto de prefixos hermes**; o "extra"
-passa a existir só para o que é **genuinamente não-planejado** (rides soltos,
-dupla gravação).
+fica restrito a eventos planejados por outras fontes (planner do Zwift,
+manuais) executados e pareados — rides soltos continuam invisíveis (não são
+eventos).
 
 Conflito de `external_id` no mesmo dia:
 - bike + bike: não ocorre hoje (1/dia); se ocorresse, os dois eventos
