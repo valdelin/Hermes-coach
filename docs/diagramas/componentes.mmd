@@ -1,15 +1,16 @@
 flowchart LR
     subgraph CLI["CLI — src/training_plan.py"]
-        CMD["info | ftp-check | ftp-scan | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
+        CMD["info | ftp-check | ftp-scan | check | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
     end
 
     subgraph CORE["Motor de coaching"]
         COACH["coach.py<br/>métricas · foco · prescrição"]
-        PLAN["plan.py<br/>build_plan · reconcile · event_payload"]
+        PLAN["plan.py<br/>build_plan · PERIODIZATION · reconcile · event_payload"]
         IR["impulse_response.py<br/>CTL/ATL/TSB local"]
         FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
         AS["activity_summary.py<br/>resumo por período · pareamento"]
         REC["recovery.py<br/>PMC real + prazo de retorno + rampa"]
+        RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
     end
 
     subgraph REPORT["Relatório (#21)"]
@@ -19,10 +20,10 @@ flowchart LR
     end
 
     subgraph API["intervals_client.py"]
-        CLIENT["IntervalsClient<br/>events · wellness · activities · streams · sport-settings"]
+        CLIENT["IntervalsClient<br/>events · wellness · activities · streams · sport-settings<br/>(retry/backoff em falhas transitórias)"]
     end
 
-    ENV[".env<br/>credenciais · FTP · agenda · GOAL"]
+    ENV[".env<br/>credenciais · FTP · agenda · GOAL · PERIODIZATION<br/>COACH_WEBHOOK (alerta doença)"]
     PLANFILE["plan.json<br/>plano + meta"]
     SH["scripts/daily_reconcile.sh<br/>(timer systemd meia-noite)"]
 
@@ -35,6 +36,7 @@ flowchart LR
     CMD --> FTPS
     CMD --> AS
     CMD --> REC
+    CMD --> RD
     CMD --> CH
     CMD --> RP
     COACH --> IR
@@ -42,8 +44,10 @@ flowchart LR
     PLAN --> PLANFILE
     COACH --> ENV
     PLAN --> ENV
+    RD --> ENV
     AS --> CLIENT
     REC --> CLIENT
+    RD --> CLIENT
     CLIENT --> INTERVALS
     INTERVALS <--> APPS
     SH --> CMD

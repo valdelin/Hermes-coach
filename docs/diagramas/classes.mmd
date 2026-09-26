@@ -60,6 +60,16 @@ classDiagram
         +time_to_target(ctl_now, target, ramp, ...)
         +safe_ramp(target_ctl, weeks, ...)
     }
+    class Readiness {
+        +dict signals
+        +bool illness
+        +str reason
+        +bool has_data
+        +assess_readiness(records, days)
+        +suggest_swap(readiness, planned_today)
+        +recovery_workout(day, ftp) -> PlannedWorkout
+        +coach_alert_payload(atleta_id, readiness, today)
+    }
     class SummaryAgg {
         +int workouts
         +float load
@@ -85,6 +95,8 @@ classDiagram
     ImpulseResponseEngine --> Metrics : computa local
     FTPScan --> IntervalsClient : streams + atividades
     Recovery --> IntervalsClient : eventos históricos
+    Readiness --> IntervalsClient : wellness (RHR/HRV/sono)
+    Readiness --> PlannedWorkout : recovery_workout (check --apply)
     SummaryAgg <-- IntervalsClient : atividades pareadas
     ReportRenderer --> ThemeKit : 22 temas (CSS vars)
     ReportRenderer --> SummaryAgg : cards + tabela

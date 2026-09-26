@@ -8,9 +8,21 @@ sequenceDiagram
     C->>I: GET /events (60d)
     I-->>C: histórico
     C->>C: latest_metrics → TSB
-    C->>C: build_plan (GOAL + WEEKLY_BY_TSB +<br/>WEEKLY_HOURS + LONG_DAY + budget TSS)
+    C->>C: build_plan (GOAL + PERIODIZATION +<br/>WEEKLY_BY_TSB + WEEKLY_HOURS +<br/>LONG_DAY + budget TSS)
     Note over C: preserva treino de hoje<br/>do plano anterior
     C->>P: salva plan.json (treinos + meta)
+
+    U->>C: check --apply (opcional, v0.0.27)
+    C->>I: GET /wellness (janela)
+    I-->>C: RHR · HRV · sono · readiness
+    C->>C: assess_readiness → sinais
+    alt possível início de doença
+        C-->>U: ALERTA: RHR 2+ noites + HRV caindo
+        C->>C: COACH_WEBHOOK (se configurado)
+    end
+    C->>C: sugere troca por recuperação Z2?
+    Note over C: decisão é do atleta —<br/>nunca impõe
+    C->>P: check --apply: substitui treino de hoje
 
     U->>C: reconcile --show
     C->>I: GET /events (janela)

@@ -1,6 +1,6 @@
 # Diagramas UML — Hermes Coach
 
-Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.25).
+Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.27).
 Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
 fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
 
@@ -8,13 +8,14 @@ Legenda rápida dos módulos:
 
 | Módulo | Responsabilidade |
 |---|---|
-| `src/training_plan.py` | CLI: `info` / `ftp-check` / `ftp-scan` / `model` / `recovery` / `build` / `adherence` / `summary` / `reconcile` / `push` / `all` |
+| `src/training_plan.py` | CLI: `info` / `ftp-check` / `ftp-scan` / `check` / `model` / `recovery` / `build` / `adherence` / `summary` / `reconcile` / `push` / `all` |
 | `src/coach.py` | Métricas (TSB/CTL/ATL), foco do dia, prescrição (`WorkoutParams`), TSS estimado |
-| `src/plan.py` | Plano semanal (`build_plan`), ajuste por carga (`_fit_budget`), `reconcile`, texto do treino, `event_payload` |
+| `src/plan.py` | Plano semanal (`build_plan` + `PERIODIZATION`), ajuste por carga (`_fit_budget`), `reconcile`, texto do treino, `event_payload` |
 | `src/impulse_response.py` | Motor Banister local (CTL/ATL/TSB) + séries diárias de TSS |
-| `src/intervals_client.py` | Cliente da API do Intervals.icu (events, wellness, activities, streams, sport-settings) |
+| `src/intervals_client.py` | Cliente da API do Intervals.icu (events, wellness, activities, streams, sport-settings) com retry/backoff |
 | `src/ftp_scan.py` / `ftp_estimation.py` | Análise de treinos fora do plano → proposta de FTP (20min × 0,95) |
 | `src/recovery.py` | Retorno a forma: PMC real (EWMA 42/7) + prazo + rampa segura com deload |
+| `src/readiness.py` | Prontidão do dia (`check`): sinais de wellness (RHR/HRV/sono) → sugestão de troca por recuperação + alerta de início de doença (+ `COACH_WEBHOOK`) |
 | `src/activity_summary.py` | Resumo dos treinos feitos por dia/semana/mês (`summary`) |
 | `src/charts.py` | Gráficos em texto: PMC trailing 90d + carga semanal (TSS/ISO) |
 | `src/report.py` | Relatório com gráficos SVG: HTML direto / PDF via chromium headless (`--export`) |
@@ -29,16 +30,17 @@ Legenda rápida dos módulos:
 ```mermaid
 flowchart LR
     subgraph CLI["CLI — src/training_plan.py"]
-        CMD["info | ftp-check | ftp-scan | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
+        CMD["info | ftp-check | ftp-scan | check | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
     end
 
     subgraph CORE["Motor de coaching"]
         COACH["coach.py<br/>métricas · foco · prescrição"]
-        PLAN["plan.py<br/>build_plan · reconcile · event_payload"]
+        PLAN["plan.py<br/>build_plan · PERIODIZATION · reconcile · event_payload"]
         IR["impulse_response.py<br/>CTL/ATL/TSB local"]
         FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
         AS["activity_summary.py<br/>resumo por período · pareamento"]
         REC["recovery.py<br/>PMC real + prazo de retorno + rampa"]
+        RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
     end
 
     subgraph REPORT["Relatório (#21)"]
@@ -48,10 +50,10 @@ flowchart LR
     end
 
     subgraph API["intervals_client.py"]
-        CLIENT["IntervalsClient<br/>events · wellness · activities · streams · sport-settings"]
+        CLIENT["IntervalsClient<br/>events · wellness · activities · streams · sport-settings<br/>(retry/backoff em falhas transitórias)"]
     end
 
-    ENV[".env<br/>credenciais · FTP · agenda · GOAL"]
+    ENV[".env<br/>credenciais · FTP · agenda · GOAL · PERIODIZATION<br/>COACH_WEBHOOK (alerta doença)"]
     PLANFILE["plan.json<br/>plano + meta"]
     SH["scripts/daily_reconcile.sh<br/>(timer systemd meia-noite)"]
 
@@ -64,6 +66,7 @@ flowchart LR
     CMD --> FTPS
     CMD --> AS
     CMD --> REC
+    CMD --> RD
     CMD --> CH
     CMD --> RP
     COACH --> IR
@@ -71,8 +74,10 @@ flowchart LR
     PLAN --> PLANFILE
     COACH --> ENV
     PLAN --> ENV
+    RD --> ENV
     AS --> CLIENT
     REC --> CLIENT
+    RD --> CLIENT
     CLIENT --> INTERVALS
     INTERVALS <--> APPS
     SH --> CMD
@@ -131,9 +136,21 @@ sequenceDiagram
     C->>I: GET /events (60d)
     I-->>C: histórico
     C->>C: latest_metrics → TSB
-    C->>C: build_plan (GOAL + WEEKLY_BY_TSB +<br/>WEEKLY_HOURS + LONG_DAY + budget TSS)
+    C->>C: build_plan (GOAL + PERIODIZATION +<br/>WEEKLY_BY_TSB + WEEKLY_HOURS +<br/>LONG_DAY + budget TSS)
     Note over C: preserva treino de hoje<br/>do plano anterior
     C->>P: salva plan.json (treinos + meta)
+
+    U->>C: check --apply (opcional, v0.0.27)
+    C->>I: GET /wellness (janela)
+    I-->>C: RHR · HRV · sono · readiness
+    C->>C: assess_readiness → sinais
+    alt possível início de doença
+        C-->>U: ALERTA: RHR 2+ noites + HRV caindo
+        C->>C: COACH_WEBHOOK (se configurado)
+    end
+    C->>C: sugere troca por recuperação Z2?
+    Note over C: decisão é do atleta —<br/>nunca impõe
+    C->>P: check --apply: substitui treino de hoje
 
     U->>C: reconcile --show
     C->>I: GET /events (janela)
@@ -218,6 +235,16 @@ classDiagram
         +time_to_target(ctl_now, target, ramp, ...)
         +safe_ramp(target_ctl, weeks, ...)
     }
+    class Readiness {
+        +dict signals
+        +bool illness
+        +str reason
+        +bool has_data
+        +assess_readiness(records, days)
+        +suggest_swap(readiness, planned_today)
+        +recovery_workout(day, ftp) -> PlannedWorkout
+        +coach_alert_payload(atleta_id, readiness, today)
+    }
     class SummaryAgg {
         +int workouts
         +float load
@@ -243,6 +270,8 @@ classDiagram
     ImpulseResponseEngine --> Metrics : computa local
     FTPScan --> IntervalsClient : streams + atividades
     Recovery --> IntervalsClient : eventos históricos
+    Readiness --> IntervalsClient : wellness (RHR/HRV/sono)
+    Readiness --> PlannedWorkout : recovery_workout (check --apply)
     SummaryAgg <-- IntervalsClient : atividades pareadas
     ReportRenderer --> ThemeKit : 22 temas (CSS vars)
     ReportRenderer --> SummaryAgg : cards + tabela
@@ -258,24 +287,27 @@ Fluxo do `build`: do histórico ao plano publicado.
 ```mermaid
 flowchart TD
     A["GET /events (histórico)"] --> B["latest_metrics → TSB atual"]
-    B --> C{"GOAL no .env?"}
-    C -- "não" --> D["WEEKLY_BY_TSB<br/>(padrão por TSB)"]
-    C -- "sim" --> E["GOAL_TEMPLATES[goal]<br/>(ex.: race exige RACE_DATE)"]
+    B --> C{"PERIODIZATION no .env?"}
+    C -- "sim" --> D["PERIODIZATION_TEMPLATES[p]<br/>(polarized|pyramidal|undulating|linear|block)"]
+    C -- "não" --> E{"GOAL no .env?"}
+    E -- "não" --> F["WEEKLY_BY_TSB<br/>(padrão por TSB)"]
+    E -- "sim" --> G["GOAL_TEMPLATES[goal]<br/>(ex.: race exige RACE_DATE)"]
 
-    D --> F["escolhe template semanal<br/>pela faixa de TSB"]
-    E --> F
-    F --> G["preenche slots de TREINO<br/>(TRAINING_DAYS)"]
-    G --> H{"WEEKLY_HOURS?"}
-    H -- "sim" --> I["escala on_sec<br/>(0.5x–1.5x, min 120s)"]
-    H -- "não" --> J["sem ajuste de volume"]
-    I --> K{"LONG_DAY?"}
-    J --> K
-    K -- "sim" --> L["rotaciona ciclo → treino longo<br/>no dia preferido (ou mais próximo)"]
-    K -- "não" --> M["posição natural do foco"]
-    L --> N["_fit_budget: TSS 7d ≤ cap×7<br/>(encurta on_sec, depois on_power)"]
-    M --> N
-    N --> O["salva plan.json<br/>(preserva treino de hoje + meta)"]
-    O --> P["push → POST /events/bulk?upsert=true<br/>(limpa órfãos antes)"]
+    D --> H["escolhe template semanal<br/>pela faixa de TSB"]
+    F --> H
+    G --> H
+    H --> I["preenche slots de TREINO<br/>(TRAINING_DAYS)"]
+    I --> J{"WEEKLY_HOURS?"}
+    J -- "sim" --> K["escala on_sec<br/>(0.5x–1.5x, min 120s)"]
+    J -- "não" --> L["sem ajuste de volume"]
+    K --> M{"LONG_DAY?"}
+    L --> M
+    M -- "sim" --> N["rotaciona ciclo → treino longo<br/>no dia preferido (ou mais próximo)"]
+    M -- "não" --> O["posição natural do foco"]
+    N --> P["_fit_budget: TSS 7d ≤ cap×7<br/>(encurta on_sec, depois on_power)"]
+    O --> P
+    P --> Q["salva plan.json<br/>(preserva treino de hoje + meta)"]
+    Q --> R["push → POST /events/bulk?upsert=true<br/>(limpa órfãos antes)"]
 ```
 
 ---
@@ -287,12 +319,14 @@ stateDiagram-v2
     [*] --> Planejado : build + push (external_id hermes-plan-*)
     Planejado --> Feito : atividade pareada (paired_activity_id)
     Planejado --> Perdido : passa do dia + sem atividade
+    Planejado --> Trocado : check --apply (prontidão abaixo)<br/>recuperação Z2 curta no lugar
     Perdido --> Ajustado : reconcile insere recuperação<br/>e reduz próximo Limiar -5%
     Planejado --> Extra : atividade fora do plano (não-hermes)
     Extra --> Leve : carga ok → plano mantido
     Extra --> Pesado : carga ≥ cap diário (7d)
     Pesado --> Ajustado : recuperação + limiar
     Ajustado --> Feito : treino executado
+    Trocado --> Feito : recuperação executada
     Perdido --> [*] : fim da janela do plano
     Feito --> [*]
 ```
@@ -301,10 +335,12 @@ stateDiagram-v2
 
 ## Notas
 
-- Diagramas gerados a partir do código real (`src/*.py`, v0.0.25, 278 testes OK) —
+- Diagramas gerados a partir do código real (`src/*.py`, v0.0.27, 341 testes OK) —
   não são genéricos. Se o código mudar, atualize aqui junto.
 - Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli.
 - O `.zwo` **não é gerado localmente** (o Intervals monta no app a partir do
   texto de `description`).
 - `plan.json` guarda a meta (goal, race_date, ftp_test_date, ftp_candidates)
   além dos treinos — o `reconcile` reescreve os dias sem mudar o tamanho do plano.
+- A periodização (`PERIODIZATION`) é lida do `.env` no momento do `build` —
+  não fica persistida na meta do `plan.json`.
