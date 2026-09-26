@@ -223,12 +223,23 @@ calendario.
   semanas, teto = carga que sustenta o CTL-alvo). Para gerar os treinos
   respeitando esses tetos, rode `build --recovery`.
 - `summary` — **resumo dos treinos realizados** por período (dia/semana/mês,
-  janela terminando no dia-ancla, por padrão ontem): sessões, carga total
+  trimestre/semestre/ano, duração livre `45d`/`6m`/`1y`, `plan` e `custom`),
+  janela terminando no dia-ancla, por padrão ontem: sessões, carga total
   (TSS), tempo, distância, elevação, potência média/NP e FC média, com o
   detalhe de cada treino feito. Usa só atividades pareadas — o
-  planejado-não-feito fica fora. **Gráficos** opcionais no espírito do
-  "Advanced Progress Tracking": `--chart auto` (padrão) traz o **PMC** dos
-  últimos 90 dias (CTL/ATL/TSB em sparklines, escala compartilhada) e a
+  planejado-não-feito fica fora. **Períodos:**
+  - `--period month` / `quarter` / `semester` / `year` — nomes prontos
+    (30/90/180/365 dias);
+  - `--period 45d` / `6m` / `1y` — duração livre (d = dias, m = meses, y =
+    anos);
+  - `--period plan` — do primeiro ao último dia do plano salvo (relatório
+    final do ciclo);
+  - `--period custom --start 2026-08-18 --end 2026-09-24` — intervalo
+    explícito.
+  **Gráficos** opcionais no espírito do
+  "Advanced Progress Tracking": `--chart auto` (padrão) traz o **PMC**
+  (CTL/ATL/TSB em sparklines, escala compartilhada; a janela acompanha o
+  período, piso de 90 dias) e a
   **carga semanal** (barras de TSS/semana ISO); `--chart none|pmc|load|all`
   escolhe o modo. **`--export arquivo`** gera o relatório com gráficos SVG:
   `.html` salva direto; `.pdf` renderiza o mesmo HTML no **chromium headless**
@@ -288,6 +299,11 @@ python3 src/training_plan.py build --no-power            # modo FC: alvos em %FT
 python3 src/training_plan.py adherence --show            # cumprimento semanal do plano
 python3 src/training_plan.py recovery                    # retorno a forma: estimativa + rampa segura
 python3 src/training_plan.py summary --period week       # resumo da semana + gráficos (PMC 90d, carga semanal)
+python3 src/training_plan.py summary --period semester --export relatorio-6m.html   # relatório de 6 meses
+python3 src/training_plan.py summary --period year       # resumo do ano (365 dias)
+python3 src/training_plan.py summary --period 6m         # duração livre (6 meses)
+python3 src/training_plan.py summary --period plan       # do início ao fim do plano salvo
+python3 src/training_plan.py summary --period custom --start 2026-08-18 --end 2026-09-24  # intervalo explícito
 python3 src/training_plan.py summary --chart none        # só os números, sem gráficos
 python3 src/training_plan.py summary --export resumo.html  # relatório com gráficos SVG
 python3 src/training_plan.py summary --export resumo.pdf   # PDF via chromium headless
