@@ -601,11 +601,12 @@ def _fmt_weeks(weeks):
 
 
 def cmd_summary(args):
-    """Resumo dos treinos FEITOS por periodo (dia/semana/mes).
+    """Resumo dos treinos FEITOS por periodo (dia/semana/mes/trimestre/
+    semestre/ano, duracao livre 'Nd'/'Nm'/'Ny', 'plan' ou 'custom').
 
-    Janela terminando no dia-ancla (por padrao, ontem): dia = 1 dia, semana =
-    7 dias, mes = 30 dias. Usa apenas atividades pareadas (planejado-nao-feito
-    fica fora).
+    Janela terminando no dia-ancla (por padrao, ontem); 'custom' usa
+    `--start`/`--end`; 'plan' cobre do primeiro ao ultimo dia do plano
+    salvo. Usa apenas atividades pareadas (planejado-nao-feito fica fora).
     """
     client = get_client()
     anchor = args.date or (date.today() - timedelta(days=1))
@@ -614,11 +615,17 @@ def cmd_summary(args):
         raise SystemExit(
             f"Tema invalido: {theme!r}. Temas disponiveis: "
             + ", ".join(report.THEMES))
-    start, end = activity_summary.period_range(anchor, args.period)
+    plan_days = _plan_days() if args.period == "plan" else None
+    try:
+        start, end = activity_summary.resolve_period(
+            anchor, args.period, start=args.start, end=args.end,
+            plan_days=plan_days)
+    except ValueError as exc:
+        raise SystemExit(f"Periodo invalido: {exc}")
     rows = activity_summary.done_activities(client, start, end)
     agg = activity_summary.summarize(rows)
 
-    label = activity_summary.PERIOD_LABELS[args.period]
+    label = activity_summary.period_label(args.period)
     article = "DA" if args.period == "week" else "DO"
     print(f"=== RESUMO {article} {label.upper()} ({start} a {end}) ===")
     if not rows:
@@ -656,39 +663,49 @@ def cmd_summary(args):
             bits.append(f"{r['load']:.0f} TSS")
         print("  " + "  ".join(bits))
 
-    _summary_charts(client, args.period, anchor, rows, args.chart)
-    _summary_export(client, args, anchor, rows, agg, start, end)
+    _summary_charts(client, start, end, rows, args.chart)
+    _summary_export(client, args, start, end, rows, agg)
     return agg
 
 
-def _summary_chart_data(client, period, anchor, rows):
+def _plan_days():
+    """Dias (date) cobertos pelo plano salvo, para o periodo 'plan'."""
+    plan = load_plan(PLAN_FILE)
+    days = [w["day"] for w in plan if w.get("day")]
+    return [date.fromisoformat(d) for d in days]
+
+
+def _summary_chart_data(client, start, end, rows):
     """Dados dos graficos do resumo: (pmc_rows, weeks).
 
-    `pmc_rows` = serie (day, ctl, atl, tsb) trailing 90d; `weeks` =
-    carga semanal ISO ([]) quando `period` == dia.
+    `pmc_rows` = serie (day, ctl, atl, tsb) terminando em `end`; a janela
+    acompanha o periodo (piso de 90 dias para dia/semana/mes; janelas
+    maiores usam a extensao cheia). `weeks` = carga semanal ISO ([]) quando
+    `start` == `end` (periodo dia).
     """
-    start = anchor - timedelta(days=89)
-    events = client.events(oldest=start.isoformat(), newest=anchor.isoformat())
+    days_back = max(89, (end - start).days)
+    pmc_start = end - timedelta(days=days_back)
+    events = client.events(oldest=pmc_start.isoformat(), newest=end.isoformat())
     daily = recovery.actual_daily_load(events)
-    pmc_rows = [r for r in recovery.pmc_series(daily) if start <= r[0] <= anchor]
-    if period == "day":
+    pmc_rows = [r for r in recovery.pmc_series(daily) if pmc_start <= r[0] <= end]
+    if start == end:
         return pmc_rows, []
     return pmc_rows, charts.weekly_load(rows)
 
 
-def _summary_charts(client, period, anchor, rows, chart):
+def _summary_charts(client, start, end, rows, chart):
     """Graficos do resumo (padrao Pillar/Analog 'dashboard de 90 dias').
 
-    PMC (trailing 90d) sempre em `auto`; barras de carga semanal apenas para
-    semana/mes (ja que sai dos proprios treinos do periodo). `--chart none`
-    desliga; `--chart pmc|load|all` escolhe um.
+    PMC (janela do periodo, piso 90d) sempre em `auto`; barras de carga
+    semanal apenas para periodo > 1 dia (ja que sai dos proprios treinos do
+    periodo). `--chart none` desliga; `--chart pmc|load|all` escolhe um.
     """
     if chart == "none":
         return
-    pmc_rows, weeks = _summary_chart_data(client, period, anchor, rows)
+    pmc_rows, weeks = _summary_chart_data(client, start, end, rows)
     pmc_parts = charts.pmc_chart(pmc_rows) if chart in ("auto", "all", "pmc") else []
     load_parts = (charts.load_chart(weeks)
-                  if chart in ("auto", "all", "load") and period != "day"
+                  if chart in ("auto", "all", "load") and start != end
                   else [])
 
     if pmc_parts:
@@ -702,7 +719,7 @@ def _summary_charts(client, period, anchor, rows, chart):
     return
 
 
-def _summary_export(client, args, anchor, rows, agg, start, end):
+def _summary_export(client, args, start, end, rows, agg):
     """Exporta (--export) o resumo com graficos em SVG para HTML/PDF.
 
     A extensao do caminho decide: .html escreve direto; .pdf renderiza o HTML
@@ -711,10 +728,10 @@ def _summary_export(client, args, anchor, rows, agg, start, end):
     path = getattr(args, "export", None)
     if not path:
         return
-    pmc_rows, weeks = _summary_chart_data(client, args.period, anchor, rows)
+    pmc_rows, weeks = _summary_chart_data(client, start, end, rows)
     theme = getattr(args, "theme", None) or report.DEFAULT_THEME
     html = report.render_summary_html(
-        title=(f"Resumo {activity_summary.PERIOD_LABELS[args.period]}"
+        title=(f"Resumo {activity_summary.period_label(args.period)}"
                f" - {start} a {end}"),
         start=start, end=end, agg=agg, rows=rows,
         pmc_rows=pmc_rows, weeks=weeks, theme=theme)
@@ -938,14 +955,22 @@ def main(argv=None):
 
     p_sum = sub.add_parser(
         "summary",
-        help="Resumo dos treinos feitos por periodo: dia/semana/mes/trimestre")
+        help="Resumo dos treinos feitos por periodo: dia/semana/mes/"
+             "trimestre/semestre/ano, duracao (45d/6m/1y), plan ou custom")
     p_sum.add_argument(
-        "--period", choices=("day", "week", "month", "quarter"),
-        default="day",
-        help="Janela do resumo (default: dia)")
+        "--period", default="day",
+        help="Janela do resumo: day|week|month|quarter|semester|year, "
+             "duracao livre (ex.: 45d, 6m, 1y), plan (do inicio ao fim do "
+             "plano salvo) ou custom (com --start/--end); default: day")
     p_sum.add_argument(
         "--date", metavar="YYYY-MM-DD",
         help="Dia-ancla do periodo (default: ontem)")
+    p_sum.add_argument(
+        "--start", metavar="YYYY-MM-DD",
+        help="Inicio do periodo (custom; com --end)")
+    p_sum.add_argument(
+        "--end", metavar="YYYY-MM-DD",
+        help="Fim do periodo (custom; com --start)")
     p_sum.add_argument(
         "--chart", choices=("auto", "none", "pmc", "load", "all"),
         default="auto",

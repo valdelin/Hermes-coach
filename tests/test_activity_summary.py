@@ -48,9 +48,70 @@ class PeriodRangeTest(unittest.TestCase):
         self.assertEqual(s.period_range(date(2026, 9, 23), "quarter"),
                          (date(2026, 6, 26), date(2026, 9, 23)))
 
+    def test_semestre_sao_180_dias_terminando_no_ancla(self):
+        self.assertEqual(s.period_range(date(2026, 9, 23), "semester"),
+                         (date(2026, 3, 28), date(2026, 9, 23)))
+
+    def test_ano_sao_365_dias_terminando_no_ancla(self):
+        self.assertEqual(s.period_range(date(2026, 9, 23), "year"),
+                         (date(2025, 9, 24), date(2026, 9, 23)))
+
     def test_periodo_invalido_rejeitado(self):
         with self.assertRaises(ValueError):
             s.period_range(date(2026, 9, 23), "ano")
+
+
+class ResolvePeriodTest(unittest.TestCase):
+    ANCHOR = date(2026, 9, 23)
+
+    def test_duracao_livre_de_dias(self):
+        self.assertEqual(s.resolve_period(self.ANCHOR, "45d"),
+                         (date(2026, 8, 10), self.ANCHOR))
+
+    def test_duracao_livre_de_meses(self):
+        self.assertEqual(s.resolve_period(self.ANCHOR, "6m"),
+                         (date(2026, 3, 28), self.ANCHOR))
+
+    def test_duracao_livre_de_anos(self):
+        self.assertEqual(s.resolve_period(self.ANCHOR, "1y"),
+                         (date(2025, 9, 24), self.ANCHOR))
+
+    def test_nome_fixo_delega_ao_period_range(self):
+        self.assertEqual(s.resolve_period(self.ANCHOR, "week"),
+                         (date(2026, 9, 17), self.ANCHOR))
+
+    def test_plan_usa_a_janela_dos_dias_do_plano(self):
+        days = [date(2026, 9, 14), date(2026, 9, 16), date(2026, 9, 21)]
+        self.assertEqual(s.resolve_period(self.ANCHOR, "plan", plan_days=days),
+                         (date(2026, 9, 14), date(2026, 9, 21)))
+
+    def test_plan_sem_dias_rejeitado(self):
+        with self.assertRaises(ValueError):
+            s.resolve_period(self.ANCHOR, "plan")
+
+    def test_custom_usa_start_end(self):
+        self.assertEqual(
+            s.resolve_period(self.ANCHOR, "custom",
+                             start="2026-06-01", end="2026-08-31"),
+            (date(2026, 6, 1), date(2026, 8, 31)))
+
+    def test_custom_sem_start_rejeitado(self):
+        with self.assertRaises(ValueError):
+            s.resolve_period(self.ANCHOR, "custom", end="2026-08-31")
+
+
+class PeriodLabelTest(unittest.TestCase):
+    def test_nome_fixo(self):
+        self.assertEqual(s.period_label("semester"), "semestre")
+
+    def test_duracao_singular(self):
+        self.assertEqual(s.period_label("1y"), "1 ano")
+
+    def test_duracao_plural(self):
+        self.assertEqual(s.period_label("6m"), "6 meses")
+
+    def test_desconhecido_retorna_o_proprio(self):
+        self.assertEqual(s.period_label("xyz"), "xyz")
 
 
 class DoneActivitiesTest(unittest.TestCase):

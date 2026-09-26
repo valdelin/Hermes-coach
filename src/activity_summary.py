@@ -1,16 +1,24 @@
-"""Resumo de treinos realizados por periodo (dia / semana / mes / trimestre).
+"""Resumo de treinos realizados por periodo (dia / semana / mes / trimestre /
+semestre / ano / plano / personalizado).
 
 Usa apenas atividades PAREDAS (treinos feitos) no Intervals; o planejado-
 nao-feito fica fora. O periodo e uma janela que termina no dia-ancla (por
 padrao, ontem): dia = 1 dia, semana = 7 dias, mes = 30 dias, trimestre = 90
-dias.
+dias, semestre = 180 dias, ano = 365 dias. Tambem aceita duracoes livres
+('45d', '6m', '1y'), o periodo do plano de treino ('plan') e um intervalo
+personalizado ('custom' com `--start`/`--end`).
 """
 
+import re
 from datetime import date, timedelta
 
-PERIODS = ("day", "week", "month", "quarter")
+PERIODS = ("day", "week", "month", "quarter", "semester", "year", "plan",
+           "custom")
 PERIOD_LABELS = {"day": "dia", "week": "semana", "month": "mes",
-                 "quarter": "trimestre"}
+                 "quarter": "trimestre", "semester": "semestre",
+                 "year": "ano", "plan": "plano", "custom": "personalizado"}
+
+_DUR_RE = re.compile(r"^(\d+)(d|m|y)$")
 
 
 def period_range(anchor, period):
@@ -23,7 +31,46 @@ def period_range(anchor, period):
         return anchor - timedelta(days=29), anchor
     if period == "quarter":
         return anchor - timedelta(days=89), anchor
+    if period == "semester":
+        return anchor - timedelta(days=179), anchor
+    if period == "year":
+        return anchor - timedelta(days=364), anchor
     raise ValueError(f"periodo invalido: {period!r}")
+
+
+def resolve_period(anchor, period, start=None, end=None, plan_days=None):
+    """(start, end) do periodo para o resumo.
+
+    Aceita os nomes fixos de `period_range`, duracoes livres (ex.: '45d',
+    '6m', '1y'), 'plan' (janela do plano de treino, via `plan_days`) e
+    'custom' (exige `start`/`end` em ISO).
+    """
+    m = _DUR_RE.match(period)
+    if m:
+        n = int(m.group(1))
+        mult = {"d": 1, "m": 30, "y": 365}[m.group(2)]
+        return anchor - timedelta(days=n * mult - 1), anchor
+    if period == "plan":
+        if not plan_days:
+            raise ValueError("periodo 'plan' exige a janela de dias do plano")
+        return min(plan_days), max(plan_days)
+    if period == "custom":
+        if not start or not end:
+            raise ValueError("periodo 'custom' exige --start e --end")
+        return date.fromisoformat(start), date.fromisoformat(end)
+    return period_range(anchor, period)
+
+
+def period_label(period):
+    """Rotulo legivel do periodo para titulos de resumo/relatorio."""
+    m = _DUR_RE.match(period)
+    if m:
+        n = int(m.group(1))
+        nomes = {"d": ("dia", "dias"), "m": ("mes", "meses"),
+                 "y": ("ano", "anos")}
+        singular, plural = nomes[m.group(2)]
+        return f"{n} {singular if n == 1 else plural}"
+    return PERIOD_LABELS.get(period, period)
 
 
 def done_activities(client, start, end):

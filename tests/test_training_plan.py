@@ -463,7 +463,8 @@ class SummaryCliTest(unittest.TestCase):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 tp.cmd_summary(types.SimpleNamespace(
-                    period="day", date=date(2026, 9, 23), chart="none"))
+                    period="day", date=date(2026, 9, 23), chart="none",
+                    start=None, end=None))
             out = buf.getvalue()
             self.assertIn("=== RESUMO DO DIA", out)
             self.assertIn("carga total: 58 TSS", out)
@@ -479,7 +480,7 @@ class SummaryCliTest(unittest.TestCase):
             with contextlib.redirect_stdout(buf):
                 tp.cmd_summary(types.SimpleNamespace(
                     period="week", date=date(2026, 9, 23), chart="auto",
-                    export=None))
+                    export=None, start=None, end=None))
             out = buf.getvalue()
             self.assertIn("=== PMC (fitness/fadiga/form) ===", out)
             self.assertIn("CTL", out)
@@ -500,7 +501,7 @@ class SummaryCliTest(unittest.TestCase):
                 with contextlib.redirect_stdout(buf):
                     tp.cmd_summary(types.SimpleNamespace(
                         period="day", date=date(2026, 9, 23), chart="none",
-                        export=path))
+                        export=path, start=None, end=None))
                 self.assertIn(f"Exportado: {path}", buf.getvalue())
                 with open(path, encoding="utf-8") as f:
                     html = f.read()
@@ -577,6 +578,46 @@ class BuildRecoveryTest(unittest.TestCase):
         finally:
             _restore_scan(orig)
             tmp.cleanup()
+
+
+class SummaryChartDataTest(unittest.TestCase):
+    """O PMC do resumo acompanha a janela do periodo (>= 90d), sem travamento
+    em trailing 90d -- assim o relatorio de semestre mostra os 6 meses."""
+
+    class _RecClient(_FakeClient):
+        def __init__(self):
+            self.calls = []
+
+        def events(self, **params):
+            self.calls.append(params)
+            return []
+
+    def test_semestre_estende_pmc_para_180_dias(self):
+        c = self._RecClient()
+        anchor = date(2026, 9, 24)
+        start = anchor - timedelta(days=179)
+        serie = [(start + timedelta(days=i), i, i, 0) for i in range(180)]
+        with mock.patch.object(tp.recovery, "actual_daily_load",
+                               return_value={}), \
+             mock.patch.object(tp.recovery, "pmc_series",
+                               return_value=serie):
+            pmc_rows, weeks = tp._summary_chart_data(c, start, anchor, [])
+        self.assertEqual(c.calls[0]["oldest"], start.isoformat())
+        self.assertEqual(c.calls[0]["newest"], anchor.isoformat())
+        self.assertEqual(len(pmc_rows), 180)
+        self.assertEqual(weeks, [])
+
+    def test_mes_mantem_pmc_de_90_dias(self):
+        c = self._RecClient()
+        anchor = date(2026, 9, 24)
+        start = anchor - timedelta(days=29)
+        with mock.patch.object(tp.recovery, "actual_daily_load",
+                               return_value={}), \
+             mock.patch.object(tp.recovery, "pmc_series",
+                               return_value=[]):
+            tp._summary_chart_data(c, start, anchor, [])
+        self.assertEqual(c.calls[0]["oldest"],
+                         (anchor - timedelta(days=89)).isoformat())
 
 
 if __name__ == "__main__":
