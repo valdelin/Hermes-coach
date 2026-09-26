@@ -9,7 +9,7 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
-## [Unreleased]
+## [0.0.27] - 2026-09-26
 
 ### Adicionado
 
