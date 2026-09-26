@@ -18,14 +18,16 @@ try:
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
                       reconcile, save_plan, orphan_external_ids,
                       parse_training_days, parse_goal, parse_weekly_hours,
-                      parse_long_day, parse_fthr, GOAL_LABELS, FOCUS_LABELS_PT,
-                      REST, DEFAULT_FTP, CUE_LANGS, GOALS, adherence_report,
-                      _tsb_race_verdict)
+                      parse_long_day, parse_fthr, parse_periodization,
+                      GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
+                      PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
+                      GOALS, adherence_report, _tsb_race_verdict)
     import ftp_scan
     import recovery
     import activity_summary
     import charts
     import report
+    import readiness
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
@@ -35,14 +37,16 @@ except ImportError:
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                        parse_training_days, parse_goal, parse_weekly_hours,
-                       parse_long_day, parse_fthr, GOAL_LABELS,
-                       FOCUS_LABELS_PT, REST, DEFAULT_FTP, CUE_LANGS, GOALS,
-                       adherence_report, _tsb_race_verdict)
+                       parse_long_day, parse_fthr, parse_periodization,
+                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
+                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
+                       GOALS, adherence_report, _tsb_race_verdict)
     from . import ftp_scan
     from . import recovery
     from . import activity_summary
     from . import charts
     from . import report
+    from . import readiness
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -99,6 +103,19 @@ def get_goal():
     if value.strip() and goal is None:
         print(f"aviso: GOAL={value!r} invalido; valores: {', '.join(GOALS)}")
     return goal
+
+
+def get_periodization():
+    """PERIODIZATION do .env (modelo de periodizacao) ou None. O modelo ajusta
+    a distribuicao de focos da semana (polarized, pyramidal, ...); sem ele vale
+    GOAL/template padrao."""
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("PERIODIZATION", "")
+    p = parse_periodization(value)
+    if value.strip() and p is None:
+        print(f"aviso: PERIODIZATION={value!r} invalido; modelos: "
+              f"{', '.join(PERIODIZATIONS)}")
+    return p
 
 
 def get_race_date():
@@ -291,6 +308,90 @@ def cmd_info(args):
         print(hr_hint)
 
 
+def cmd_check(args):
+    """Prontidao do dia (#31): le wellbeing, avalia sinais de recuperacao e
+    SUGERE (nunca impoe) trocar o treino de hoje por recuperacao leve.
+
+    - Sem `--apply`: so reporta (TB de hoje + sinais + sugestao).
+    - Com `--apply`: se a sugestao for de troca, substitui o treino do dia no
+      plan.json por uma recuperacao Z2 curta e avisa para rodar `push`.
+    - Inicio de doenca (RHR 2+ noites + HRV caindo): alerta na tela e, se
+      COACH_WEBHOOK estiver no .env, envia o aviso ao treinador tambem.
+    """
+    client = get_client()
+    ftp = get_ftp()
+    today = date.today()
+    newest = today
+    oldest = newest - timedelta(days=args.days)
+    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
+    metrics = latest_metrics(events)
+    if metrics:
+        print(f"TSB {metrics.tsb:.1f} (CTL {metrics.ctl:.1f} / "
+              f"ATL {metrics.atl:.1f})")
+    else:
+        print("TSB: sem metricas na janela.")
+    wellness = client.wellness(oldest=oldest.isoformat(),
+                               newest=newest.isoformat())
+    assessment = readiness.assess_readiness(wellness, days=args.days)
+    print(f"Prontidao: {assessment.reason}")
+    if not assessment.has_data:
+        print("Sem dados de wellness sincronizados para avaliar o dia.")
+        return
+    planned = None
+    try:
+        plan = load_plan(PLAN_FILE)
+    except FileNotFoundError:
+        plan = []
+    today_w = next((w for w in plan if w["day"] == today.isoformat()), None)
+    if today_w:
+        print(f"Treino de hoje: {today_w['name']} "
+              f"({today_w['planned_duration'] // 60}m, "
+              f"TSS {today_w['tss']:.0f})")
+    else:
+        print("Hoje nao tem treino no plano.")
+    swap, why = readiness.suggest_swap(assessment, today_w)
+    if swap:
+        print(f"SUGESTAO: {why}")
+    else:
+        print(f"Sem troca sugerida: {why}")
+    if assessment.illness:
+        print("ALERTA DE DOENCA: considere descanso e monitore amanha.")
+        _notify_coach_if_configured(assessment, today)
+    if swap and args.apply and today_w:
+        new_w = readiness.recovery_workout(today.isoformat(), ftp)
+        plan = [new_w if w["day"] == today.isoformat() else w for w in plan]
+        meta = load_plan_meta(PLAN_FILE)
+        save_plan(plan, PLAN_FILE, goal=meta["goal"],
+                  race_date=meta["race_date"],
+                  ftp_test_date=meta["ftp_test_date"],
+                  ftp_candidates=meta.get("ftp_candidates"))
+        print(f"Aplicado: {today_w['name']} -> {new_w['name']} "
+              f"(TSS {new_w['tss']:.0f}, {new_w['planned_duration'] // 60}m).")
+        print("Rode `push` para publicar a troca no calendario.")
+    elif swap and args.apply:
+        print("Nada a trocar hoje (sem treino no plano).")
+
+
+def _notify_coach_if_configured(assessment, today):
+    """Opcional (COACH_WEBHOOK no .env): aviso de inicio de doenca ao
+    treinador. Nunca derruba o fluxo se o webhook falhar."""
+    load_env(PROJECT_ROOT / ".env")
+    webhook = os.environ.get("COACH_WEBHOOK", "").strip()
+    if not webhook:
+        return
+    athlete = os.environ.get("INTERVALS_ATHLETE_ID", "?")
+    try:
+        resp = requests.post(webhook, timeout=10,
+                             json=readiness.coach_alert_payload(
+                                 athlete, assessment, today.isoformat()))
+        if resp.status_code >= 400:
+            print(f"aviso: webhook do treinador respondeu HTTP "
+                  f"{resp.status_code}")
+    except requests.exceptions.RequestException as exc:
+        print(f"aviso: falha ao avisar o treinador ({exc}); "
+              "siga com o treino normalmente.")
+
+
 def cmd_ftp_check(args):
     client = get_client()
     ftp = get_ftp()
@@ -394,6 +495,7 @@ def cmd_build(args):
     ftp = get_ftp()
     fthr = get_fthr()
     goal = get_goal()
+    periodization = get_periodization()
     race_date = get_race_date()
     weekly_hours = get_weekly_hours()
     long_day = get_long_day()
@@ -457,7 +559,8 @@ def cmd_build(args):
                       existing=existing, training_days=get_training_days(),
                       goal=goal, race_date=race_date, ftp_test_date=ftp_test_date,
                       weekly_hours=weekly_hours, long_day=long_day,
-                      hr_mode=hr_mode, recovery_ramp=recovery_ramp)
+                      hr_mode=hr_mode, recovery_ramp=recovery_ramp,
+                      periodization=periodization)
     # Preserva candidatos de FTP ja registrados na meta (issue #6): o build
     # nao deve apagar o rastro de um ftp-scan anterior.
     existing_meta = load_plan_meta(PLAN_FILE)
@@ -475,6 +578,8 @@ def cmd_build(args):
     if avail:
         print("Disponibilidade: " + " | ".join(avail))
     plano_label = GOAL_LABELS.get(goal, goal or "TSB (padrao)")
+    if periodization:
+        plano_label += f" / {PERIODIZATION_LABELS[periodization]}"
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
     test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""
     print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
@@ -929,6 +1034,16 @@ def main(argv=None):
     p_scan.add_argument("--days", type=int, default=45,
                         help="Janela de historico de treinos fora do plano (dias)")
     p_scan.set_defaults(func=cmd_ftp_scan)
+
+    p_check = sub.add_parser(
+        "check",
+        help="Prontidao do dia: wellness + sugestao de troca (nao obrigatoria)")
+    p_check.add_argument("--days", type=int, default=14,
+                         help="Janela de wellness a considerar (dias)")
+    p_check.add_argument("--apply", action="store_true",
+                         help="Aplica a troca sugerida (recuperacao leve) no "
+                              "plan.json; rode `push` para publicar")
+    p_check.set_defaults(func=cmd_check)
 
     p_model = sub.add_parser(
         "model",

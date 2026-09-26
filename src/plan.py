@@ -189,6 +189,65 @@ WEEKLY_BY_TSB = [
 GOALS = ("back-to-fitness", "ftp-builder", "gran-fondo", "time-trial",
          "climbing", "active-off-season", "race")
 
+# Modelos de periodizacao (PERIODIZATION no .env, opcional): ajustam a
+# distribuicao de focos na semana quando ativos (senao vale GOAL/TEMPLATES).
+# Referencia: IntervalCoach oferece 5 modelos selecionaveis (26/09); aqui cada
+# modelo faz sentido com o TSB do dia:
+#   polarized  -> muito Z2 + VO2 curto, quase nada de sweet spot/limiar;
+#   pyramidal  -> base Z2 com progressao ate sweet spot (pouco VO2);
+#   undulating -> alterna qualidade/recuperacao dentro da semana;
+#   linear     -> progressao simples por semana (Z2 -> SS -> T -> VO2);
+#   block      -> semanas em bloco (tudo Z2 no TSB baixo; qualidade quando ok).
+PERIODIZATIONS = ("polarized", "pyramidal", "undulating", "linear", "block")
+
+PERIODIZATION_TEMPLATES = {
+    "polarized": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_VO2]),
+        (0, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_VO2, FOCUS_ZONE2, FOCUS_VO2]),
+        (10**9, [FOCUS_VO2, FOCUS_ZONE2, FOCUS_VO2, FOCUS_ZONE2, FOCUS_VO2]),
+    ],
+    "pyramidal": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2,
+               FOCUS_SWEETSPOT]),
+        (0, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT,
+             FOCUS_THRESHOLD]),
+        (10**9, [FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_THRESHOLD,
+                 FOCUS_SWEETSPOT, FOCUS_THRESHOLD]),
+    ],
+    "undulating": [
+        (-15, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_ZONE2, FOCUS_SWEETSPOT,
+               FOCUS_ZONE2]),
+        (0, [FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2, FOCUS_SWEETSPOT,
+             FOCUS_THRESHOLD]),
+        (10**9, [FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_ZONE2, FOCUS_THRESHOLD,
+                 FOCUS_VO2]),
+    ],
+    "linear": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2,
+               FOCUS_SWEETSPOT]),
+        (0, [FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_SWEETSPOT, FOCUS_THRESHOLD,
+             FOCUS_THRESHOLD]),
+        (10**9, [FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_THRESHOLD, FOCUS_VO2,
+                 FOCUS_VO2]),
+    ],
+    "block": [
+        (-15, [FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2, FOCUS_ZONE2,
+               FOCUS_ZONE2]),
+        (0, [FOCUS_SWEETSPOT, FOCUS_SWEETSPOT, FOCUS_SWEETSPOT,
+             FOCUS_SWEETSPOT, FOCUS_SWEETSPOT]),
+        (10**9, [FOCUS_THRESHOLD, FOCUS_THRESHOLD, FOCUS_VO2,
+                 FOCUS_THRESHOLD, FOCUS_VO2]),
+    ],
+}
+
+PERIODIZATION_LABELS = {
+    "polarized": "Polarizado (Z2 + VO2)",
+    "pyramidal": "Piramidal (base Z2 + progressao)",
+    "undulating": "Ondulante (alterna qualidade/leve)",
+    "linear": "Linear (progressao na semana)",
+    "block": "Blocos (semanas em bloco)",
+}
+
 ENDURANCE = "endurance"
 
 GOAL_TEMPLATES = {
@@ -332,6 +391,15 @@ def parse_goal(value):
     return goal if goal in GOALS else None
 
 
+def parse_periodization(value):
+    """Converte PERIODIZATION do .env ('polarized', 'block', etc.) em chave
+    valida. Ausente ou invalido -> None (usa GOAL/template padrao)."""
+    if not value:
+        return None
+    p = str(value).strip().lower().replace("_", "-")
+    return p if p in PERIODIZATIONS else None
+
+
 def parse_ftp_test_date(value):
     """Converte FTP_TEST_DATE ('YYYY-MM-DD') em date, ou None se ausente/
     invalido."""
@@ -374,8 +442,14 @@ def workout_name(day, focus):
     return f"{day} - Treino de {FOCUS_LABELS_PT[focus]}"
 
 
-def weekly_template(tsb, goal=None):
-    templates = GOAL_TEMPLATES.get(goal, WEEKLY_BY_TSB)
+def weekly_template(tsb, goal=None, periodization=None):
+    """Template semanal de focos: PERIODIZATION (quando valida) tem prioridade
+    sobre GOAL — o modelo de periodizacao molda a distribuicao da semana; sem
+    ela vale GOAL_TEMPLATES (ou WEEKLY_BY_TSB sem GOAL)."""
+    if periodization and periodization in PERIODIZATION_TEMPLATES:
+        templates = PERIODIZATION_TEMPLATES[periodization]
+    else:
+        templates = GOAL_TEMPLATES.get(goal, WEEKLY_BY_TSB)
     for threshold, template in templates:
         if tsb < threshold:
             return template
@@ -414,7 +488,7 @@ def _recovery_budget(recovery_ramp, day_index, default):
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
-               hr_mode=False, recovery_ramp=None):
+               hr_mode=False, recovery_ramp=None, periodization=None):
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -432,8 +506,9 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          ftp_test_date=ftp_test_date,
                                          weekly_hours=weekly_hours,
                                          long_day=long_day, hr_mode=hr_mode,
-                                         recovery_ramp=recovery_ramp)
-    weekly = weekly_template(tsb, goal)
+                                         recovery_ramp=recovery_ramp,
+                                         periodization=periodization)
+    weekly = weekly_template(tsb, goal, periodization)
     slots = sorted(training_days)
     weekly = _place_long_day(weekly, long_day, slots)
     volume_scale = _volume_scale(weekly, weekly_hours, slots)

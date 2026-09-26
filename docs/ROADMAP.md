@@ -44,6 +44,9 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 | 25 | backend | **Encapsulamento em API REST (FastAPI)** — Transformação dos comandos da CLI e do motor determinístico em endpoints assíncronos REST | — (arquitetura SaaS 25/09) | **planejado (SaaS)** | 1B |
 | 26 | backend | **Fila de Execução Assíncrona (Redis + Celery)** — Substituição da execução diária via Cron local por workers distribuídos que processam a autorregulação isolada de cada atleta cadastrado | — (arquitetura SaaS 25/09) | **planejado (SaaS)** | 1B |
 | 27 | produto | **Gateway de Pagamento & Subscrições (Stripe / Paddle)** — Suporte a planos recorrentes (B2C Pro Athlete / B2B Coach), Trial de 14 dias e gestão automatizada de cobrança | — (arquitetura SaaS 25/09) | **planejado (SaaS)** | 3B |
+| 28 | feature | **Race Recon — leitura do percurso da prova** (GPX/FIT ou rota do Intervals.icu): mede cada subida sustentada, estima o tempo nelas no ritmo de prova, favorece intervalos com esse tamanho nas semanas finais e planeja o dia da prova segmento a segmento (alvo de potência/pace + estoque de carboidrato/água) | — (benchmark IntervalCoach 26/09) | **possível — validar c/ treinador** | 2 |
+| 29 | produto | **Coach+ — chat com o treinador de IA** (explicar decisões, mover/reescrever sessões no calendário; foto/screenshot na versão Max) — o nosso agente CLI já conversa e reescreve; falta a casca de produto | — (benchmark IntervalCoach 26/09) | **possível — menor prioridade** | 3 |
+| 30 | feature | **Multi-esporte com carga compartilhada** (ciclo + corrida + natação + tri + força + HYROX num plano só, PMC único) — expandir o módulo de corrida (#18) para os demais esportes | — (benchmark IntervalCoach 26/09) | **possível — sem urgência** | 2 |
 
 ## Fases
 
@@ -278,6 +281,42 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
   commit.
 - Mudanças que afetam carga/plano passam por **`--dry-run`** ou validação com
   dados reais antes de tocar o fluxo do timer diário.
+
+## Status atual (2026-09-26)
+
+Benchmark competitivo + decisões da sessão (features 1/3/4 implementadas;
+2/5/6 no backlog; implicações estratégicas em `docs/PITCH-DECK.md`):
+
+- **Benchmark (26/09): IntervalCoach (intervalcoach.app)** — coach de IA
+  multi-esporte sobre o Intervals.icu, 4,8★/194 avaliações, Free/Pro €3/mês/
+  Max €8/mês. Diferenciais deles: ajuste diário por recuperação (60+ sinais),
+  Race Recon, detecção de doença, 5 modelos de periodização, Coach+ (chat) e
+  multi-esporte com carga compartilhada. Lições: **preço de referência mais
+  baixo que o estimado** (€3–8 vs US$8–15 do slide 4 — ver PITCH-DECK), e a
+  **recuperação diária vira feature esperada**, não extra. Nosso edge se
+  mantém: motor determinístico (R$0, auditável) + base fisiológica
+  documentada + visão B2B coach.
+- **Decisões do usuário (respostas 1-7):** (1) ajuste diário por recuperação
+  **SIM, não obrigatório** — atleta decide; (2) Race Recon → **#28**;
+  (3) alerta de doença **SIM** + aviso opcional ao treinador via
+  `COACH_WEBHOOK`; (4) modelos de periodização **SIM**; (5) Coach+ → **#29**,
+  menor prioridade; (6) multi-esporte → **#30**, sem urgência; (7) implicações
+  estratégicas no **PITCH-DECK** (seção benchmark competitivo).
+- **Implementado hoje (#31 `check` — prontidão do dia, v0.0.27):** `training_plan.py check`
+  lê wellness (RHR/HRV/sono/readiness), avalia os sinais (`src/readiness.py`:
+  RHR acima da média +3 bpm, HRV < 80% da média, sono < 6h ou 2h abaixo,
+  readiness < 60), **sugere** (nunca impõe) trocar o treino de hoje por
+  recuperação Z2 curta; `--apply` aplica no `plan.json` (depois `push`).
+  **Alerta de início de doença** (RHR 2+ noites subindo + HRV caindo → aviso
+  na tela) e, com `COACH_WEBHOOK` no `.env`, aviso ao treinador
+  (`coach_alert_payload`; não-bloqueante).
+- **Implementado hoje (#32 — periodização, v0.0.27):** `PERIODIZATION` no
+  `.env` seleciona 1 de 5 modelos (`src/plan.py::PERIODIZATION_TEMPLATES`):
+  polarized | pyramidal | undulating | linear | block — cada um com templates
+  por TSB (mesmo mecanismo do `GOAL_TEMPLATES`); `build`/`all` aplicam o modelo
+  quando configurado (com prioridade sobre o GOAL na distribuição de focos).
+- Suíte: **341 testes OK (3 skipped)** incluindo `tests/test_readiness.py`
+  (sinais, doença, sugestão, payload do treinador, periodização).
 
 ## Status atual (2026-09-25)
 

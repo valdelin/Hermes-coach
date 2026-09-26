@@ -72,6 +72,12 @@ sozinho após cada treino — integrado ao ecossistema que você já usa
 
 > **Nota:** posicionar Hermes entre "app de dados gratuito" (Intervals) e
 > "assessoria cara" (coach 1:1) — assinatura acessível com valor de coaching.
+> **Benchmark 26/09:** o concorrente direto de IA (IntervalCoach, coach
+> multi-esporte sobre o Intervals.icu) entra em **Free/Pro €3/mês/Max €8/mês** —
+> abaixo da nossa faixa solo. A faixa US$8–15 segue válida (Xert/Pillar/RunDot
+> cobram nela) e o **B2B coach US$99–249/mês continua o motor do ARPU**; a lição
+> é que "ajuste diário por recuperação" já é feature esperada (nós temos,
+> determinístico e auditável).
 
 ---
 

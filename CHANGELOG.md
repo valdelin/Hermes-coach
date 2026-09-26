@@ -9,6 +9,33 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [Unreleased]
+
+### Adicionado
+
+- **`check` — prontidão do dia (benchmark IntervalCoach 26/09)** — `training_plan.py check`
+  lê wellness (RHR/HRV/sono/readiness) e avalia sinais de recuperação
+  (`src/readiness.py`: RHR acima da média +3 bpm, HRV < 80% da média, sono < 6h
+  ou 2h abaixo da média, readiness < 60). **Sugere** (nunca impõe) trocar o
+  treino de hoje por uma recuperação Z2 curta; `--apply` aplica no `plan.json`
+  (depois `push`). **Alerta de início de doença** (RHR subindo 2+ noites +
+  HRV caindo) com aviso opcional ao treinador via `COACH_WEBHOOK` no `.env`
+  (`coach_alert_payload`; envio não-bloqueante, não derruba o fluxo).
+- **Modelos de periodização (`PERIODIZATION`)** — 5 modelos selecionáveis no
+  `.env` (`src/plan.py::PERIODIZATION_TEMPLATES`): `polarized` (Z2 + VO2),
+  `pyramidal` (base Z2 + progressão), `undulating` (alterna qualidade/leve),
+  `linear` (progressão na semana) e `block` (semanas em bloco). O modelo ajusta
+  a distribuição de focos por TSB (mesmo mecanismo do `GOAL_TEMPLATES`),
+  prioridade sobre o GOAL; `build`/`all` aplicam quando configurado e o label
+  aparece no resumo do plano.
+
+### Documentação
+
+- ROADMAP: benchmark competitivo **IntervalCoach** e decisões da sessão
+  (26/09) na seção "Status atual"; itens **#28 Race Recon**, **#29 Coach+**
+  (menor prioridade) e **#30 Multi-esporte** (sem urgência) no backlog;
+  implicações estratégicas apontam para `docs/PITCH-DECK.md`.
+
 ## [0.0.26] - 2026-09-26
 
 ### Adicionado
