@@ -9,7 +9,9 @@ Referências: [ADR-003](https://github.com/valdelin/Hermes-coach/issues) (visão
 de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault);
 **fundamentação científica** do algoritmo em `docs/EMBASAMENTO-CIENTIFICO.md`;
 **visão SaaS** (arquitetura alvo multi-tenant) em
-`docs/ROADMAP-2-CRIACAO-DE-SAAS.md` (itens #24-#27, Fases 1B/3B).
+`docs/ROADMAP-2-CRIACAO-DE-SAAS.md` (itens #24-#27, Fases 1B/3B); **parecer da
+revisão técnica** (propostas aplicadas/não aplicadas) em
+`docs/proposta-de-melhorias-do-sistema.md`.
 
 ## Backlog
 

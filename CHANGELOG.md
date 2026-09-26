@@ -9,6 +9,45 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [0.0.26] - 2026-09-26
+
+### Adicionado
+
+- **Tooltip temático nos relatórios HTML (#21)** — gráficos de PMC e carga
+  ganham tooltip explicando o eixo tema (`data-pmc`/`data-load` + JS): ao
+  passar o mouse, mostra a data, a métrica e o tema do dia (dica de
+  interpretação, não só o número).
+- **`summary` — períodos trimestre, semestre, ano, plano e custom (#20)** —
+  além de dia/semana/mês, o resumo aceita `--period quarter|semester|year|plan|custom`
+  e duração livre (`45d`, `6m`, `1y`); `plan` gera o relatório final do ciclo
+  (primeiro → último dia do `plan.json`) e `custom --start --end` janela
+  arbitrária. O PMC acompanha a janela do período (piso 90 dias).
+- **Resiliência de rede no `IntervalsClient`** — retry com backoff exponencial
+  (0.5s → 1.0s → 2.0s) para falhas transitórias (`ConnectionError`, `Timeout`,
+  HTTP 429/500/502/503/504); falha imediata para 4xx; mensagens amigáveis na
+  CLI via `IntervalsApiError` (sem traceback cru; 401/403 indica credenciais).
+
+### Documentação
+
+- ROADMAP sincronizado com o vault: itens SaaS **#24-#27**, Fases 1B/3B e
+  "Status atual (2026-09-25)" fundidos no `docs/ROADMAP.md` (única fonte no
+  repo; `ROADMAP CONSOLIDADO.md` = ROADMAP.md + ROADMAP 2 CRIAÇÃO DE SAAS).
+- Novos espelhos no repo: `docs/EMBASAMENTO-CIENTIFICO.md` (base fisiológica
+  do algoritmo: Banister, Seiler, Coggan, Billat) e
+  `docs/ROADMAP-2-CRIACAO-DE-SAAS.md` (visão SaaS multi-tenant).
+- Arquivo vault `proposta de melhorias do sistema.md` revisado com o veredito
+  de cada ponto (aplicado / já resolvido / não aplicado) — ver seção própria.
+
+### Testes
+
+- 297 → **312 testes OK (+15)** com `tests/test_intervals_client.py` (retry/
+  backoff, `IntervalsApiError`, 401/404, `create_events` bulk, streams);
+  suíte completa **315 testes OK (3 skipped)**. Smoke test real da API OK.
+
+## [Unreleased]
+
+_Próximas mudanças a documentar._
+
 ## [0.0.25] - 2026-09-25
 
 ### Corrigido
