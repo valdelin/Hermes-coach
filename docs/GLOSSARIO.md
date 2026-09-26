@@ -68,7 +68,7 @@ agente, para novos leitores do código e para o pitch/produto.
 
 | Acrônimo | Significado | Detalhe no projeto |
 |---|---|---|
-| CLI | Command Line Interface | Interface atual do motor (`info`, `ftp-check`, `ftp-scan`, `model`, `recovery`, `build`, `adherence`, `summary`, `reconcile`, `push`, `all`). |
+| CLI | Command Line Interface | Interface atual do motor (`info`, `check`, `periodization`, `ftp-check`, `ftp-scan`, `model`, `recovery`, `build`, `adherence`, `summary`, `reconcile`, `push`, `all`). |
 | API | Application Programming Interface | Contrato REST dos provedores (Intervals.icu) e da futura API do portal (Fase 1). |
 | OAuth | Open Authorization | Fluxo de delegação de acesso (Intervals.icu no portal; OAuth + refresh). |
 | RBAC | Role-Based Access Control | Papéis do portal: admin / coach / atleta (Fase 0+). |

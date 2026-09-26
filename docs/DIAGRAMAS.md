@@ -1,6 +1,6 @@
 # Diagramas UML — Hermes Coach
 
-Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.27).
+Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.28).
 Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
 fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
 
@@ -8,7 +8,7 @@ Legenda rápida dos módulos:
 
 | Módulo | Responsabilidade |
 |---|---|
-| `src/training_plan.py` | CLI: `info` / `ftp-check` / `ftp-scan` / `check` / `model` / `recovery` / `build` / `adherence` / `summary` / `reconcile` / `push` / `all` |
+| `src/training_plan.py` | CLI: `info` / `ftp-check` / `ftp-scan` / `check` / `periodization` / `model` / `recovery` / `build` / `adherence` / `summary` / `reconcile` / `push` / `all` |
 | `src/coach.py` | Métricas (TSB/CTL/ATL), foco do dia, prescrição (`WorkoutParams`), TSS estimado |
 | `src/plan.py` | Plano semanal (`build_plan` + `PERIODIZATION`), ajuste por carga (`_fit_budget`), `reconcile`, texto do treino, `event_payload` |
 | `src/impulse_response.py` | Motor Banister local (CTL/ATL/TSB) + séries diárias de TSS |
@@ -16,6 +16,7 @@ Legenda rápida dos módulos:
 | `src/ftp_scan.py` / `ftp_estimation.py` | Análise de treinos fora do plano → proposta de FTP (20min × 0,95) |
 | `src/recovery.py` | Retorno a forma: PMC real (EWMA 42/7) + prazo + rampa segura com deload |
 | `src/readiness.py` | Prontidão do dia (`check`): sinais de wellness (RHR/HRV/sono) → sugestão de troca por recuperação + alerta de início de doença (+ `COACH_WEBHOOK`) |
+| `src/periodization.py` | Explicação dos 5 modelos de periodização (`periodization`): o que significam para o atleta + sugestão por GOAL/TSB (top/evitar) |
 | `src/activity_summary.py` | Resumo dos treinos feitos por dia/semana/mês (`summary`) |
 | `src/charts.py` | Gráficos em texto: PMC trailing 90d + carga semanal (TSS/ISO) |
 | `src/report.py` | Relatório com gráficos SVG: HTML direto / PDF via chromium headless (`--export`) |
@@ -30,7 +31,7 @@ Legenda rápida dos módulos:
 ```mermaid
 flowchart LR
     subgraph CLI["CLI — src/training_plan.py"]
-        CMD["info | ftp-check | ftp-scan | check | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
+        CMD["info | ftp-check | ftp-scan | check | periodization | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
     end
 
     subgraph CORE["Motor de coaching"]
@@ -41,6 +42,7 @@ flowchart LR
         AS["activity_summary.py<br/>resumo por período · pareamento"]
         REC["recovery.py<br/>PMC real + prazo de retorno + rampa"]
         RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
+        PER["periodization.py<br/>explica modelos · sugere por GOAL/TSB"]
     end
 
     subgraph REPORT["Relatório (#21)"]
@@ -67,6 +69,7 @@ flowchart LR
     CMD --> AS
     CMD --> REC
     CMD --> RD
+    CMD --> PER
     CMD --> CH
     CMD --> RP
     COACH --> IR
@@ -245,6 +248,12 @@ classDiagram
         +recovery_workout(day, ftp) -> PlannedWorkout
         +coach_alert_payload(atleta_id, readiness, today)
     }
+    class Periodization {
+        +list_models() -> list
+        +describe(model) -> str
+        +suggest_for_goal(goal, tsb) -> (top, avoid)
+        +explain_current(goal, periodization, tsb) -> str
+    }
     class SummaryAgg {
         +int workouts
         +float load
@@ -272,6 +281,7 @@ classDiagram
     Recovery --> IntervalsClient : eventos históricos
     Readiness --> IntervalsClient : wellness (RHR/HRV/sono)
     Readiness --> PlannedWorkout : recovery_workout (check --apply)
+    Periodization --> Metrics : TSB atual (sugestao por GOAL)
     SummaryAgg <-- IntervalsClient : atividades pareadas
     ReportRenderer --> ThemeKit : 22 temas (CSS vars)
     ReportRenderer --> SummaryAgg : cards + tabela
@@ -335,7 +345,7 @@ stateDiagram-v2
 
 ## Notas
 
-- Diagramas gerados a partir do código real (`src/*.py`, v0.0.27, 341 testes OK) —
+- Diagramas gerados a partir do código real (`src/*.py`, v0.0.28, 354 testes OK) —
   não são genéricos. Se o código mudar, atualize aqui junto.
 - Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli.
 - O `.zwo` **não é gerado localmente** (o Intervals monta no app a partir do

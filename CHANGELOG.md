@@ -9,6 +9,28 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [0.0.28] - 2026-09-26
+
+### Adicionado
+
+- **`periodization` — explicação dos modelos para o atleta** —
+  `training_plan.py periodization` lista os 5 modelos de periodização em
+  linguagem de atleta (o que significa, o que se sente na prática, com que
+  perfil combina) e sugere o melhor modelo para o `GOAL`/TSB atual
+  (`src/periodization.py`; `--model NOME` detalha um modelo e mostra a
+  afinidade com o objetivo). Não altera nada: apenas orienta a decisão
+  (ex.: TSB baixo favorece `undulating`, TSB fresco libera `linear`/qualidade).
+- **Decisão do usuário: o TSB governa a semana** — sem `PERIODIZATION` no
+  `.env` (só os modelos disponíveis para consulta via `periodization`); o motor
+  mantém o ciclo de foco por faixa de TSB.
+
+### Documentação
+
+- README: lista de comandos ganha `check` e `periodization`; DIAGRAMAS
+  (v0.0.28) com o novo módulo `periodization.py`; ROADMAP "Status atual"
+  registra a decisão do usuário e a nova explicação; `O-QUE-O-AGENTE-FAZ.md`
+  (vault) espelha as capacidades atualizadas.
+
 ## [0.0.27] - 2026-09-26
 
 ### Adicionado

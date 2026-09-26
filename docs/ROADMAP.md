@@ -315,8 +315,19 @@ Benchmark competitivo + decisões da sessão (features 1/3/4 implementadas;
   polarized | pyramidal | undulating | linear | block — cada um com templates
   por TSB (mesmo mecanismo do `GOAL_TEMPLATES`); `build`/`all` aplicam o modelo
   quando configurado (com prioridade sobre o GOAL na distribuição de focos).
-- Suíte: **341 testes OK (3 skipped)** incluindo `tests/test_readiness.py`
-  (sinais, doença, sugestão, payload do treinador, periodização).
+  **Decisão do usuário: por ora o TSB governa (sem `PERIODIZATION` no `.env`).**
+- **Adicionado (v0.0.28, explicação para o atleta):**
+  `training_plan.py periodization` (módulo `src/periodization.py`) lista os
+  5 modelos em linguagem de atleta (o que significa, o que se sente na
+  prática, com que perfil combina), sugere o melhor para o GOAL/TSB atual
+  (fadiga alta → `undulating`; fresco → `linear`/qualidade) e detalha um
+  modelo com `--model NOME` + afinidade com o objetivo. Não altera nada;
+  serve para o treinador/atleta decidir com base em explicação.
+- Suíte: **354 testes OK (3 skipped)** incluindo `tests/test_readiness.py`
+  (sinais, doença, sugestão, payload do treinador, periodização) e
+  `tests/test_periodization_explain.py` (13 testes do comando `periodization`).
+  Lembra que a **decisão atual é deixar o TSB governar** (sem `PERIODIZATION` no
+  `.env`); o comando `periodization` existe para consulta/oferta ao atleta.
 
 ## Status atual (2026-09-25)
 

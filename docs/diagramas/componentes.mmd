@@ -1,6 +1,6 @@
 flowchart LR
     subgraph CLI["CLI — src/training_plan.py"]
-        CMD["info | ftp-check | ftp-scan | check | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
+        CMD["info | ftp-check | ftp-scan | check | periodization | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
     end
 
     subgraph CORE["Motor de coaching"]
@@ -11,6 +11,7 @@ flowchart LR
         AS["activity_summary.py<br/>resumo por período · pareamento"]
         REC["recovery.py<br/>PMC real + prazo de retorno + rampa"]
         RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
+        PER["periodization.py<br/>explica modelos · sugere por GOAL/TSB"]
     end
 
     subgraph REPORT["Relatório (#21)"]
@@ -37,6 +38,7 @@ flowchart LR
     CMD --> AS
     CMD --> REC
     CMD --> RD
+    CMD --> PER
     CMD --> CH
     CMD --> RP
     COACH --> IR

@@ -204,6 +204,13 @@ calendario.
 
 **Plano e cargas**
 - `info` — TSB/CTL/ATL atuais no Intervals.icu.
+- `check` — **prontidão do dia** (wellness + sinais de recuperação): sugere
+  (nunca impõe) trocar o treino de hoje por recuperação Z2 curta (`--apply`
+  aplica no `plan.json`, depois `push`); detecta início de doença (RHR subindo
+  + HRV caindo) e avisa o treinador via `COACH_WEBHOOK` se configurado.
+- `periodization` — explica os 5 modelos de periodização (polarized, pyramidal,
+  undulating, linear, block) em linguagem de atleta e sugere o melhor para o
+  `GOAL`/TSB atual (`--model NOME` detalha um); não altera nada.
 - `build` — plano dos próximos 14 dias com ciclo de foco pelo TSB, orcamento de
   TSS, preservacao do treino de hoje, escala por `WEEKLY_HOURS` e treino longo
   em `LONG_DAY`. Opções: `--no-power` (prescricao em %FTHR + RPE, modo FC),

@@ -70,6 +70,12 @@ classDiagram
         +recovery_workout(day, ftp) -> PlannedWorkout
         +coach_alert_payload(atleta_id, readiness, today)
     }
+    class Periodization {
+        +list_models() -> list
+        +describe(model) -> str
+        +suggest_for_goal(goal, tsb) -> (top, avoid)
+        +explain_current(goal, periodization, tsb) -> str
+    }
     class SummaryAgg {
         +int workouts
         +float load
@@ -97,6 +103,7 @@ classDiagram
     Recovery --> IntervalsClient : eventos históricos
     Readiness --> IntervalsClient : wellness (RHR/HRV/sono)
     Readiness --> PlannedWorkout : recovery_workout (check --apply)
+    Periodization --> Metrics : TSB atual (sugestao por GOAL)
     SummaryAgg <-- IntervalsClient : atividades pareadas
     ReportRenderer --> ThemeKit : 22 temas (CSS vars)
     ReportRenderer --> SummaryAgg : cards + tabela

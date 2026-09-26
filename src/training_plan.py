@@ -28,6 +28,7 @@ try:
     import charts
     import report
     import readiness
+    import periodization
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
@@ -47,6 +48,7 @@ except ImportError:
     from . import charts
     from . import report
     from . import readiness
+    from . import periodization
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -285,6 +287,44 @@ def describe_training_days(training_days=None, env_value=None):
     if env_value is None or not str(env_value).strip():
         return f"Agenda: {seq} (TRAINING_DAYS ausente -> padrao)"
     return f"Agenda: {seq} (TRAINING_DAYS={env_value})"
+
+
+def cmd_periodization(args):
+    """Explica os modelos de periodizacao para o atleta e sugere o modelo para
+    o GOAL/perfil atual (nao altera nada)."""
+    active_model = get_periodization()
+    goal = get_goal()
+    tsb = None
+    if not args.no_tsb:
+        try:
+            client = get_client()
+            today = date.today()
+            events = client.events(oldest=(today - timedelta(days=args.days)).isoformat(),
+                                   newest=today.isoformat())
+            metrics = latest_metrics(events)
+            if metrics:
+                tsb = metrics.tsb
+        except IntervalsApiError as exc:
+            print(f"aviso: nao consegui o TSB ({exc}); sugestao sem TSB.")
+    if args.model:
+        desc = periodization.describe(args.model)
+        if not desc:
+            print(f"modelo invalido: {args.model!r}; use: "
+                  f"{', '.join(periodization.PERIODIZATION_INFO)}")
+            return 2
+        print(desc)
+        print()
+        top, avoid = periodization.suggest_for_goal(get_goal() or None, tsb)
+        fit = ("combina com o seu objetivo" if args.model in top
+               else "evite para o seu objetivo atual"
+               if args.model in avoid else "neutro para o seu objetivo")
+        print(f"Afinidade com GOAL={get_goal() or 'TSB (padrao)'}: {fit}.")
+        return
+    for m in periodization.list_models():
+        print(m)
+        print()
+    print(periodization.explain_current(goal=get_goal() or None,
+                                        periodization=active_model, tsb=tsb))
 
 
 def cmd_info(args):
@@ -1044,6 +1084,18 @@ def main(argv=None):
                          help="Aplica a troca sugerida (recuperacao leve) no "
                               "plan.json; rode `push` para publicar")
     p_check.set_defaults(func=cmd_check)
+
+    p_per = sub.add_parser(
+        "periodization",
+        help="Explica os modelos de periodizacao e sugere para o GOAL atual")
+    p_per.add_argument("--model", metavar="NOME",
+                       help="Detalha um modelo especifico "
+                            "(polarized|pyramidal|undulating|linear|block)")
+    p_per.add_argument("--no-tsb", action="store_true",
+                       help="Nao consulta o TSB ao sugerir")
+    p_per.add_argument("--days", type=int, default=60,
+                       help="Janela de historico para o TSB (dias)")
+    p_per.set_defaults(func=cmd_periodization)
 
     p_model = sub.add_parser(
         "model",
