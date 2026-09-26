@@ -4,13 +4,15 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
+import requests
+
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
     from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                        wellness_summary, format_wellness)
-    from intervals_client import IntervalsClient
+    from intervals_client import IntervalsClient, IntervalsApiError
     from impulse_response import (ImpulseResponseEngine, daily_tss_series,
                                   forecast_pmc)
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
@@ -27,7 +29,7 @@ try:
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness)
-    from .intervals_client import IntervalsClient
+    from .intervals_client import IntervalsClient, IntervalsApiError
     from .impulse_response import (ImpulseResponseEngine, daily_tss_series,
                                    forecast_pmc)
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
@@ -1028,7 +1030,15 @@ def main(argv=None):
     p_all.set_defaults(func=cmd_all)
 
     args = parser.parse_args(argv)
-    args.func(args)
+    try:
+        args.func(args)
+    except IntervalsApiError as exc:
+        print(f"erro: {exc}", file=sys.stderr)
+        return 1
+    except requests.exceptions.RequestException as exc:
+        print("erro: falha de comunicacao com o Intervals.icu "
+              f"({exc.__class__.__name__}): {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
