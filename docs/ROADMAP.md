@@ -6,7 +6,10 @@ rastreio no GitHub (issue) e estágio. Fonte canônica: vault do Obsidian
 espelho público.
 
 Referências: [ADR-003](https://github.com/valdelin/Hermes-coach/issues) (visão
-de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
+de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault);
+**fundamentação científica** do algoritmo em `docs/EMBASAMENTO-CIENTIFICO.md`;
+**visão SaaS** (arquitetura alvo multi-tenant) em
+`docs/ROADMAP-2-CRIACAO-DE-SAAS.md` (itens #24-#27, Fases 1B/3B).
 
 ## Backlog
 
@@ -35,6 +38,10 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 | 21 | feature | ~~**Gráficos no `summary`** (estilo Pillar "Advanced Progress Tracking"/Analog 90-day dashboards): **PMC CTL/ATL/TSB trailing 90d** em sparklines unicode (escala global compartilhada) + **barras de carga semanal** (TSS/semana ISO); `--chart auto|none|pmc|load|all` (default `auto` = PMC sempre + carga p/ semana/mês; `src/charts.py`); **`--export` para HTML/PDF** (SVG inline via `src/report.py`; PDF = mesmo HTML no chromium headless `--print-to-pdf`)~~ + **tema no relatório** (`src/brand.py`: 22 temas inspirados no Omarchy quattro; menu "Temas"/tecla T no HTML, `--theme` na CLI) e **linha de forma (TSB) por zona** (risco ≤ −10 / ideal / fresco ≥ +10, cores por tema) | — (benchmark Pillar/Analog 24/09) | **implementado (v0.0.23)** | 2 ✅ |
 | 22 | feature | **"Próximo passo" pós-treino** — post-ride insight → ação clara única (estilo Analog Sports "clear next action"; ex.: "amanhã: recuperação — cargas caíram, TSB vira +"...): ainda sob análise se vira `summary`/`reconcile` enrichment | — (benchmark Analog Sports 24/09) | **possível — validar c/ treinador** | 2 |
 | 23 | produto | **Portal do sistema + teste real de inscrição de outros atletas** — casca do produto (login/OAuth Intervals + onboarding por objetivo) pronta para receber um **2º atleta de verdade**: criar conta, conectar o Intervals, gerar plano e ver publicar no calendário dele; validar o fluxo ponta-a-ponta (não só o motor) num futuro não muito distante | — (decisão 24/09) | **aberto — futuro próximo** | 3 |
+| 24 | infra | **Modelagem de Banco de Dados Multi-tenant (PostgreSQL)** — Substituição do estado local (`plan.json`) por banco de dados relacional para gerir usuários, credenciais criptografadas (*AES-256*), estado dos treinos e assinaturas | — (arquitetura SaaS 25/09) | **planejado (SaaS)** | 1B |
+| 25 | backend | **Encapsulamento em API REST (FastAPI)** — Transformação dos comandos da CLI e do motor determinístico em endpoints assíncronos REST | — (arquitetura SaaS 25/09) | **planejado (SaaS)** | 1B |
+| 26 | backend | **Fila de Execução Assíncrona (Redis + Celery)** — Substituição da execução diária via Cron local por workers distribuídos que processam a autorregulação isolada de cada atleta cadastrado | — (arquitetura SaaS 25/09) | **planejado (SaaS)** | 1B |
+| 27 | produto | **Gateway de Pagamento & Subscrições (Stripe / Paddle)** — Suporte a planos recorrentes (B2C Pro Athlete / B2B Coach), Trial de 14 dias e gestão automatizada de cobrança | — (arquitetura SaaS 25/09) | **planejado (SaaS)** | 3B |
 
 ## Fases
 
@@ -50,11 +57,15 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   HRV Status overnight não suportado pelo FR935 (Elevate Gen 3+) — decisão
   documentada; Oura/WHOOP/novo relógio fica no backlog.
 
-### Fase 1 — Comunicação (issue #2)
+### Fase 1 — Comunicação (issue #2) & Arquitetura SaaS Core
 - Resumo do treino (foco + TSB + TSS previsto/real + avisos do reconcile) via
   **Telegram** primeiro; interface `Notifier` extensível (e-mail/WhatsApp);
   config `NOTIFY_CHANNEL`/token/chat id no `.env`.
 - Regra: envio **assíncrono e não-bloqueante** (não derruba o timer diário).
+- **Fase 1B (Evolução Multi-tenant):**
+  - Migração de estado (`plan.json`) para **PostgreSQL** (tabelas `Users`, `Credentials`, `Workouts`).
+  - Criptografia simétrica (*AES-256*) para armazenar as API Keys do Intervals.icu de múltiplos atletas.
+  - Exposição do motor via **FastAPI** e fila de workers com **Redis + Celery** para processar o `reconcile` diário em escala.
 
 ### Fase 2 — Dados incompletos (issue #3) + tipos de plano (#5) + FTP sugerido (#6)
 - ✅ **Sem medidor de potência (issue #3) — implementado (v0.0.25, validado
@@ -123,12 +134,15 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
   workouts do Zwift). `plan.json` guarda `goal`/`race_date`; complementa o
   onboarding por objetivo da Fase 3.
 
-### Fase 3 — Produto (casca estilo Runna, ADR-003)
+### Fase 3 — Produto (casca estilo Runna, ADR-003) & Monetização
 - PWA + onboarding por objetivo → `build` → calendário → Zwift (`.zwo`) +
   assinatura mensal; login com API key do Intervals.
 - **Parcialmente iniciado no agente (v0.0.10–0.0.11):** onboarding por objetivo
   (menu GOAL de 7 tipos) + troca de objetivo no meio do plano + disponibilidade
   (`WEEKLY_HOURS`/`LONG_DAY`). Falta a casca (PWA, tela de seleção, assinatura).
+- **Fase 3B (SaaS & Monetização - itens #23, #27):**
+  - Portal do sistema (Next.js/React) para onboarding de atletas sem tocar em CLI.
+  - Conexão de gateway de pagamento (Stripe/Paddle) com tiers **Pro Athlete (B2C)** e **Coach/Studio (B2B)**.
 - 📊 **Benchmark comercial (22/09) — o agente pode virar app pago?** **Sim** — o
   núcleo já entrega o que o mercado vende: planos adaptativos por objetivo
   (GOAL + `race`/taper = Pillar/TriDot), treino sem medidor de potência
@@ -263,13 +277,13 @@ de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault).
 - Mudanças que afetam carga/plano passam por **`--dry-run`** ou validação com
   dados reais antes de tocar o fluxo do timer diário.
 
-## Status atual (2026-09-24)
+## Status atual (2026-09-25)
 
-Revisão dos itens (sessões de 23-24/09; releases v0.0.20 → v0.0.23):
+Revisão dos itens (sessões de 23-25/09; suporte a SaaS estendido):
 
 - **Implementados:** #16 (semente TSB-alvo no `race`), #17 (zonas extremas no
   Expected PMC), #19 `recovery` (v0.0.21), #20 `summary` (v0.0.22), **#21
-  gráficos + relatório (v0.0.23)** — ver abaixo.
+  gráficos + relatório (v0.0.23)**.
 - **#21 publicado (v0.0.23):** `src/charts.py` (PMC 90d + carga semanal) e
   `src/report.py` (`--export` HTML/PDF com SVG); **temas** (`src/brand.py`:
   22 temas do Omarchy quattro; menu "Temas"/tecla T no HTML, `--theme` na CLI
@@ -278,19 +292,16 @@ Revisão dos itens (sessões de 23-24/09; releases v0.0.20 → v0.0.23):
   −10 / ideal / fresco ≥ +10). **274 testes OK**; validado no chromium:
   22/22 temas com as 3 cores de zona corretas. Kit portátil dos temas:
   `docs/TEMAS.md`.
-- **Benchmark (24/09):** Pillar (4,9★; plano adaptativo,cadastro 200+ eventos)
+- **Benchmark (24/09):** Pillar (4,9★; plano adaptativo, cadastro 200+ eventos)
   e Analog Sports Ana (2,6★ App Store; 90-day PMC dashboards, IA chat, mas
   sync/UX ruim) → **#21** implementado, **#22** (clear next action) no
   backlog; lição de UX/robustez registrada na Fase 4.
-- **Abertos:** #1 fantasmas (baixa), #2 notificações (Fase 1), #7/#8/#11/#12
-  (produto, Fase 3), #9/#10/#13-#15/#22 (possível — validar c/ treinador).
 - **#19 conectado ao build (v0.0.24, 24/09):** `build --recovery` ora o plano
   pelos tetos semanais da rampa do `recovery` (`--ramp-pts`, `--recovery-weeks`;
   também no `all`) — release v0.0.24 publicada.
-- **Novo no roadmap (#23, 24/09):** **portal do sistema + teste real de
-  inscrição de outros atletas** — futuro próximo: casca (login/OAuth Intervals
-  + onboarding por objetivo) pronta para receber um **2º atleta de verdade**
-  (criar conta, conectar, gerar plano, publicar no calendário).
+- **Abertos / Roadmap SaaS (#24-#27, 25/09):** incorporadas as tarefas de
+  infraestrutura multi-tenant, migração para PostgreSQL, criação de endpoints
+  FastAPI, agendamento Redis/Celery e camada de pagamentos Stripe.
 - Suíte: **278 testes OK** (24/09).
 
 ## Status atual (2026-09-22)
