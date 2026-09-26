@@ -328,6 +328,23 @@ Benchmark competitivo + decisões da sessão (features 1/3/4 implementadas;
   `tests/test_periodization_explain.py` (13 testes do comando `periodization`).
   Lembra que a **decisão atual é deixar o TSB governar** (sem `PERIODIZATION` no
   `.env`); o comando `periodization` existe para consulta/oferta ao atleta.
+- **Decisões de UX do portal (26/09; #23):** aprovação **obrigatória** antes de
+  publicar (vale para `build` **e** `reconcile`; solo = atleta, com coach =
+  treinador); **sem chat** — interface por **ações/opções pré-definidas**
+  (chat/LLM fica para o futuro, #29); **Dashboard só com o essencial** (resumo
+  do dia + semana + alertas; detalhes no Calendário). Registradas em
+  `docs/PORTAL-UI-DESIGN.md` (Fase 0/1).
+- **Decisões pendentes do portal (antes/durante a Fase 1):** P1 o que acontece
+  se não houver aprovação até o treino (publica com aviso? fica pendente?);
+  P2 aprovar na fila dedicada vs inline no calendário; P3 notificação de
+  pendência (badge/Telegram — #2); P4 profundidade Dashboard vs Calendário
+  (validar com protótipo); P5 catálogo de ações pré-definidas da v1; P6 quando
+  entra o chat/Coach+ (#29) e se começa como perguntas pré-formatadas;
+  P7 protótipo navegável do Dashboard (validar P2/P4/P5 na tela — outra
+  sessão; não bloqueia a Fase 0). **Design do portal: seguir o visual dos
+  relatórios HTML** (`src/report.py`/`brand.py`: 22 temas do Omarchy, default
+  tokyo-night, cards, barra de TSS, linha de forma por zona — kit em
+  `docs/TEMAS.md`); registrado em `docs/PORTAL-UI-DESIGN.md`.
 
 ## Status atual (2026-09-25)
 
