@@ -47,6 +47,9 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 | 28 | feature | **Race Recon — leitura do percurso da prova** (GPX/FIT ou rota do Intervals.icu): mede cada subida sustentada, estima o tempo nelas no ritmo de prova, favorece intervalos com esse tamanho nas semanas finais e planeja o dia da prova segmento a segmento (alvo de potência/pace + estoque de carboidrato/água) | — (benchmark IntervalCoach 26/09) | **possível — validar c/ treinador** | 2 |
 | 29 | produto | **Coach+ — chat com o treinador de IA** (explicar decisões, mover/reescrever sessões no calendário; foto/screenshot na versão Max) — o nosso agente CLI já conversa e reescreve; falta a casca de produto | — (benchmark IntervalCoach 26/09) | **possível — menor prioridade** | 3 |
 | 30 | feature | **Multi-esporte com carga compartilhada** (ciclo + corrida + natação + tri + força + HYROX num plano só, PMC único) — expandir o módulo de corrida (#18) para os demais esportes | — (benchmark IntervalCoach 26/09) | **possível — sem urgência** | 2 |
+| 31 | feature | ~~**`check` — prontidão do dia**~~ (wellness + sinais de recuperação): RHR acima da média +3 bpm, HRV < 80%, sono < 6h ou 2h abaixo, readiness < 60 → **sugere** (nunca impõe) troca por recuperação Z2 curta (`--apply`); alerta de início de doença (RHR 2+ noites subindo + HRV caindo) + aviso ao treinador via `COACH_WEBHOOK` | — (benchmark IntervalCoach 26/09) | **implementado (v0.0.27)** | 0 ✅ |
+| 32 | feature | ~~**Periodização selecionável (`PERIODIZATION`)**~~ — 5 modelos (polarized, pyramidal, undulating, linear, block) com templates por TSB; **decisão do usuário (26/09): TSB governa** (sem `PERIODIZATION` no `.env`); comando `periodization` (v0.0.28) explica os modelos/sugere por GOAL/TSB | — (benchmark IntervalCoach 26/09) | **implementado (v0.0.27/28)** | 2 ✅ |
+| 33 | feature | **Motor local do `model` alinhado ao Intervals** — hoje diverge porque (a) parte de zero em janela de 60d (Intervals usa histórico completo), (b) `daily_tss_series` pula dias de carga 0 (decaimento comprimido; o `forecast_pmc` corrige com zeros, o `cmd_model` não) e (c) carga usa `tss`/`icu_training_load` em vez da pipeline interna. Proposta: janela maior, incluir zeros no `cmd_model`, bootstrap a partir do estado do Intervals (bater com a API) | — (sessão 27/09 — divergência Motor local vs Intervals) | **possível — Fase 0 (melhoria de diagnóstico)** | 0 |
 
 ## Fases
 
@@ -334,6 +337,12 @@ Benchmark competitivo + decisões da sessão (features 1/3/4 implementadas;
   (chat/LLM fica para o futuro, #29); **Dashboard só com o essencial** (resumo
   do dia + semana + alertas; detalhes no Calendário). Registradas em
   `docs/PORTAL-UI-DESIGN.md` (Fase 0/1).
+- **Análise (27/09): Motor local do `model` diverge do Intervals** porque
+  parte de zero em janela de 60d (Intervals usa histórico completo), a série
+  diária pula dias de carga 0 (decaimento comprimido) e a carga vem de
+  `tss`/`icu_training_load` em vez da pipeline interna — registrado como
+  **#33 (Fase 0, diagnóstico)**; não afeta `build`/`reconcile`/`push`, que
+  usam as métricas do Intervals como autoritativa.
 - **Decisões pendentes do portal (antes/durante a Fase 1):** P1 o que acontece
   se não houver aprovação até o treino (publica com aviso? fica pendente?);
   P2 aprovar na fila dedicada vs inline no calendário; P3 notificação de
