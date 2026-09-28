@@ -529,6 +529,38 @@ class RecoveryCliTest(unittest.TestCase):
         finally:
             tp.get_client = orig_client
 
+    def test_cmd_recovery_ancora_nos_valores_reais_quando_disponiveis(self):
+        orig_client = tp.get_client
+        tp.get_client = lambda: _RecoveryRealClient()
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                tp.cmd_recovery(types.SimpleNamespace(weeks=0, ramp_pts=9))
+            out = buf.getvalue()
+            self.assertIn("(PMC real do Intervals: serie ancorada", out)
+            # com icu_ctl real presente, o pico reportado e o da API, nao o
+            # reconstruido; abre mao do rigidez do numero e so exige contexto
+            self.assertRegex(out, r"pico de CTL: \d")
+            self.assertIn("ESTIMATIVA DE RETORNO AO CTL PICO", out)
+        finally:
+            tp.get_client = orig_client
+
+
+class _RecoveryRealClient(_FakeClient):
+    """Igual ao _RecoveryClient, mas os eventos FEITOS carregam icu_ctl/icu_atl
+    (pipeline interna do Intervals), exercitando a serie ancorada."""
+
+    def events(self, **params):
+        base = _RecoveryClient().events(**params)
+        out = []
+        for e in base:
+            e = dict(e)
+            if e.get("paired_activity_id"):
+                e["icu_ctl"] = 18.0
+                e["icu_atl"] = 22.0
+            out.append(e)
+        return out
+
 
 class BuildRecoveryTest(unittest.TestCase):
     """#19: `build --recovery` ora o plano pelos tetos da rampa de retorno."""

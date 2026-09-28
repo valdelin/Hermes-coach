@@ -145,6 +145,52 @@ class StateTest(unittest.TestCase):
         self.assertIsNone(recovery.state([]))
 
 
+class CalibratedStateTest(unittest.TestCase):
+    """#35: convert o estado REAL do Intervals para a moeda TSS do plano.
+
+    O CTL/ATL reais usam a carga efetiva interna (~2x o TSS), entao nao se
+    pode usar `peak_ctl * 7` diretamente como rampa. A calibracao descobre o
+    fator pela relacao observada agora: `weekly_now` TSS sustentam o
+    `current_ctl` real.
+    """
+
+    def test_dimensiona_pelo_volume_atual(self):
+        st = {"current_ctl": 50.0, "current_atl": 100.0, "current_tsb": -50.0,
+              "peak_ctl": 70.0, "peak_ctl_day": date(2026, 6, 1),
+              "peak_ctl_tsb": 5.0, "window_avg": 55.0,
+              "window_start": date(2026, 5, 1), "window_end": date(2026, 5, 30),
+              "peak_tsb": 60.0, "peak_tsb_day": date(2026, 7, 1),
+              "peak_tsb_ctl": 30.0, "first_day": date(2021, 1, 1),
+              "last_day": date(2026, 9, 26)}
+        # 400 TSS/semana sustentam CTL 50 -> fator 400/(7*50) = 8/7
+        out = recovery.calibrated_state(st, 400.0)
+        self.assertAlmostEqual(out["current_ctl"], 50.0 * 8 / 7, places=6)
+        self.assertAlmostEqual(out["current_atl"], 100.0 * 8 / 7, places=6)
+        self.assertAlmostEqual(out["current_tsb"], -50.0 * 8 / 7, places=6)
+        self.assertAlmostEqual(out["peak_ctl"], 70.0 * 8 / 7, places=6)
+        self.assertAlmostEqual(out["window_avg"], 55.0 * 8 / 7, places=6)
+        self.assertAlmostEqual(out["peak_tsb"], 60.0 * 8 / 7, places=6)
+        self.assertAlmostEqual(out["peak_tsb_ctl"], 30.0 * 8 / 7, places=6)
+        # datas e rotulos ficam intactos
+        self.assertEqual(out["peak_ctl_day"], st["peak_ctl_day"])
+        self.assertEqual(out["first_day"], st["first_day"])
+        self.assertEqual(out["window_start"], st["window_start"])
+
+    def test_none_sem_estado(self):
+        self.assertIsNone(recovery.calibrated_state(None, 400.0))
+
+    def test_ctl_zero_nao_dimensiona(self):
+        st = {"current_ctl": 0.0, "current_atl": 0.0, "current_tsb": 0.0,
+              "peak_ctl": 30.0}
+        out = recovery.calibrated_state(st.copy(), 400.0)
+        self.assertEqual(out["peak_ctl"], 30.0)
+
+    def test_ctl_negativo_nao_dimensiona(self):
+        st = {"current_ctl": -5.0}
+        out = recovery.calibrated_state(st.copy(), 400.0)
+        self.assertEqual(out["current_ctl"], -5.0)
+
+
 class EstimateReturnTest(unittest.TestCase):
     def test_ate_99_nao_antes_de_90(self):
         r = recovery.estimate_return(10, 15, 40, 80, ramp_pts=9)

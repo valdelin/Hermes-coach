@@ -35,7 +35,7 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 | 16 | feature | **TSB-alvo pessoal de prova** — aprender o TSB ótimo de corrida correlacionando os melhores dias de forma com o TSB do dia (S2S: ótimo varia, `−5..+5` a `+10..+20` por atleta); usar para ajustar o taper do `GOAL=race`. **Semente implementada (v0.0.20)** no `GOAL=race`: o `build` projeta o TSB no dia da prova (Expected PMC) e compara com a faixa `−10..+20` (`_tsb_race_verdict`: cansado/ok/acima); falta o aprendizado pessoal | — (Science to Sport 23/09; Friel case study 2010) | **semente implementada — aprendizado pessoal: validar c/ treinador** | 2 |
 | 17 | feature | ~~**Indicadores de zona extrema no Expected PMC**~~ **implementado (v0.0.19)**: Friel — `TSB < −30` = risco alto (R&R), `> +25` = transição (descanso longo); `forecast_pmc()` etiqueta a zona por dia (`_tsb_zone`) e o `model` avisa | — (Joe Friel 23/09) | **implementado** | 2 ✅ |
 | 18 | feature | **Módulo de corrida a pé (esporte #2)** — `sport` no domínio (plan.json/workouts/eventos), limiar por pace/LTHR, `rftp-scan`, carga via Intervals (rTSS/gCTB), workouts de corrida em FIT, metas 5K/10K/meia/maratona (estilo RunDot), **PMC único multi-esporte** (TSS de todos os esportes no mesmo CTL/ATL — abordagem tri). Fora de escopo: passada/forma, Stryd/RunPower. **Prescrição SEM power meter** (protótipo `src/plan_run.py`): variável de controle é **p/ template**, não global — contínua/longa = `hr` (%LTHR; estado estável), tempo/limiar/VO2 = `pace` (ritmo-alvo do rFTP, FC como âncora), **fartlek = `rpe`** (surto < 2' nunca alcança a zona de FC; prescreve esforço "ritmo 5-10K"); sem `RFTP_PACE`, alvo `pace` cai p/ `hr`. Atleta escolhe no build; **decisão final: validação c/ treinador** (quando usar cada controle) | — (análise 23/09) | **possível — validar c/ treinador** | 2 |
-| 19 | feature | **`recovery` — retorno a forma** (prazo realista + prescrição segura de rampa): varre **todo** o histórico real do Intervals (paginação com hiatos), reconstrói o PMC por dia (EWMA 42/7; zero nos hiatos para o decaimento não comprimir o tempo) e compara o hoje com o pico histórico (CTL, melhor mês, TSB). Estima semanas/meses para voltar a 90%/99% do CTL de pico sob rampas conservador/realista/otimista e entrega a rampa semanal de TSS com deload a cada 4 sem e teto = carga que sustenta o CTL-alvo (`src/recovery.py`; CLI `recovery`). **`build --recovery` (conexão ao build, 24/09)**: o plano dos próximos dias é orçado pelos tetos semanais da rampa (`--ramp-pts`, `--recovery-weeks`; também no `all`) | — (análise 23/09 — seu histórico real) | **implementado (v0.0.21) + build conectado (24/09)** — validar a rampa c/ treinador | 2 |
+| 19 | feature | **`recovery` — retorno a forma** (prazo realista + prescrição segura de rampa): varre **todo** o histórico real do Intervals (paginação com hiatos), reconstrói o PMC por dia (EWMA 42/7; zero nos hiatos para o decaimento não comprimir o tempo) e compara o hoje com o pico histórico (CTL, melhor mês, TSB). Estima semanas/meses para voltar a 90%/99% do CTL de pico sob rampas conservador/realista/otimista e entrega a rampa semanal de TSS com deload a cada 4 sem e teto = carga que sustenta o CTL-alvo (`src/recovery.py`; CLI `recovery`). **`build --recovery` (conexão ao build, 24/09)**: o plano dos próximos dias é orçado pelos tetos semanais da rampa (`--ramp-pts`, `--recovery-weeks`; também no `all`)~~ + **PMC real do Intervals + rampa calibrada (27/09)**: série ancorada nos `icu_ctl`/`icu_atl` reais (fallback reconstrução) e teto em TSS do plano via `calibrated_state` (teto = vol atual × pico/atual, ex.: 130 TSS/sem) | — (análise 23/09 — seu histórico real; 27/09 — alinhado) | **implementado (v0.0.21) + build conectado (24/09) + alinhado ao Intervals (27/09)** — validar a rampa c/ treinador | 2 |
 | 20 | feature | ~~**`summary` — resumo dos treinos feitos por período**~~ (dia/semana/mês, janela terminando no dia-ancla, default ontem): sessões, carga total (TSS), tempo, distância, elevação, potência média/NP e FC média ponderadas pelo tempo + detalhe de cada treino; usa só atividades pareadas (`src/activity_summary.py`; CLI `summary --period --date`). **+ Períodos flexíveis (25/09):** `quarter`/`semester`/`year` (90/180/365d), duração livre `45d`/`6m`/`1y`, `plan` (primeiro→último dia do plano salvo = relatório final do ciclo) e `custom` (`--start`/`--end`); PMC acompanha a janela do período (piso 90d) | — (pedido 24/09 — "resumo do dia, semana, mes"; 25/09 — 6 meses/ano/fim do plano/custom) | **implementado (v0.0.22 + 25/09)** | 2 ✅ |
 | 21 | feature | ~~**Gráficos no `summary`** (estilo Pillar "Advanced Progress Tracking"/Analog 90-day dashboards): **PMC CTL/ATL/TSB trailing 90d** em sparklines unicode (escala global compartilhada) + **barras de carga semanal** (TSS/semana ISO); `--chart auto|none|pmc|load|all` (default `auto` = PMC sempre + carga p/ semana/mês; `src/charts.py`); **`--export` para HTML/PDF** (SVG inline via `src/report.py`; PDF = mesmo HTML no chromium headless `--print-to-pdf`)~~ + **tema no relatório** (`src/brand.py`: 22 temas inspirados no Omarchy quattro; menu "Temas"/tecla T no HTML, `--theme` na CLI) e **linha de forma (TSB) por zona** (risco ≤ −10 / ideal / fresco ≥ +10, cores por tema)~~ + **alinhado ao Intervals (27/09, v0.0.29)** — PMC do gráfico parte dos valores REAIS `icu_ctl`/`icu_atl` de cada treino (`coach.real_pmc_by_day`) com decaimento EWMA entre os dias (`recovery.pmc_series_anchored`): mesmo número que o Intervals plota (CTL 25.3 vs ~15.8); reconstrução local de zero vira fallback | — (benchmark Pillar/Analog 24/09; alinhamento 27/09) | **implementado (v0.0.23 + alinhado 27/09)** | 2 ✅ |
 | 22 | feature | **"Próximo passo" pós-treino** — post-ride insight → ação clara única (estilo Analog Sports "clear next action"; ex.: "amanhã: recuperação — cargas caíram, TSB vira +"...): ainda sob análise se vira `summary`/`reconcile` enrichment | — (benchmark Analog Sports 24/09) | **possível — validar c/ treinador** | 2 |
@@ -366,7 +366,8 @@ Benchmark competitivo + decisões da sessão (features 1/3/4 implementadas;
   decaído 1 dia). A reconstrução local (`pmc_series` sobre `actual_daily_load`)
   vira **fallback** quando a API não traz os valores (ex.: clientes de teste).
   Também vale para `--export` (HTML/PDF). **#35** registra a validação com um
-  2º atleta de verdade.
+  2º atleta de verdade. Comparação numérica e explicativa das duas abordagens
+  em `docs/COMPARACAO-PMC.md`.
 - Suíte: **369 testes OK (3 skipped)** (27/09), incluindo
   `PmcSeriesAnchoredTest` (5), `RealPmcByDayTest` (3) e cobertura do
   `_summary_chart_data` preferindo real/fallback no `SummaryChartDataTest`.
@@ -382,7 +383,27 @@ Benchmark competitivo + decisões da sessão (features 1/3/4 implementadas;
   tokyo-night, cards, barra de TSS, linha de forma por zona — kit em
   `docs/TEMAS.md`); registrado em `docs/PORTAL-UI-DESIGN.md`.
 
-## Status atual (2026-09-25)
+## Status atual (2026-09-27)
+
+Revisão dos itens (sessão de 27/09; fix do #33 no `recovery`/`build --recovery`):
+
+- **#21 já alinhado ao Intervals (v0.0.29)** — ver histórico acima (PMC do
+  `summary` ancorado nos `icu_ctl`/`icu_atl` reais; comparação em
+  `docs/COMPARACAO-PMC.md`).
+- **#19 recuperado do modelo antigo (27/09):** o `recovery` (CLI) e o
+  `build --recovery` ainda reconstruíam o PMC de zero sobre `icu_training_load`
+  (carga ~½ da efetiva do Intervals) — CTL 9.8/pico 23.9 vs os reais
+  24.7/32.0. Agora consomem a **mesma série ancorada** do `summary`
+  (`_pmc_rows`: `real_pmc_by_day` + `pmc_series_anchored`, fallback na
+  reconstrução local) e **calibram a rampa** para a moeda de TSS do plano
+  (`recovery.calibrated_state`: teto = volume atual × CTL pico / CTL atual —
+  não `pico × 7`, que misturaria a escala ~2× do Intervals com o TSS do plano;
+  ex.: 100 × 32/24.7 ≈ **130 TSS/sem**). Valores de pico/melhor-mês/TSB
+  reportados agora são os do Intervals; a saída exibe o CTL calibrado em
+  "TSS/semana no plano".
+- Suíte: **374 testes OK (3 skipped)** (27/09). Validação real: `recovery`
+  reporta CTL 24.7/ATL 40.8/TSB −16.1, pico 32.0 em 2022-02-28;
+  `build --recovery` ora pelo teto calibrado.
 
 Revisão dos itens (sessões de 23-25/09; suporte a SaaS estendido):
 

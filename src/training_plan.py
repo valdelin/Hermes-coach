@@ -592,17 +592,21 @@ def cmd_build(args):
         # retorno a forma (mesma prescricao do CLI `recovery`).
         all_events = recovery.fetch_full_history(client)
         daily = recovery.actual_daily_load(all_events)
-        rows = recovery.pmc_series(daily)
+        rows, anchored = _pmc_rows(all_events, date(2011, 1, 1), date.today())
         if rows:
-            st = recovery.state(rows)
+            st_real = recovery.state(rows)
             vol = recovery.weekly_volume(daily)
+            if anchored:
+                st = recovery.calibrated_state(st_real, vol) or st_real
+            else:
+                st = st_real
             ramp_pts = getattr(args, "ramp_pts", 9)
             weeks = max(getattr(args, "recovery_weeks", 12),
                         (args.days_plan + 6) // 7)
             schedule = recovery.ramp_schedule(st["peak_ctl"], vol, ramp_pts,
                                               weeks=weeks)
             recovery_ramp = schedule
-            ramp_label = (f"teto semanal de retorno (CTL pico {st['peak_ctl']:.0f}; "
+            ramp_label = (f"teto semanal de retorno (CTL pico {st_real['peak_ctl']:.0f}; "
                           f"rampa +{ramp_pts}/sem): {schedule[0]:.0f} -> "
                           f"{schedule[-1]:.0f} TSS")
         else:
@@ -678,45 +682,55 @@ def _print_race_tsb_projection(events, plan, metrics, race_date):
 
 
 def cmd_recovery(args):
-    """Historico real do Intervals -> PMC reconstruido -> estimativa de
+    """Historico real do Intervals -> PMC (ancorado) -> estimativa de
     retorno a antiga forma + prescricao segura de rampa de volume.
 
     Usa somente treinos FEITOS (com atividade pareada); planejado-nao-feito nao
-    conta como carga real. O pico historico e a melhor janela de 30 dias sao o
-    "onde voce esteve"; a estimativa projeta o prazo de volta ao CTL de pico sob
-    rampas conservadora/realista/otimista, e a prescricao da a rampa semanal.
+    conta como carga real. A serie ancorada parte dos valores reais
+    `icu_ctl`/`icu_atl` do Intervals (fallback: reconstrucao local de zero).
+    O pico historico e a melhor janela de 30 dias sao o "onde voce esteve"; a
+    estimativa projeta o prazo de volta ao CTL de pico sob rampas
+    conservadora/realista/otimista (CTL calibrado para a moeda TSS do plano),
+    e a prescricao da a rampa semanal.
     """
     client = get_client()
     events = recovery.fetch_full_history(client)
     done = [e for e in events
             if e.get("paired_activity_id") or e.get("activity_id")]
     daily = recovery.actual_daily_load(events)
-    rows = recovery.pmc_series(daily)
+    rows, anchored = _pmc_rows(events, date(2011, 1, 1), date.today())
     if not rows:
         print("Sem treinos feitos com carga no historico.")
         return None
-    st = recovery.state(rows)
+    st_real = recovery.state(rows)
     print(f"historico: {len(events)} eventos | treinos feitos com carga: "
           f"{len(done)}")
-    print(f"periodo coberto: {st['first_day']} a {st['last_day']}")
+    print(f"periodo coberto: {st_real['first_day']} a {st_real['last_day']}")
+    if anchored:
+        print("(PMC real do Intervals: serie ancorada nos valores da API)")
+    else:
+        print("(PMC reconstruido local: sem icu_ctl/icu_atl no historico)")
 
-    print("\n=== AGORA ===")
+    st = st_real
     vol = recovery.weekly_volume(daily)
-    print(f"CTL {st['current_ctl']:.1f} | ATL {st['current_atl']:.1f} | "
-          f"TSB {st['current_tsb']:+.1f}")
+    if anchored:
+        st = recovery.calibrated_state(st, vol) or st
+    print("\n=== AGORA ===")
+    print(f"CTL {st_real['current_ctl']:.1f} | ATL {st_real['current_atl']:.1f} | "
+          f"TSB {st_real['current_tsb']:+.1f}")
     print(f"volume semanal recente (28d): {vol:.0f} TSS")
 
     print("\n=== ONDE VOCE JA ESTEVE ===")
-    print(f"pico de CTL: {st['peak_ctl']:.1f} em {st['peak_ctl_day']} "
-          f"(TSB {st['peak_ctl_tsb']:+.1f})")
-    print(f"melhor mes (CTL medio 30d): {st['window_avg']:.1f} "
-          f"({st['window_start']} a {st['window_end']})")
-    print(f"pico de TSB: {st['peak_tsb']:+.1f} em {st['peak_tsb_day']} "
-          f"(CTL {st['peak_tsb_ctl']:.1f})")
+    print(f"pico de CTL: {st_real['peak_ctl']:.1f} em {st_real['peak_ctl_day']} "
+          f"(TSB {st_real['peak_ctl_tsb']:+.1f})")
+    print(f"melhor mes (CTL medio 30d): {st_real['window_avg']:.1f} "
+          f"({st_real['window_start']} a {st_real['window_end']})")
+    print(f"pico de TSB: {st_real['peak_tsb']:+.1f} em {st_real['peak_tsb_day']} "
+          f"(CTL {st_real['peak_tsb_ctl']:.1f})")
 
     target = st["peak_ctl"]
-    print("\n=== ESTIMATIVA DE RETORNO AO CTL "
-          f"{target:.0f} ===")
+    print("\n=== ESTIMATIVA DE RETORNO AO CTL PICO "
+          f"({st_real['peak_ctl']:.0f} real) ===")
     scenarios = (
         ("conservador (+6/sem)", 6),
         ("realista    (+9/sem)", 9),
@@ -727,9 +741,9 @@ def cmd_recovery(args):
                                      target, vol, ramp)
         w90 = _fmt_weeks(r["weeks_90"])
         w99 = _fmt_weeks(r["weeks_99"])
-        print(f"  {label}: 90% em {w90} | 100% em {w99}")
-    print(f"  (sustentar o CTL {target:.0f} exige ~"
-          f"{target * 7:.0f} TSS/semana)")
+        print(f"  {label}: 90% do pico em {w90} | 100% em {w99}")
+    print(f"  (sustentar o CTL pico {st_real['peak_ctl']:.0f} real exige ~"
+          f"{target * 7:.0f} TSS/semana no plano)")
 
     if args.weeks > 0:
         ramp = args.ramp_pts
@@ -835,27 +849,39 @@ def _plan_days():
     return [date.fromisoformat(d) for d in days]
 
 
+def _pmc_rows(events, start, end):
+    """Serie `[(day, ctl, atl, tsb)]` preferindo os valores REAIS do Intervals.
+
+    Quando algum evento tem `icu_ctl`/`icu_atl` (pipeline interna do Intervals
+    — mesmo numero que o site plota), ancora a serie nesses valores com
+    decaimento EWMA entre dias (`pmc_series_anchored`). Senao cai na
+    reconstrucao local sobre a carga real (`pmc_series(actual_daily_load)`).
+    Filtra para a janela [start, end]. Retorna (rows, anchored): `anchored`
+    indica se a serie veio dos valores reais (moeda do Intervals).
+    """
+    real = real_pmc_by_day(events)
+    if real:
+        rows = recovery.pmc_series_anchored(real, start, end)
+    else:
+        daily = recovery.actual_daily_load(events)
+        rows = recovery.pmc_series(daily)
+    return ([r for r in rows if start <= r[0] <= end], bool(real))
+
+
 def _summary_chart_data(client, start, end, rows):
     """Dados dos graficos do resumo: (pmc_rows, weeks).
 
     `pmc_rows` = serie (day, ctl, atl, tsb) terminando em `end`; a janela
     acompanha o periodo (piso de 90 dias para dia/semana/mes; janelas
-    maiores usam a extensao cheia). Quando a API tem `icu_ctl`/`icu_atl`
-    reais dos treinos, a serie parte desses valores (decaimento EWMA entre
-    dias) — igual ao PMC do Intervals; senao cai na reconstrucao local
-    (`pmc_series`) sobre a carga real. `weeks` = carga semanal ISO ([])
-    quando `start` == `end` (periodo dia).
+    maiores usam a extensao cheia). A serie parte dos valores reais do
+    Intervals (`_pmc_rows`: `icu_ctl`/`icu_atl` com decaimento EWMA entre
+    dias); sem valores reais, cai na reconstrucao local (`pmc_series`).
+    `weeks` = carga semanal ISO ([]) quando `start` == `end` (periodo dia).
     """
     days_back = max(89, (end - start).days)
     pmc_start = end - timedelta(days=days_back)
     events = client.events(oldest=pmc_start.isoformat(), newest=end.isoformat())
-    real = real_pmc_by_day(events)
-    if real:
-        pmc_rows = [r for r in recovery.pmc_series_anchored(real, pmc_start, end)
-                    if pmc_start <= r[0] <= end]
-    else:
-        daily = recovery.actual_daily_load(events)
-        pmc_rows = [r for r in recovery.pmc_series(daily) if pmc_start <= r[0] <= end]
+    pmc_rows, _ = _pmc_rows(events, pmc_start, end)
     if start == end:
         return pmc_rows, []
     return pmc_rows, charts.weekly_load(rows)

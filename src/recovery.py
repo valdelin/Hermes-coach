@@ -165,6 +165,27 @@ def state(rows, window_days=30):
     }
 
 
+def calibrated_state(st, weekly_now):
+    """Estado real do Intervals convertido para a moeda TSS do plano.
+
+    O CTL/ATL reais vêm do pipeline interno do Intervals (carga efetiva
+    variável, tipicamente ~dupla do TSS), então multiplicar o pico por 7 dá
+    TSS semanal na moeda errada. Em vez disso, calibra pela relação observada
+    agora: `weekly_now` TSS sustentam o `current_ctl` real. Escala todos os
+    valores de CTL/ATL/TSB pelo mesmo fator (`weekly_now / (7 * current_ctl)`),
+    mantendo datas/rotulos. Retorna copia de `st`; se `st` for None ou
+    `current_ctl` <= 0, devolve `st` inalterado.
+    """
+    if not st or st["current_ctl"] <= 0 or weekly_now <= 0:
+        return dict(st) if st else None
+    scale = weekly_now / (7.0 * st["current_ctl"])
+    out = dict(st)
+    for key in ("current_ctl", "current_atl", "current_tsb", "peak_ctl",
+                "peak_ctl_tsb", "window_avg", "peak_tsb", "peak_tsb_ctl"):
+        out[key] = st[key] * scale
+    return out
+
+
 def weekly_volume(daily, days=28):
     """Volume semanal recente (TSS): soma dos ultimos `days` dias / semanas."""
     end = date.today()

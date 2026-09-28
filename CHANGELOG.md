@@ -29,8 +29,23 @@ própria — foram agrupadas na tag/release v0.0.7.
   entre os dias (`recovery.pmc_series_anchored`) — plota o mesmo número do
   Intervals em vez da reconstrução local partindo de zero (CTL 25.3 vs os
   antigos ~15.8 na janela atual). A reconstrução local (`pmc_series`) vira
-  fallback para quando não há valores reais. Ver direção em ROADMAP #35
-  (validar consistência com dados de um 2º atleta).
+  fallback para quando não há valores reais. Comparação numérica das duas
+  abordagens (60 dias: antigo CTL 10.0/ATL 24.2/TSB −14.2 vs atual CTL
+  25.3/ATL 47.1/TSB −21.8) em `docs/COMPARACAO-PMC.md`. Ver direção em ROADMAP
+  #35 (validar consistência com dados de um 2º atleta).
+- **`recovery` e `build --recovery` — mesmo bug do `summary` corrigido no
+  retorno a forma** — os dois ainda reconstruíam o PMC de zero sobre o
+  `icu_training_load` (carga ~½ da efetiva do Intervals), subestimando o
+  histórico: CTL 9.8/pico 23.9 em vez dos reais 24.7/32.0 (fev/22). Agora
+  consomem a mesma série ancorada do `summary` (`_pmc_rows`:
+  `real_pmc_by_day` + `pmc_series_anchored`, fallback na reconstrução) e
+  **calibram a rampa para a moeda de TSS do plano** (`recovery.calibrated_state`:
+  teto = volume semanal atual × CTL pico / CTL atual, em vez de `pico × 7`,
+  que misturaria a escala ~2× do Intervals com o TSS do plano; ex.:
+  100 × 32/24.7 ≈ **130 TSS/sem**). Pico/melhor-mês/TSB reportados agora são
+  os do Intervals; a estimativa de retorno e a prescrição `--weeks`/`build
+  --recovery` usam o teto calibrado. Novo: `recovery.calibrated_state`,
+  `training_plan._pmc_rows` (compartilhado com o `summary`).
 
 ## [0.0.28] - 2026-09-26
 
