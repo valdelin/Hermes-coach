@@ -11,7 +11,7 @@ if __package__ in (None, ""):
 
 try:
     from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
-                       wellness_summary, format_wellness)
+                       wellness_summary, format_wellness, real_pmc_by_day)
     from intervals_client import IntervalsClient, IntervalsApiError
     from impulse_response import (ImpulseResponseEngine, daily_tss_series,
                                   forecast_pmc)
@@ -31,7 +31,7 @@ try:
     import periodization
 except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
-                        wellness_summary, format_wellness)
+                        wellness_summary, format_wellness, real_pmc_by_day)
     from .intervals_client import IntervalsClient, IntervalsApiError
     from .impulse_response import (ImpulseResponseEngine, daily_tss_series,
                                    forecast_pmc)
@@ -840,14 +840,22 @@ def _summary_chart_data(client, start, end, rows):
 
     `pmc_rows` = serie (day, ctl, atl, tsb) terminando em `end`; a janela
     acompanha o periodo (piso de 90 dias para dia/semana/mes; janelas
-    maiores usam a extensao cheia). `weeks` = carga semanal ISO ([]) quando
-    `start` == `end` (periodo dia).
+    maiores usam a extensao cheia). Quando a API tem `icu_ctl`/`icu_atl`
+    reais dos treinos, a serie parte desses valores (decaimento EWMA entre
+    dias) — igual ao PMC do Intervals; senao cai na reconstrucao local
+    (`pmc_series`) sobre a carga real. `weeks` = carga semanal ISO ([])
+    quando `start` == `end` (periodo dia).
     """
     days_back = max(89, (end - start).days)
     pmc_start = end - timedelta(days=days_back)
     events = client.events(oldest=pmc_start.isoformat(), newest=end.isoformat())
-    daily = recovery.actual_daily_load(events)
-    pmc_rows = [r for r in recovery.pmc_series(daily) if pmc_start <= r[0] <= end]
+    real = real_pmc_by_day(events)
+    if real:
+        pmc_rows = [r for r in recovery.pmc_series_anchored(real, pmc_start, end)
+                    if pmc_start <= r[0] <= end]
+    else:
+        daily = recovery.actual_daily_load(events)
+        pmc_rows = [r for r in recovery.pmc_series(daily) if pmc_start <= r[0] <= end]
     if start == end:
         return pmc_rows, []
     return pmc_rows, charts.weekly_load(rows)

@@ -619,6 +619,45 @@ class SummaryChartDataTest(unittest.TestCase):
         self.assertEqual(c.calls[0]["oldest"],
                          (anchor - timedelta(days=89)).isoformat())
 
+    def test_prefere_pmc_real_do_intervals_quando_existe(self):
+        c = self._RecClient()
+        anchor = date(2026, 9, 24)
+        start = anchor - timedelta(days=179)
+        real_events = [
+            {"start_date_local": f"{(anchor - timedelta(days=40))}T18:00:00",
+             "icu_ctl": "25.9", "icu_atl": "54.3", "icu_training_load": "57"},
+        ]
+        with mock.patch.object(tp, "real_pmc_by_day",
+                               return_value={anchor - timedelta(days=40):
+                                             (25.9, 54.3)}), \
+             mock.patch.object(tp.recovery, "pmc_series_anchored") as anchored, \
+             mock.patch.object(tp.recovery, "pmc_series") as rebuild, \
+             mock.patch.object(c, "events", return_value=real_events):
+            anchored.return_value = [(start + timedelta(days=i),
+                                      i * 0.1, i * 0.2, i * 0.1 - i * 0.2)
+                                     for i in range(180)]
+            pmc_rows, weeks = tp._summary_chart_data(c, start, anchor, [])
+        anchored.assert_called_once()
+        rebuild.assert_not_called()  # serie real preferida, sem reconstrucao
+        self.assertEqual(len(pmc_rows), 180)
+        self.assertEqual(weeks, [])
+
+    def test_cai_na_reconstrucao_quando_sem_valores_reais(self):
+        c = self._RecClient()
+        anchor = date(2026, 9, 24)
+        start = anchor - timedelta(days=179)
+        serie = [(start + timedelta(days=i), i, i, 0) for i in range(180)]
+        with mock.patch.object(tp, "real_pmc_by_day",
+                               return_value={}), \
+             mock.patch.object(tp.recovery, "actual_daily_load",
+                               return_value={}), \
+             mock.patch.object(tp.recovery, "pmc_series_anchored") as anchored, \
+             mock.patch.object(tp.recovery, "pmc_series",
+                               return_value=serie):
+            pmc_rows, weeks = tp._summary_chart_data(c, start, anchor, [])
+        anchored.assert_not_called()
+        self.assertEqual(len(pmc_rows), 180)
+
 
 class ModelClient(_FakeClient):
     """Fake com historico de metricas (ctl/atl) ao longo da janela (#33)."""

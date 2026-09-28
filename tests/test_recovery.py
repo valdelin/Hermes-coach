@@ -1,3 +1,4 @@
+import math
 import unittest
 from datetime import date, timedelta
 
@@ -74,6 +75,56 @@ class PmcSeriesTest(unittest.TestCase):
         # 50 dias de zero depois de 150 de carga: CTL bem abaixo do platô de 30
         self.assertLess(after, 20.0)
         self.assertGreater(after, 5.0)
+
+
+class PmcSeriesAnchoredTest(unittest.TestCase):
+    """A serie ancorada parte dos valores REAIS do Intervals (sem cold-start),
+    decaindo EWMA com TSS 0 entre os dias de treino."""
+
+    def test_vazio_sem_valores_reais(self):
+        self.assertEqual(recovery.pmc_series_anchored({}, date(2026, 9, 1),
+                                                      date(2026, 9, 30)), [])
+
+    def test_parte_do_primeiro_valor_real_sem_zero(self):
+        d0 = date(2026, 9, 10)
+        rows = recovery.pmc_series_anchored({d0: (40.0, 20.0)},
+                                            date(2026, 9, 1), d0)
+        # comeca no dia do primeiro treino com o CTL/ATL reais (NAO em zero)
+        self.assertEqual(rows[0][0], d0)
+        self.assertEqual(rows[0][1], 40.0)
+        self.assertEqual(rows[0][2], 20.0)
+
+    def test_decai_no_zero_como_ewma_42_7(self):
+        d0 = date(2026, 9, 10)
+        rows = recovery.pmc_series_anchored({d0: (40.0, 20.0)},
+                                            d0, date(2026, 9, 20))
+        # 10 dias sem treino: CTL decai tau 42, ATL tau 7
+        kc = 1 - math.exp(-1 / 42)
+        ka = 1 - math.exp(-1 / 7)
+        self.assertAlmostEqual(rows[-1][1], 40.0 * (1 - kc) ** 10, places=6)
+        self.assertAlmostEqual(rows[-1][2], 20.0 * (1 - ka) ** 10, places=3)
+
+    def test_dia_com_valor_real_ancora_direto(self):
+        d0 = date(2026, 9, 1)
+        d1 = date(2026, 9, 5)
+        real = {d0: (40.0, 20.0), d1: (50.0, 60.0)}
+        rows = recovery.pmc_series_anchored(real, d0, d1)
+        # no dia do segundo treino, usa o CTL/ATL reais, sem decair
+        self.assertEqual(rows[-1][1], 50.0)
+        self.assertEqual(rows[-1][2], 60.0)
+        # dias intermediarios decaem a partir do primeiro valor real
+        kc = 1 - math.exp(-1 / 42)
+        ka = 1 - math.exp(-1 / 7)
+        self.assertAlmostEqual(rows[1][1], 40.0 * (1 - kc), places=6)
+        self.assertAlmostEqual(rows[1][2], 20.0 * (1 - ka), places=6)
+        self.assertAlmostEqual(rows[3][1], 40.0 * (1 - kc) ** 3, places=6)
+
+    def test_janela_anterior_ao_primeiro_valor_nao_vira_zero(self):
+        d0 = date(2026, 9, 10)
+        rows = recovery.pmc_series_anchored({d0: (40.0, 20.0)},
+                                            date(2026, 9, 1), d0)
+        self.assertEqual(len(rows), 1)  # so o dia com valor real
+        self.assertEqual(rows[0][1], 40.0)
 
 
 class StateTest(unittest.TestCase):

@@ -98,6 +98,36 @@ def pmc_series(daily, tc_ctl=TC_CTL, tc_atl=TC_ATL):
     return rows
 
 
+def pmc_series_anchored(real_by_day, start, end, tc_ctl=TC_CTL, tc_atl=TC_ATL):
+    """Serie [(day, ctl, atl, tsb)] ancorada nos valores REAIS do Intervals.
+
+    Dias com valor real (`real_by_day`: {date: (ctl, atl)} do Intervals) usam
+    o CTL/ATL da propria API; os demais dias decaem EWMA com TSS 0 a partir do
+    ultimo valor real (mesmo decaimento do Intervals entre treinos). Assim a
+    serie parte do estado real mais antigo disponivel, sem cold-start de zero.
+
+    Se nao houver nenhum valor real na janela, retorna [] e o chamador decide
+    o fallback (ex.: `pmc_series` sobre `actual_daily_load`).
+    """
+    if not real_by_day:
+        return []
+    kc = 1 - math.exp(-1 / tc_ctl)
+    ka = 1 - math.exp(-1 / tc_atl)
+    first = min(real_by_day)
+    ctl, atl = real_by_day[first]
+    rows = []
+    d = max(start, first)
+    while d <= end:
+        if d in real_by_day:
+            ctl, atl = real_by_day[d]
+        else:
+            ctl *= 1 - kc
+            atl *= 1 - ka
+        rows.append((d, ctl, atl, ctl - atl))
+        d += timedelta(days=1)
+    return rows
+
+
 def state(rows, window_days=30):
     """Resumo do historico reconstruido.
 

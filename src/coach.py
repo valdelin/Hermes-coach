@@ -66,6 +66,26 @@ def latest_metrics(events):
     return latest
 
 
+def real_pmc_by_day(events):
+    """{(date): (ctl, atl)} reais do Intervals por dia de treino.
+
+    Usa os valores `icu_ctl`/`icu_atl` que a API devolve em cada atividade
+    pareada (pipeline interna do Intervals — o mesmo numero que o site dele
+    plota). Dias sem treino ficam de fora; a serie continua e feita pelo
+    `pmc_series_anchored`. Chave `date` vem do `day` do `Metrics`.
+    """
+    by = {}
+    for marker in metrics_history(events):
+        if marker.ctl is None or marker.atl is None or not marker.day:
+            continue
+        try:
+            day = date.fromisoformat(marker.day[:10])
+        except ValueError:
+            continue
+        by[day] = (marker.ctl, marker.atl)
+    return by
+
+
 def _raw_metrics(item):
     summary = item.get("summary") or {}
     tsb = item.get("tsb", summary.get("tsb"))

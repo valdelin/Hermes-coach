@@ -23,6 +23,14 @@ própria — foram agrupadas na tag/release v0.0.7.
   itens), `impulse_response.fill_daily_series` (série com zeros, útil p/ o
   `forecast_pmc`) e `cmd_model` simplificado com aviso claro quando não há
   métricas da API para bootstrappar.
+- **`summary` — gráfico PMC alinhado ao Intervals** — o PMC no resumo (e no
+  `--export` HTML/PDF) agora ancora nos valores **reais** `icu_ctl`/`icu_atl`
+  que a API devolve por treino (`coach.real_pmc_by_day`), decaindo EWMA 42/7
+  entre os dias (`recovery.pmc_series_anchored`) — plota o mesmo número do
+  Intervals em vez da reconstrução local partindo de zero (CTL 25.3 vs os
+  antigos ~15.8 na janela atual). A reconstrução local (`pmc_series`) vira
+  fallback para quando não há valores reais. Ver direção em ROADMAP #35
+  (validar consistência com dados de um 2º atleta).
 
 ## [0.0.28] - 2026-09-26
 

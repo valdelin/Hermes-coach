@@ -3,9 +3,9 @@ from datetime import date
 
 from src.coach import (build_workout, decide_focus, estimate_tss,
                        last_ftp_test, latest_metrics, metrics_history,
-                       suggest_ftp_test, wellness_summary, format_wellness,
-                       FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2,
-                       FOCUS_ZONE2, Metrics)
+                       real_pmc_by_day, suggest_ftp_test, wellness_summary,
+                       format_wellness, FOCUS_SWEETSPOT, FOCUS_THRESHOLD,
+                       FOCUS_VO2, FOCUS_ZONE2, Metrics)
 
 
 class DecideFocusTest(unittest.TestCase):
@@ -60,6 +60,33 @@ class MetricsHistoryTest(unittest.TestCase):
 
     def test_vazio(self):
         self.assertEqual(metrics_history([]), [])
+
+
+class RealPmcByDayTest(unittest.TestCase):
+    def test_extrai_icu_ctl_atl_por_dia(self):
+        events = [
+            {"start_time_local": "2026-09-10T18:00:00",
+             "icu_ctl": "18.65", "icu_atl": "23.15", "icu_training_load": "40"},
+            {"start_time_local": "2026-09-12T18:00:00",
+             "icu_ctl": "20.0", "icu_atl": "30.0", "icu_training_load": "60"},
+        ]
+        by = real_pmc_by_day(events)
+        self.assertEqual(by[date(2026, 9, 10)], (18.65, 23.15))
+        self.assertEqual(by[date(2026, 9, 12)], (20.0, 30.0))
+
+    def test_ignora_sem_ctl_atl_ou_planado_nao_feito(self):
+        events = [
+            {"start_time_local": "2026-09-10T18:00:00",
+             "icu_ctl": "18.65", "icu_atl": "23.15", "icu_training_load": "40"},
+            {"start_time_local": "2026-09-11T18:00:00",
+             "name": "planejado nao feito"},
+            {"start_time_local": "2026-09-12T18:00:00", "tsb": "-8"},  # sem ctl/atl
+        ]
+        by = real_pmc_by_day(events)
+        self.assertEqual(list(by), [date(2026, 9, 10)])
+
+    def test_vazio(self):
+        self.assertEqual(real_pmc_by_day([]), {})
 
 
 class TssTest(unittest.TestCase):
