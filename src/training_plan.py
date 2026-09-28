@@ -462,18 +462,31 @@ def cmd_model(args):
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
     series = daily_tss_series(events, window_days=args.days)
     engine = ImpulseResponseEngine()
-    local = engine.compute_metrics(series)
     api = latest_metrics(events)
     print(f"eventos na janela: {len(events)} | dias com TSS: {len(series)}")
-    print(f"Motor local (Banister): CTL {local['ctl_fitness']} / "
-          f"ATL {local['atl_fatigue']} / TSB {local['tsb_form']}")
+    # Bootstrap presente (#33): a pipeline interna do Intervals nao e
+    # reproduzivel por EWMA simples sobre o `icu_training_load` (carga efetiva
+    # ~2x; ver docs/ROADMAP.md #34), entao reconstruir a trajetoria do passado
+    # diverge. Para o diagnostico bater com o que o plano realmente usa
+    # (`latest_metrics`), o motor local parte do estado atual do Intervals.
     if api and api.ctl is not None and api.atl is not None:
+        local = engine.compute_metrics([], initial_ctl=api.ctl,
+                                       initial_atl=api.atl)
+        print(f"Motor local (Banister, bootstrap hoje): "
+              f"CTL {local['ctl_fitness']} / "
+              f"ATL {local['atl_fatigue']} / TSB {local['tsb_form']}")
         print(f"Intervals.icu        : CTL {api.ctl:.1f} / "
               f"ATL {api.atl:.1f} / TSB {api.tsb:.1f}")
         print(f"Diferenca            : CTL {local['ctl_fitness'] - api.ctl:+.1f} / "
               f"ATL {local['atl_fatigue'] - api.atl:+.1f} / "
               f"TSB {local['tsb_form'] - api.tsb:+.1f}")
     else:
+        # Sem estado viavel da API: cai para o motor partindo de zero.
+        print("aviso: sem metricas validas (ctl/atl) da API na janela; "
+              "motor local parte de zero.")
+        local = engine.compute_metrics(series)
+        print(f"Motor local (Banister): CTL {local['ctl_fitness']} / "
+              f"ATL {local['atl_fatigue']} / TSB {local['tsb_form']}")
         print("Intervals.icu: metricas nao disponiveis na janela.")
     try:
         plan = load_plan(PLAN_FILE)

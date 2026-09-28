@@ -2,8 +2,8 @@ import unittest
 from datetime import date
 
 from src.coach import (build_workout, decide_focus, estimate_tss,
-                       last_ftp_test, latest_metrics, suggest_ftp_test,
-                       wellness_summary, format_wellness,
+                       last_ftp_test, latest_metrics, metrics_history,
+                       suggest_ftp_test, wellness_summary, format_wellness,
                        FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2,
                        FOCUS_ZONE2, Metrics)
 
@@ -44,6 +44,22 @@ class LatestMetricsTest(unittest.TestCase):
         m = latest_metrics(events)
         self.assertAlmostEqual(m.tsb, -4.5)
         self.assertEqual(m.tss, 40)
+
+
+class MetricsHistoryTest(unittest.TestCase):
+    def test_mantem_ordem_e_ignora_invalidos(self):
+        events = [
+            {"start_time_local": "2026-09-10", "summary": {"tsb": "-30", "ctl": "40", "atl": "70"}},
+            {"no-metrics": True},
+            {"start_time_local": "2026-09-12", "tsb": "-8", "ctl": "55", "atl": "63", "tss": "60"},
+        ]
+        hist = metrics_history(events)
+        self.assertEqual(len(hist), 2)
+        self.assertEqual(hist[0].day, "2026-09-10")
+        self.assertEqual(hist[1].day, "2026-09-12")
+
+    def test_vazio(self):
+        self.assertEqual(metrics_history([]), [])
 
 
 class TssTest(unittest.TestCase):

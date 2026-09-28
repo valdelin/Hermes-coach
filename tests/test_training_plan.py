@@ -620,5 +620,52 @@ class SummaryChartDataTest(unittest.TestCase):
                          (anchor - timedelta(days=89)).isoformat())
 
 
+class ModelClient(_FakeClient):
+    """Fake com historico de metricas (ctl/atl) ao longo da janela (#33)."""
+
+    def __init__(self):
+        self._events = [
+            {"start_time_local": "2026-09-10", "tsb": "-30", "ctl": "40",
+             "atl": "70", "tss": "50"},
+            {"start_time_local": "2026-09-20", "tsb": "-25", "ctl": "38",
+             "atl": "63", "tss": "60"},
+            {"start_time_local": "2026-09-26", "tsb": "-28", "ctl": "26",
+             "atl": "54", "tss": "55"},
+        ]
+
+    def events(self, **params):
+        return self._events
+
+
+class CmdModelTest(unittest.TestCase):
+    def test_bootstrap_presente_bate_com_a_api(self):
+        client = ModelClient()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), \
+                mock.patch.object(tp, "get_client", return_value=client), \
+                mock.patch.object(tp, "PLAN_FILE",
+                                  Path(tempfile.mkdtemp()) / "plan.json"):
+            tp.cmd_model(types.SimpleNamespace(days=60))
+        text = out.getvalue()
+        self.assertIn("bootstrap hoje", text,
+                      "motor local parte do estado atual do Intervals")
+        self.assertIn("Intervals.icu", text)
+        self.assertIn("Diferenca", text)
+        for line in text.splitlines():
+            if line.startswith("Diferenca"):
+                self.assertIn("CTL +0.0 / ATL +0.0 / TSB +0.0", line,
+                              "diferenca ~0 por bootstrap presente")
+
+    def test_sem_metricas_partede_zero(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), \
+                mock.patch.object(tp, "get_client", return_value=_FakeClient()), \
+                mock.patch.object(tp, "PLAN_FILE",
+                                  Path(tempfile.mkdtemp()) / "plan.json"):
+            tp.cmd_model(types.SimpleNamespace(days=60))
+        text = out.getvalue()
+        self.assertIn("aviso: sem metricas validas", text)
+
+
 if __name__ == "__main__":
     unittest.main()

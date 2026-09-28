@@ -96,6 +96,23 @@ def daily_load_by_date(events, window_days: int = 60, today=None) -> dict:
     return by_day
 
 
+def fill_daily_series(by_day, start, end):
+    """Expande {date: carga} em lista cronologica com dias de descanso = 0.
+
+    Necessario para o decaimento exponencial (EWMA 42/7) do modelo
+    Impulse-Response nao sofrer compressao de tempo quando ha hiatos sem
+    treino (ver `forecast_pmc`). Retorna uma carga por dia de `start` a `end`,
+    ambos inclusivos; dias sem carga entram como 0.0.
+    """
+    one = timedelta(days=1)
+    day = start
+    series = []
+    while day <= end:
+        series.append(float(by_day.get(day, 0.0)))
+        day += one
+    return series
+
+
 PMC_ALERT_TSB = -10.0
 PMC_ZONE_HIGH_RISK = -30.0
 PMC_ZONE_TRANSITION = 25.0

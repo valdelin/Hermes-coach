@@ -49,7 +49,8 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 | 30 | feature | **Multi-esporte com carga compartilhada** (ciclo + corrida + natação + tri + força + HYROX num plano só, PMC único) — expandir o módulo de corrida (#18) para os demais esportes | — (benchmark IntervalCoach 26/09) | **possível — sem urgência** | 2 |
 | 31 | feature | ~~**`check` — prontidão do dia**~~ (wellness + sinais de recuperação): RHR acima da média +3 bpm, HRV < 80%, sono < 6h ou 2h abaixo, readiness < 60 → **sugere** (nunca impõe) troca por recuperação Z2 curta (`--apply`); alerta de início de doença (RHR 2+ noites subindo + HRV caindo) + aviso ao treinador via `COACH_WEBHOOK` | — (benchmark IntervalCoach 26/09) | **implementado (v0.0.27)** | 0 ✅ |
 | 32 | feature | ~~**Periodização selecionável (`PERIODIZATION`)**~~ — 5 modelos (polarized, pyramidal, undulating, linear, block) com templates por TSB; **decisão do usuário (26/09): TSB governa** (sem `PERIODIZATION` no `.env`); comando `periodization` (v0.0.28) explica os modelos/sugere por GOAL/TSB | — (benchmark IntervalCoach 26/09) | **implementado (v0.0.27/28)** | 2 ✅ |
-| 33 | feature | **Motor local do `model` alinhado ao Intervals** — hoje diverge porque (a) parte de zero em janela de 60d (Intervals usa histórico completo), (b) `daily_tss_series` pula dias de carga 0 (decaimento comprimido; o `forecast_pmc` corrige com zeros, o `cmd_model` não) e (c) carga usa `tss`/`icu_training_load` em vez da pipeline interna. Proposta: janela maior, incluir zeros no `cmd_model`, bootstrap a partir do estado do Intervals (bater com a API) | — (sessão 27/09 — divergência Motor local vs Intervals) | **possível — Fase 0 (melhoria de diagnóstico)** | 0 |
+| 33 | feature | ~~**Motor local do `model` alinhado ao Intervals**~~ — investigado em 27/09 e **resolvido via bootstrap presente**: a pipeline interna do Intervals não é reproduzível por EWMA simples sobre o `icu_training_load` (carga efetiva ~2×, campos `icu_*` da API); reconstruir a trajetória do passado diverge (CTL −10.9/ATL −29.7). O `cmd_model` agora parte do estado atual do Intervals (`latest_metrics`) — diferença ±0.0, confirmando 1:1 o TSB que o `build`/`reconcile`/`push` usam. Recriar a pipeline fica no **#34** | — (sessão 27/09 — divergência Motor local vs Intervals) | **implementado (v0.0.29, bootstrap presente)** | 0 ✅ |
+| 34 | feature | **Recriar a pipeline de carga do Intervals no motor local** — como o `icu_ctl`/`icu_atl` da API é calculado internamente pelo Intervals (carga efetiva ~2× o `icu_training_load`; `strain_score`, NP, constantes `ctl_days`/`atl_days` configuráveis do atleta), bater sem bootstrap exigiria baixar streams de potência de todos os treinos e replicar a matemática deles (frágil a mudanças e a configurações da conta). **Decisão 27/09: não fazer agora** — o bootstrap presente já dá o diagnóstico 1:1; reabrir se quisermos TSB independente do Intervals ou diagnósticos sem a API | — (sessão 27/09 — análise do ~2×) | **decisão: adiado — reavaliar em Fase 0 futura** | 2 |
 
 ## Fases
 
@@ -337,12 +338,15 @@ Benchmark competitivo + decisões da sessão (features 1/3/4 implementadas;
   (chat/LLM fica para o futuro, #29); **Dashboard só com o essencial** (resumo
   do dia + semana + alertas; detalhes no Calendário). Registradas em
   `docs/PORTAL-UI-DESIGN.md` (Fase 0/1).
-- **Análise (27/09): Motor local do `model` diverge do Intervals** porque
-  parte de zero em janela de 60d (Intervals usa histórico completo), a série
-  diária pula dias de carga 0 (decaimento comprimido) e a carga vem de
-  `tss`/`icu_training_load` em vez da pipeline interna — registrado como
-  **#33 (Fase 0, diagnóstico)**; não afeta `build`/`reconcile`/`push`, que
-  usam as métricas do Intervals como autoritativa.
+- **Análise (27/09): Motor local do `model` diverge do Intervals** porque a
+  pipeline interna do Intervals usa carga ~2× o `icu_training_load` (visto nos
+  eventos reais: transição 29.1→54.3 de ATL com loads 54/57/49/57 exige carga
+  efetiva ~110; `strain_score` 60.5 e `joules` 417900 num treino de 52min).
+  Janela/zeros/cold-start não explicam a divergência — o **#33** foi então
+  resolvido via **bootstrap presente** (motor local parte do estado atual do
+  Intervals; diferença ±0.0 no `model` v0.0.29) e a recriação da pipeline
+  ficou registrada no **#34** (adiada). Não afeta `build`/`reconcile`/`push`,
+  que usam as métricas do Intervals como autoritativa.
 - **Decisões pendentes do portal (antes/durante a Fase 1):** P1 o que acontece
   se não houver aprovação até o treino (publica com aviso? fica pendente?);
   P2 aprovar na fila dedicada vs inline no calendário; P3 notificação de

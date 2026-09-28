@@ -9,6 +9,21 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [0.0.29] - em andamento
+
+### Corrigido
+
+- **`model` — Motor local alinhado ao Intervals (bootstrap presente)** — a
+  pipeline interna do Intervals não é reproduzível por EWMA simples sobre o
+  `icu_training_load` (carga efetiva ~2×; ver ROADMAP #34). O `cmd_model`
+  agora parte do estado atual do Intervals (`latest_metrics`) em vez de
+  reconstruir a trajetória do passado — diferença CTL/ATL/TSB passa de
+  ~−10.9/−29.7 para **±0.0**, confirmando 1:1 o que o `build`/`reconcile`/
+  `push` usam. Refatoração: `coach.metrics_history` (extrai PMC de todos os
+  itens), `impulse_response.fill_daily_series` (série com zeros, útil p/ o
+  `forecast_pmc`) e `cmd_model` simplificado com aviso claro quando não há
+  métricas da API para bootstrappar.
+
 ## [0.0.28] - 2026-09-26
 
 ### Adicionado

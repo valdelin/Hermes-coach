@@ -45,12 +45,22 @@ FOCUS_LABELS = {
 }
 
 
-def latest_metrics(events):
-    latest = None
+def metrics_history(events):
+    """Metricas (Metrics) por item na ordem dos eventos, mantendo o citério de
+    `_raw_metrics` (TSB obrigatorio; CTL/ATL/props via fallbacks da API).
+    Itens sem metricas validas ficam de fora. Usado por `latest_metrics`
+    (estado atual) e pelo bootstrap do `cmd_model` (estado passado)."""
+    history = []
     for item in events:
         marker = _raw_metrics(item)
-        if marker is None:
-            continue
+        if marker is not None:
+            history.append(marker)
+    return history
+
+
+def latest_metrics(events):
+    latest = None
+    for marker in metrics_history(events):
         if latest is None or ((marker.day or "") >= (latest.day or "")):
             latest = marker
     return latest

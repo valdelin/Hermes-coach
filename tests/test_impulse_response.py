@@ -3,7 +3,8 @@ import math
 from datetime import date, timedelta
 
 from src.impulse_response import (ImpulseResponseEngine, daily_tss_series,
-                                  daily_load_by_date, forecast_pmc)
+                                  daily_load_by_date, fill_daily_series,
+                                  forecast_pmc)
 
 
 class CalculateTssTest(unittest.TestCase):
@@ -130,6 +131,29 @@ class DailyLoadByDateTest(unittest.TestCase):
         ]
         m = daily_load_by_date(events, window_days=30, today=date(2026, 9, 10))
         self.assertEqual(m, {date(2026, 9, 5): 30.0})
+
+
+class FillDailySeriesTest(unittest.TestCase):
+    def test_preenche_zeros_entre_dias_com_carga(self):
+        by_day = {
+            date(2026, 9, 1): 50.0,
+            date(2026, 9, 3): 80.0,
+        }
+        series = fill_daily_series(by_day, date(2026, 9, 1), date(2026, 9, 4))
+        self.assertEqual(series, [50.0, 0.0, 80.0, 0.0])
+
+    def test_extremidades_inclusivas(self):
+        by_day = {date(2026, 9, 2): 30.0}
+        series = fill_daily_series(by_day, date(2026, 9, 2), date(2026, 9, 2))
+        self.assertEqual(series, [30.0])
+
+    def test_dia_unicamente_sem_carga(self):
+        series = fill_daily_series({}, date(2026, 9, 5), date(2026, 9, 5))
+        self.assertEqual(series, [0.0])
+
+    def test_intervalo_invertido_vazio(self):
+        series = fill_daily_series({}, date(2026, 9, 5), date(2026, 9, 1))
+        self.assertEqual(series, [])
 
 
 class ForecastPmcTest(unittest.TestCase):
