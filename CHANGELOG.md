@@ -9,7 +9,7 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
-## [0.0.29] - em andamento
+## [0.0.29] - 2026-09-28
 
 ### Corrigido
 
@@ -46,6 +46,21 @@ própria — foram agrupadas na tag/release v0.0.7.
   os do Intervals; a estimativa de retorno e a prescrição `--weeks`/`build
   --recovery` usam o teto calibrado. Novo: `recovery.calibrated_state`,
   `training_plan._pmc_rows` (compartilhado com o `summary`).
+
+### Documentação
+
+- **Diagramas UML alinhados ao código (v0.0.29)** — `docs/diagramas/*.mmd` e
+  `docs/DIAGRAMAS.md` atualizados: classes `Recovery` (agora com
+  `fetch_full_history`/`pmc_series_anchored`/`state`/`calibrated_state`/
+  `estimate_return`/`ramp_schedule`, removidos `time_to_target`/`safe_ramp`),
+  `WorkoutParams` completo, `SummaryAgg` com as chaves reais de `summarize`,
+  `ReportRenderer.export_pdf`, `ImpulseResponseEngine.calculate_tss`; verbo
+  `PUT` no `bulk-delete` dos diagramas de sequência. PNGs regenerados.
+
+### Testes
+
+- 374 testes OK (3 skipped), incluindo calibração da rampa de retorno
+  (`CalibratedStateTest`) e ancoragem nos valores reais do Intervals.
 
 ## [0.0.28] - 2026-09-26
 
