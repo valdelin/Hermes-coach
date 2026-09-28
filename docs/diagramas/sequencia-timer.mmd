@@ -20,7 +20,7 @@ sequenceDiagram
         S->>C: push --start hoje
         C->>I: GET /events (recentes)
         C->>C: calcula órfãos (hermes-plan*)
-        C->>I: DELETE /events/bulk-delete (órfãos)
+        C->>I: PUT /events/bulk-delete (órfãos)
         C->>I: POST /events/bulk?upsert=true (treinos)
         I-->>C: 200 OK
         C-->>S: calendário atualizado

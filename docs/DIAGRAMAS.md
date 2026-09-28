@@ -1,6 +1,6 @@
 # Diagramas UML — Hermes Coach
 
-Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.28).
+Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.29).
 Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
 fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
 
@@ -14,7 +14,7 @@ Legenda rápida dos módulos:
 | `src/impulse_response.py` | Motor Banister local (CTL/ATL/TSB) + séries diárias de TSS |
 | `src/intervals_client.py` | Cliente da API do Intervals.icu (events, wellness, activities, streams, sport-settings) com retry/backoff |
 | `src/ftp_scan.py` / `ftp_estimation.py` | Análise de treinos fora do plano → proposta de FTP (20min × 0,95) |
-| `src/recovery.py` | Retorno a forma: PMC real (EWMA 42/7) + prazo + rampa segura com deload |
+| `src/recovery.py` | Retorno a forma: PMC real ancorado (EWMA 42/7) + TSB real + prazo + rampa calibrada com deload (`estimate_return`/`ramp_schedule`/`calibrated_state`) |
 | `src/readiness.py` | Prontidão do dia (`check`): sinais de wellness (RHR/HRV/sono) → sugestão de troca por recuperação + alerta de início de doença (+ `COACH_WEBHOOK`) |
 | `src/periodization.py` | Explicação dos 5 modelos de periodização (`periodization`): o que significam para o atleta + sugestão por GOAL/TSB (top/evitar) |
 | `src/activity_summary.py` | Resumo dos treinos feitos por dia/semana/mês (`summary`) |
@@ -40,7 +40,7 @@ flowchart LR
         IR["impulse_response.py<br/>CTL/ATL/TSB local"]
         FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
         AS["activity_summary.py<br/>resumo por período · pareamento"]
-        REC["recovery.py<br/>PMC real + prazo de retorno + rampa"]
+        REC["recovery.py<br/>PMC real ancorado + TSB real + prazo + rampa calibrada"]
         RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
         PER["periodization.py<br/>explica modelos · sugere por GOAL/TSB"]
     end
@@ -116,7 +116,7 @@ sequenceDiagram
         S->>C: push --start hoje
         C->>I: GET /events (recentes)
         C->>C: calcula órfãos (hermes-plan*)
-        C->>I: DELETE /events/bulk-delete (órfãos)
+        C->>I: PUT /events/bulk-delete (órfãos)
         C->>I: POST /events/bulk?upsert=true (treinos)
         I-->>C: 200 OK
         C-->>S: calendário atualizado
@@ -188,12 +188,20 @@ classDiagram
     class WorkoutParams {
         +str focus
         +int warmup_sec = 600
+        +int warmup_cadence = 90
+        +float warmup_power_low = 0.45
+        +float warmup_power_high = 0.75
         +int repeats
         +int on_sec
         +int off_sec
         +float on_power
         +float off_power
+        +int cadence = 90
+        +int cadence_rest = 85
         +int cooldown_sec = 600
+        +int cooldown_cadence = 85
+        +float cooldown_power_low = 0.70
+        +float cooldown_power_high = 0.45
     }
     class PlannedWorkout {
         +str day
@@ -233,10 +241,15 @@ classDiagram
         +ride_settings(settings)
     }
     class Recovery {
+        +fetch_full_history(client, ...)
         +actual_daily_load(events)
         +pmc_series(daily)
-        +time_to_target(ctl_now, target, ramp, ...)
-        +safe_ramp(target_ctl, weeks, ...)
+        +pmc_series_anchored(real_by_day, start, end)
+        +state(rows, window_days)
+        +calibrated_state(st, weekly_now)
+        +weekly_volume(daily, days)
+        +estimate_return(current_ctl, current_atl, target_ctl, weekly_now, ...)
+        +ramp_schedule(target_ctl, weekly_now, ramp_pts, ...)
     }
     class Readiness {
         +dict signals
@@ -255,17 +268,19 @@ classDiagram
         +explain_current(goal, periodization, tsb) -> str
     }
     class SummaryAgg {
-        +int workouts
+        +int sessions
+        +float time_s
+        +float distance_m
+        +float elevation_m
         +float load
-        +str time
-        +float distance
-        +float elevation
-        +dict power
+        +float avg_power
+        +float np
         +int avg_hr
     }
     class ReportRenderer {
         +render_summary_html(title, start, end, agg, rows,<br/>pmc_rows, weeks, theme)
         +write(path, html)
+        +export_pdf(path, html)
     }
     class ThemeKit {
         +str DEFAULT_THEME
@@ -285,7 +300,7 @@ classDiagram
     SummaryAgg <-- IntervalsClient : atividades pareadas
     ReportRenderer --> ThemeKit : 22 temas (CSS vars)
     ReportRenderer --> SummaryAgg : cards + tabela
-    ReportRenderer --> Recovery : pmc_series (PMC 90d)
+    ReportRenderer --> Recovery : pmc_rows (PMC 90d)
 ```
 
 ---
@@ -345,7 +360,7 @@ stateDiagram-v2
 
 ## Notas
 
-- Diagramas gerados a partir do código real (`src/*.py`, v0.0.28, 354 testes OK) —
+- Diagramas gerados a partir do código real (`src/*.py`, v0.0.29, 374 testes OK) —
   não são genéricos. Se o código mudar, atualize aqui junto.
 - Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli.
 - O `.zwo` **não é gerado localmente** (o Intervals monta no app a partir do

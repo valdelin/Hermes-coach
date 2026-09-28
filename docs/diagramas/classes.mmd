@@ -10,12 +10,20 @@ classDiagram
     class WorkoutParams {
         +str focus
         +int warmup_sec = 600
+        +int warmup_cadence = 90
+        +float warmup_power_low = 0.45
+        +float warmup_power_high = 0.75
         +int repeats
         +int on_sec
         +int off_sec
         +float on_power
         +float off_power
+        +int cadence = 90
+        +int cadence_rest = 85
         +int cooldown_sec = 600
+        +int cooldown_cadence = 85
+        +float cooldown_power_low = 0.70
+        +float cooldown_power_high = 0.45
     }
     class PlannedWorkout {
         +str day
@@ -40,6 +48,7 @@ classDiagram
     }
     class ImpulseResponseEngine {
         +compute_metrics(tss_series)
+        +calculate_tss(duration_sec, avg_intensity, ...)
     }
     class plan_build_plan {
         +build_plan(events, tsb, ftp, days, ...)
@@ -55,10 +64,15 @@ classDiagram
         +ride_settings(settings)
     }
     class Recovery {
+        +fetch_full_history(client, ...)
         +actual_daily_load(events)
         +pmc_series(daily)
-        +time_to_target(ctl_now, target, ramp, ...)
-        +safe_ramp(target_ctl, weeks, ...)
+        +pmc_series_anchored(real_by_day, start, end)
+        +state(rows, window_days)
+        +calibrated_state(st, weekly_now)
+        +weekly_volume(daily, days)
+        +estimate_return(current_ctl, current_atl, target_ctl, weekly_now, ...)
+        +ramp_schedule(target_ctl, weekly_now, ramp_pts, ...)
     }
     class Readiness {
         +dict signals
@@ -77,17 +91,19 @@ classDiagram
         +explain_current(goal, periodization, tsb) -> str
     }
     class SummaryAgg {
-        +int workouts
+        +int sessions
+        +float time_s
+        +float distance_m
+        +float elevation_m
         +float load
-        +str time
-        +float distance
-        +float elevation
-        +dict power
+        +float avg_power
+        +float np
         +int avg_hr
     }
     class ReportRenderer {
         +render_summary_html(title, start, end, agg, rows,<br/>pmc_rows, weeks, theme)
         +write(path, html)
+        +export_pdf(path, html)
     }
     class ThemeKit {
         +str DEFAULT_THEME
@@ -107,4 +123,4 @@ classDiagram
     SummaryAgg <-- IntervalsClient : atividades pareadas
     ReportRenderer --> ThemeKit : 22 temas (CSS vars)
     ReportRenderer --> SummaryAgg : cards + tabela
-    ReportRenderer --> Recovery : pmc_series (PMC 90d)
+    ReportRenderer --> Recovery : pmc_rows (PMC 90d)
