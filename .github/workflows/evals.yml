@@ -28,14 +28,7 @@ jobs:
 
       - name: Clonar o harness
         run: |
-          # Repo do harness: definir o secret AI_LAB_REPO antes de usar este
-          # workflow. Enquanto o lab for so local, este job nao roda de fato:
-          # rode `~/Work/lab/ai-lab/check.sh` na mao.
-          if [ -z "${AI_LAB_REPO:-}" ]; then
-            echo "AI_LAB_REPO nao definido: o harness nao esta no CI ainda."
-          else
-            git clone --depth 1 "$AI_LAB_REPO" "$RUNNER_TEMP/ai-lab"
-          fi
+          git clone --depth 1 https://github.com/valdelin/ai-lab.git "$RUNNER_TEMP/ai-lab"
 
       - name: Rodar o harness
         run: |
