@@ -5,8 +5,17 @@ método vivem no harness compartilhado (`~/Work/lab/ai-lab`, ou o secret
 `AI_LAB_REPO` quando o CI rodar de verdade). O prompt nunca é um grader: o que dá
 para verificar sem LLM é invariante do harness.
 
-Rodar: `~/Work/lab/ai-lab/check.sh ~/Work/lab/cycling-coach cycling-coach` — offline,
-sem chave de API.
+Rodar: `~/Work/lab/ai-lab/check.sh ~/Work/lab/cycling-coach` — offline, sem chave de API.
+
+## `graders.py` — os invariantes moram aqui
+
+`evals/graders.py` é o adapter do app. Ele expõe `CONTEXTO` (a classe de contexto) e
+`GRADERS`, e o harness não importa mais nada: carrega este arquivo por caminho.
+
+Isso é deliberado. `TSB <= -20` e "foco igual ao do motor" são regras do domínio
+ciclista — se elas vivessem no harness, o CI do coach passaria a validar uma cópia
+delas, e mudar o limiar aqui não mudaria o gate. App que muda de regra muda o
+próprio dataset e o próprio grader, no mesmo commit.
 
 ## Regras de isolamento (o core determinístico é o ativo de segurança)
 

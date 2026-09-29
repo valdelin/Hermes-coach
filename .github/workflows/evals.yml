@@ -6,7 +6,10 @@ name: evals-insight
 # espera por nenhuma das tres coisas.
 #
 # Harness compartilhado: ~/Work/lab/ai-lab (metodo + runner). O que e do
-# app (contract.py, cases.jsonl, adapters/) fica neste repo.
+# app (contract.py, prompt.md, evals/graders.py, evals/cases.jsonl) fica
+# neste repo — o runner carrega evals/graders.py por caminho e nao importa
+# nada do dominio, entao o gate mede as invariantes desta branch, nao uma
+# copia que envelhece por fora.
 
 on:
   workflow_dispatch:
@@ -34,7 +37,7 @@ jobs:
         run: |
           if [ -d "$RUNNER_TEMP/ai-lab" ]; then
             cd "$RUNNER_TEMP/ai-lab"
-            ./check.sh "$GITHUB_WORKSPACE" cycling-coach
+            ./check.sh "$GITHUB_WORKSPACE"
           else
             echo "::notice::harness indisponivel no CI; o dataset versionado segue no repo"
             ls -la evals/
