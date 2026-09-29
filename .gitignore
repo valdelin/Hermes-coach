@@ -7,3 +7,6 @@ __pycache__/
 plan.json
 logs/
 data/
+# evals
+evals/captures/
+evals/*.local.jsonl

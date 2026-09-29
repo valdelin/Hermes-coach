@@ -1,8 +1,12 @@
 # evals — o lado do app
 
-O dataset e o contrato vivem **no repo do app** (o dado é do app); o mecanismo de
-avaliação vive no harness compartilhado (`~/Work/lab/ai-lab`). O prompt nunca é um
-grader: o que dá para verificar sem LLM é invariant do harness.
+O dataset e o contrato vivem **no repo do app** (o dado é do app); o runner e o
+método vivem no harness compartilhado (`~/Work/lab/ai-lab`, ou o secret
+`AI_LAB_REPO` quando o CI rodar de verdade). O prompt nunca é um grader: o que dá
+para verificar sem LLM é invariante do harness.
+
+Rodar: `~/Work/lab/ai-lab/check.sh ~/Work/lab/cycling-coach cycling-coach` — offline,
+sem chave de API.
 
 ## Regras de isolamento (o core determinístico é o ativo de segurança)
 

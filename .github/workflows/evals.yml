@@ -1,0 +1,48 @@
+name: evals-insight
+
+# Job SEPARADO do `tests`: os evals do insight rodam por conta propria.
+# O gate do build/daily nao pode depender de provider de LLM, de dataset
+# rotulado ou de gracao a API — o core deterministico decide treino e nao
+# espera por nenhuma das tres coisas.
+#
+# Harness compartilhado: ~/Work/lab/ai-lab (metodo + runner). O que e do
+# app (contract.py, cases.jsonl, adapters/) fica neste repo.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # nightly — madrugada, para nao competir com o reconcile diario
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Clonar o harness
+        run: |
+          # Repo do harness: definir o secret AI_LAB_REPO antes de usar este
+          # workflow. Enquanto o lab for so local, este job nao roda de fato:
+          # rode `~/Work/lab/ai-lab/check.sh` na mao.
+          if [ -z "${AI_LAB_REPO:-}" ]; then
+            echo "AI_LAB_REPO nao definido: o harness nao esta no CI ainda."
+          else
+            git clone --depth 1 "$AI_LAB_REPO" "$RUNNER_TEMP/ai-lab"
+          fi
+
+      - name: Rodar o harness
+        run: |
+          if [ -d "$RUNNER_TEMP/ai-lab" ]; then
+            cd "$RUNNER_TEMP/ai-lab"
+            ./check.sh "$GITHUB_WORKSPACE" cycling-coach
+          else
+            echo "::notice::harness indisponivel no CI; o dataset versionado segue no repo"
+            ls -la evals/
+          fi
