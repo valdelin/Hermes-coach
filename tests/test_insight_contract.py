@@ -93,6 +93,39 @@ class RegistryTest(unittest.TestCase):
     def test_hash_estavel_entre_chamadas(self):
         self.assertEqual(contract.prompt_hash(), contract.prompt_hash())
 
+    def test_registro_sem_argumento_usa_o_modelo_pinado(self):
+        entrada = contract.registry_entry()
+        self.assertEqual(entrada["model"], contract.PINNED_MODEL)
+        self.assertEqual(entrada["provider"], contract.PINNED_PROVIDER)
+        self.assertEqual(entrada["tier"], contract.PINNED_TIER)
+
+    def test_argumento_explicito_sobrescreve_o_modelo(self):
+        entrada = contract.registry_entry(model="outro-modelo")
+        self.assertEqual(entrada["model"], "outro-modelo")
+        self.assertEqual(entrada["provider"], contract.PINNED_PROVIDER)
+
+    def test_registro_carrega_o_preco_pinado_com_data(self):
+        entrada = contract.registry_entry()
+        preco = entrada["price_usd_per_mtok"]
+        self.assertEqual(set(preco), {"input", "output", "cache_read"})
+        for chave, valor in preco.items():
+            self.assertGreater(valor, 0, f"{chave} deveria custar algo")
+            self.assertLess(preco["cache_read"], preco["input"])
+        self.assertRegex(entrada["price_as_of"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_trocar_o_preco_nao_quebra_o_registro(self):
+        """Preco e dado, nao invariante: o registro tem que aceitar mudanca sem
+        exigir nova versao de prompt (o hash do prompt nao muda com o preco)."""
+        antes = contract.registry_entry()
+        original = contract.PINNED_PRICE_USD_PER_MTOK
+        try:
+            contract.PINNED_PRICE_USD_PER_MTOK = {"input": 9.99, "output": 9.99, "cache_read": 9.99}
+            depois = contract.registry_entry()
+            self.assertEqual(depois["prompt_hash"], antes["prompt_hash"])
+            self.assertEqual(depois["price_usd_per_mtok"]["input"], 9.99)
+        finally:
+            contract.PINNED_PRICE_USD_PER_MTOK = original
+
 
 class ContextTest(unittest.TestCase):
     def test_prompt_data_arredonda(self):

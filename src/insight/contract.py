@@ -17,6 +17,17 @@ from pathlib import Path
 
 PROMPT_VERSION = "0.1.0"
 
+# Modelo pinado (decisao de 2026-09-29, ver vault/COSTAS-LLM.md). Entrar no
+# registro e obrigatorio: sem o pin, a mesma versao de prompt produz saidas
+# diferentes em datas diferentes e o eval deixa de ser reproduzivel.
+PINNED_PROVIDER = "google-gemini"
+PINNED_MODEL = "gemini-2.5-flash"
+PINNED_TIER = "standard"
+# US$ por 1M de tokens em 2026-09-29 (ai.google.dev/pricing). A numeracao vem da
+# planilha de custos; se o preco mudar, o registro precisa carregar a data.
+PINNED_PRICE_USD_PER_MTOK = {"input": 0.30, "output": 2.50, "cache_read": 0.03}
+PINNED_PRICE_AS_OF = "2026-09-29"
+
 FOCOS = ("recovery", "easy", "z2", "vo2", "ss", "rest")
 INTENSIDADES = ("casual", "moderada", "alta")
 
@@ -45,11 +56,19 @@ def prompt_hash():
 
 
 def registry_entry(model=None):
-    """Linha do registro de prompt: versao + hash + modelo pinado."""
+    """Linha do registro de prompt: versao + hash + modelo pinado.
+
+    O preco pinado existe para que o custo de uma captura real possa ser
+    conferido contra a planilha, em vez de estimado de memoria.
+    """
     return {
         "prompt_version": PROMPT_VERSION,
         "prompt_hash": prompt_hash(),
-        "model": model,
+        "model": model or PINNED_MODEL,
+        "provider": PINNED_PROVIDER,
+        "tier": PINNED_TIER,
+        "price_usd_per_mtok": dict(PINNED_PRICE_USD_PER_MTOK),
+        "price_as_of": PINNED_PRICE_AS_OF,
     }
 
 
