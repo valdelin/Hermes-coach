@@ -103,6 +103,16 @@ class IntervalsClient:
         )
         return resp.status_code, resp.json()
 
+    def delete_event(self, event_id):
+        """Apaga um evento pelo id numerico: DELETE /events/{id}.
+
+        Necessario para eventos SEM `external_id` (criados manualmente no
+        app), que o `bulk-delete` nao alcanca porque so aceita `external_id`.
+        Usado na limpeza de duplicatas manuais (ver `cmd_push`).
+        """
+        resp = self._request("DELETE", f"{self.base}/events/{int(event_id)}")
+        return resp.status_code
+
     def _get(self, path, params):
         resp = self._request("GET", f"{self.base}{path}", params=params or None)
         return resp.json()

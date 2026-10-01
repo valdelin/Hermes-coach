@@ -106,7 +106,7 @@ sequenceDiagram
     C->>I: GET /events (janela)
     I-->>C: eventos + métricas
     C->>P: carrega plano atual
-    C->>C: detecta perdidos/extras<br/>recuperação + limiar -5%
+    C->>C: detecta perdidos/extras<br/>perdido → absorve no orçamento<br/>extra pesado → recuperação
     C->>P: salva plano ajustado
     C-->>S: OK / erro
     alt erro no reconcile
@@ -345,7 +345,9 @@ stateDiagram-v2
     Planejado --> Feito : atividade pareada (paired_activity_id)
     Planejado --> Perdido : passa do dia + sem atividade
     Planejado --> Trocado : check --apply (prontidão abaixo)<br/>recuperação Z2 curta no lugar
-    Perdido --> Ajustado : reconcile insere recuperação<br/>e reduz próximo Limiar -5%
+    Perdido --> Ajustado : reconcile absorve pelo orçamento<br/>eleva Z2/SweetSpot até o teto<br/>sem trocar por recuperação
+    Perdido --> Debito : falta de alta intensidade<br/>(Limiar/VO2) não se substitui<br/>com volume
+    Debito --> Ajustado : build reprioriza intensidade<br/>pelo TSB real
     Planejado --> Extra : atividade fora do plano (não-hermes)
     Extra --> Leve : carga ok → plano mantido
     Extra --> Pesado : carga ≥ cap diário (7d)

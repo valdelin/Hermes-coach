@@ -32,10 +32,30 @@ class WorkoutParams:
     cooldown_power_high: float = 0.45
 
 
-FOCUS_ZONE2 = "zone2"
+# --- Focos de prescricao -------------------------------------------------
+# O VALOR string de cada foco e persistido em plan.json e publicado no
+# Intervals.icu. Renomear um valor quebra plano salvo e o calendario: por isso
+# as mudancas de nomenclatura Happens nas CONSTANTES, nunca nos valores.
+# As constantes seguem a nomenclatura da "Tabela Cientifica Z1-Z7" do
+# documento; os valores preservam a compatibilidade historica.
+FOCUS_ZONE2 = "zone2"                       # alias legado -> FOCUS_ZONE2_ENDURANCE
 FOCUS_SWEETSPOT = "sweetspot"
-FOCUS_THRESHOLD = "threshold"
-FOCUS_VO2 = "vo2max"
+FOCUS_THRESHOLD = "threshold"                # alias legado -> FOCUS_ZONE4_LIMIAR
+FOCUS_VO2 = "vo2max"                         # alias legado -> FOCUS_ZONE5_VO2MAX
+FOCUS_ENDURANCE = "endurance"                # alias legado -> FOCUS_ZONE2_ENDURANCE
+
+# Zonas canonicas (nomenclatura do documento). Z1, Z3, Z6 e Z7 ainda nao tem
+# foco prescrito no algortimo; as bandas existem para tornar a tabela do
+# documento integralmente verificavel em codigo.
+FOCUS_ZONE1_RECOVERY = "z1_recovery"
+FOCUS_ZONE2_ENDURANCE = "zone2"
+FOCUS_ZONE3_TEMPO = "z3_tempo"
+FOCUS_ZONE4_LIMIAR = "threshold"
+FOCUS_ZONE5_VO2MAX = "vo2max"
+FOCUS_ZONE6_ANAEROBICA = "z6_anaerobica"
+# Z7 Neuromuscular fica de fora: e potencia maxima, nao uma faixa de %FTP, e
+# por isso nao cabe em ZONE_BANDS (ver commentario nessa tabela).
+ZONE_SWEETSPOT = "sweetspot"
 
 FOCUS_LABELS = {
     FOCUS_ZONE2: "Zona 2 (recuperacao ativa)",
@@ -177,6 +197,81 @@ _BLOCKS = {
         "cadence_rest": 90,
     },
 }
+
+# Faixas de prescricao por zona, espelhando a "Tabela Cientifica Z1-Z7" de
+# docs/EMBASAMENTO-CIENTIFICO.md. Sao FAIXAS DE REFERENCIA, nao limites
+# fisiologicos universais: nao existe conversao universal entre %FTP, %FCmax,
+# %FC de limiar e RPE.
+#
+# Uso: piso da zona. O algoritmo NUNCA rebaixa a potencia de um treino abaixo do
+# piso da zona que ele declara - cortar duracao (on_sec) e a forma de reduzir
+# carga; rebaixar a potencia transformaria um "Treino de Sweet Spot" em
+#eless stimulus de recuperacao sem renomear, quebrando a coerencia nome<->zona.
+#
+# Z1 (recuperacao, <55%) nao entra aqui: e uma intencao de sessao executada
+# DENTRO da banda Z2 (active recovery ~0.60), nao uma zona de prescricao
+# independente.
+ZONE_BANDS = {
+    FOCUS_ZONE1_RECOVERY: (0.00, 0.55),   # Z1 Recuperacao     <55%
+    FOCUS_ZONE2_ENDURANCE: (0.56, 0.75),  # Z2 Endurance     56-75%
+    FOCUS_ZONE3_TEMPO: (0.76, 0.90),      # Z3 Tempo         76-90%
+    ZONE_SWEETSPOT: (0.84, 0.97),         # Sweet Spot       84-97%
+    FOCUS_ZONE4_LIMIAR: (0.91, 1.05),     # Z4 Limiar        91-105%
+    FOCUS_ZONE5_VO2MAX: (1.06, 1.20),     # Z5 VO2max       106-120%
+    FOCUS_ZONE6_ANAEROBICA: (1.21, 1.50), # Z6 Anaerobica   121-150%
+    # Z7 Neuromuscular NAO entra: e potencia maxima (all-out), nao uma faixa de
+    # %FTP, e nao cabe neste modelo. Esta aqui apenas para deixar o motivo
+    # explicito em codigo.
+}
+
+# Bandas por FOCO DE PRESCRICAO -> zona canonica. Um foco pode ser servido por
+# mais de uma zona do documento: 'zone2' e 'endurance' sao ambos Z2, e
+# 'sweetspot' e a categoria de prescricao (nao um numero de zona).
+FOCUS_ZONE = {
+    FOCUS_ZONE2: FOCUS_ZONE2_ENDURANCE,
+    FOCUS_ENDURANCE: FOCUS_ZONE2_ENDURANCE,
+    FOCUS_SWEETSPOT: ZONE_SWEETSPOT,
+    FOCUS_THRESHOLD: FOCUS_ZONE4_LIMIAR,
+    FOCUS_VO2: FOCUS_ZONE5_VO2MAX,
+}
+
+# Rotulos do documento, para mensagens e documentacao.
+ZONE_LABELS_PT = {
+    FOCUS_ZONE1_RECOVERY: "Z1 Recuperacao",
+    FOCUS_ZONE2_ENDURANCE: "Z2 Endurance",
+    FOCUS_ZONE3_TEMPO: "Z3 Tempo",
+    ZONE_SWEETSPOT: "Sweet Spot",
+    FOCUS_ZONE4_LIMIAR: "Z4 Limiar",
+    FOCUS_ZONE5_VO2MAX: "Z5 VO2max",
+    FOCUS_ZONE6_ANAEROBICA: "Z6 Anaerobica",
+}
+
+
+def focus_zone(focus):
+    """Zona canonica do documento que sustenta este foco de prescricao."""
+    return FOCUS_ZONE.get(focus)
+
+
+def zone_band(focus):
+    """Faixa (piso, teto) de %FTP do foco, resolvendo pela zona do documento.
+
+    Aceita tanto o foco de prescricao ('sweetspot') quanto a zona canonica
+    ('Z4 Limiar'). Devolve None se a zona nao tem faixa em %FTP.
+    """
+    zone = focus if focus in ZONE_BANDS else focus_zone(focus)
+    return ZONE_BANDS.get(zone)
+
+
+def zone_floor(focus):
+    """Piso de %FTP da zona. Foco/zona sem faixa conhecida -> None (sem guardrail)."""
+    band = zone_band(focus)
+    return band[0] if band else None
+
+
+def zone_ceiling(focus):
+    """Teto de %FTP da zona. Foco/zona sem faixa conhecida -> None."""
+    band = zone_band(focus)
+    return band[1] if band else None
 
 
 def estimate_tss(params, ftp):

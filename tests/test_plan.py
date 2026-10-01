@@ -3,12 +3,19 @@ from datetime import date, timedelta
 
 from src.plan import (build_plan, event_payload, reconcile, templates,
                       weekly_template, workout_text, orphan_external_ids,
+                      manual_duplicate_ids,
                       parse_training_days, _next_training_day,
                       _reduce_next_hard, parse_fthr, hr_target_bpm,
-                      rpe_for_focus, adherence_report, FOCUS_VO2,
-                      DEFAULT_TRAINING_DAYS,
+                      weekly_budget, rpe_for_focus, adherence_report, FOCUS_VO2,
+                      avg_load, DEFAULT_TRAINING_DAYS,
                       REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2,
                       _tsb_race_verdict)
+from src.coach import (WorkoutParams, estimate_tss, zone_floor, zone_ceiling,
+                       zone_band, focus_zone, ZONE_BANDS, FOCUS_ZONE,
+                       ZONE_SWEETSPOT, FOCUS_ZONE1_RECOVERY,
+                       FOCUS_ZONE2_ENDURANCE, FOCUS_ZONE3_TEMPO,
+                       FOCUS_ZONE4_LIMIAR, FOCUS_ZONE5_VO2MAX,
+                       FOCUS_ZONE6_ANAEROBICA, FOCUS_ENDURANCE)
 
 
 class BuildPlanTest(unittest.TestCase):
@@ -154,15 +161,117 @@ class TrainingDaysTest(unittest.TestCase):
 
 
 class ReconcileTest(unittest.TestCase):
-    def test_treino_perdido_insere_recuperacao(self):
-        # start = hoje-7 garante dias de treino passados em QUALQUER dia da
-        # semana (start=hoje-2 deixava 0 dias passados de seg a sex).
-        plan = build_plan([], 2, ftp=182, days=5,
+    def test_treino_perdido_e_absorvido_pelo_orcamento_nao_vira_recuperacao(self):
+        # REGRA (Fase 2): treino perdido NAO insere "Recuperacao" e NAO reduz
+        # -5% o proximo Limiar. A carga e redistribuida nos treinos Z2/Sweet
+        # Spot posteriores que tem folga dentro do teto semanal (weekly_budget).
+        # O plano e construido com os MESMOS eventos que o reconcile vera, para
+        # que build e reconcile derivem o mesmo teto (avg_load coerente).
+        from datetime import date as _d
+        hist = [{"external_id": f"hist{i}", "paired_activity_id": f"h{i}",
+                 "start_date_local": (_d.today() - timedelta(days=40 - i)).isoformat()
+                 + "T07:00:00", "icu_training_load": 45.0}
+                for i in range(15)]
+        plan = build_plan(hist, 2, ftp=182, days=12,
                           start=date.today() - timedelta(days=7))
-        plan, missed = reconcile(plan, [], ftp=182)
-        self.assertTrue(missed)
+        past = [w for w in plan if w["day"] < date.today().isoformat()]
+        # o reconcile ve: o historico + os dias do plano já feitos, exceto o
+        # ultimo dia de treino passado (uma falta isolada, caso tipico).
+        events = hist + [{"external_id": w["external_id"],
+                          "paired_activity_id": f"i{i}",
+                          "start_date_local": w["day"] + "T07:00:00",
+                          "icu_training_load": w["tss"]}
+                         for i, w in enumerate(past[:-1])]
+        budget = weekly_budget(avg_load(events))
+        antes = {w["external_id"]: w["tss"] for w in plan}
+        plan, missed, info = reconcile(plan, events, ftp=182)
+        self.assertEqual(len(missed), 1)
         nomes = [w["name"] for w in plan]
-        self.assertTrue(any("Recuperacao" in n for n in nomes))
+        self.assertFalse(any("Recuperacao (plano ajustado)" in n for n in nomes),
+                         "treino perdido nao deve virar recuperacao")
+        self.assertEqual(info["missed_tss"],
+                         sum(float(w["tss"]) for w in missed))
+        self.assertGreater(info["absorbed_tss"], 0,
+                           "a falta deveria ser redistribuida no orcamento")
+        # algum treino ganhou carga (a falta foi redistribuida)
+        ganhos = [w for w in plan
+                  if w["external_id"] in antes and w["tss"] > antes[w["external_id"]]]
+        self.assertTrue(ganhos, "nenhum treino absorveu a carga perdida")
+        # ...mas nunca estourando o teto semanal
+        for w in plan:
+            day = date.fromisoformat(w["day"])
+            janela = sum(x["tss"] for x in plan
+                         if 0 <= (day - date.fromisoformat(x["day"])).days < 7)
+            self.assertLessEqual(janela, budget + 1,
+                                 f"absorcao estourou o teto em {w['day']}")
+
+    def test_active_recovery_perdido_nao_e_compensado(self):
+        # Active recovery (Z2 ~0.60) tem por PROPOSITO nao gerar carga.
+        # Perder e praticamente sem custo fisiologico, logo nao se compensa
+        # com mais volume: hacerlo contradiria o objetivo do proprio treino
+        # (Seiler, Periodization Theory 3a ed., secao sobre sessoes perdidas).
+        from src.plan import _is_active_recovery, _absorbable_tss
+        rec = {"focus": "zone2", "tss": 14.0,
+               "params": {"on_sec": 1200, "on_power": 0.60}}
+        base = {"focus": "zone2", "tss": 24.0,
+                "params": {"on_sec": 1800, "on_power": 0.70}}
+        self.assertTrue(_is_active_recovery(rec))
+        self.assertFalse(_is_active_recovery(base))
+        self.assertEqual(_absorbable_tss([rec]), 0.0,
+                         "active recovery perdido nao e absorvivel")
+        self.assertEqual(_absorbable_tss([base]), 24.0,
+                         "Z2 base e absorvivel")
+
+    def test_alta_intensidade_perdida_nao_e_substituida_por_volume_z2(self):
+        # VO2max/Limiar perdidos NAO se compensam com mais Z2: a adaptacao
+        # aerobica vem da intensidade acima do LT1 (Seiler), nao de volume de
+        # base. A falta fica como "debito" e o build seguinte reprioriza a
+        # intensidade conforme o TSB real.
+        from src.plan import _absorbable_tss
+        vo2 = {"focus": "vo2max", "tss": 41.0,
+               "params": {"on_sec": 180, "on_power": 1.15}}
+        thr = {"focus": "threshold", "tss": 48.0,
+               "params": {"on_sec": 480, "on_power": 0.98}}
+        self.assertEqual(_absorbable_tss([vo2]), 0.0)
+        self.assertEqual(_absorbable_tss([thr]), 0.0)
+        self.assertEqual(_absorbable_tss([vo2, thr]), 0.0)
+        # ...enquanto uma sessao mista soma so a parte de base
+        base = {"focus": "sweetspot", "tss": 37.0,
+                "params": {"on_sec": 480, "on_power": 0.88}}
+        self.assertEqual(_absorbable_tss([vo2, thr, base]), 37.0)
+
+    def test_falta_grande_nao_estoura_teto_fica_para_o_tsb_absorver(self):
+        # Quando a carga perdida NAO cabe na folga do teto, nao se faz
+        # compensacao artificial: o plano fica (quase) intacto e a carga nao
+        # feita sobe o TSB, que e o proprio mecanismo de autorregulacao
+        # (reduz a semana seguinte no build). Em nenhuma hipotese o teto
+        # semanal pode ser furado.
+        plan = build_plan([], 2, ftp=182, days=12,
+                          start=date.today() - timedelta(days=7))
+        antes = {w["external_id"]: w["tss"] for w in plan}
+        plan, missed, info = reconcile(plan, [], ftp=182)  # tudo perdido
+        self.assertTrue(missed)
+        budget = weekly_budget(40.0)
+        for w in plan:
+            day = date.fromisoformat(w["day"])
+            janela = sum(x["tss"] for x in plan
+                         if 0 <= (day - date.fromisoformat(x["day"])).days < 7)
+            self.assertLessEqual(janela, budget + 1,
+                                 f"teto furado em {w['day']}: {janela} > {budget}")
+        self.assertLessEqual(info["absorbed_tss"], info["missed_tss"])
+
+    def test_absorcao_respeita_teto_maximo_de_crescimento(self):
+        # Cada treino cresce no maximo ABSORB_MAX_GAIN de on_sec por chamada
+        # (evita inflar um unico treino e criar um pico apos a falta).
+        from src.plan import ABSORB_MAX_GAIN
+        plan = build_plan([], 2, ftp=182, days=12,
+                          start=date.today() - timedelta(days=7))
+        antes = {w["external_id"]: w["params"]["on_sec"] for w in plan}
+        plan, missed, info = reconcile(plan, [], ftp=182)
+        for w in plan:
+            if w["external_id"] in antes and w["params"]["on_sec"] > antes[w["external_id"]]:
+                self.assertLessEqual(w["params"]["on_sec"],
+                                     int(antes[w["external_id"]] * ABSORB_MAX_GAIN) + 1)
 
     def test_treino_feito_nao_conta_como_perdido(self):
         plan = build_plan([], 2, ftp=182, days=2,
@@ -170,7 +279,7 @@ class ReconcileTest(unittest.TestCase):
         events = [{"external_id": plan[0]["external_id"],
                    "paired_activity_id": "41234",
                    "start_date_local": "2026-09-28T07:00:00"}]
-        plan, missed = reconcile(plan, events, ftp=182)
+        plan, missed, info = reconcile(plan, events, ftp=182)
         self.assertNotIn(plan[0]["day"], [m["day"] for m in missed])
 
     def test_duas_perdas_nao_reduzem_o_mesmo_limiar_duas_vezes(self):
@@ -223,13 +332,16 @@ class ReconcileTest(unittest.TestCase):
              "start_date_local": f"{anchor.isoformat()}T12:00:00",
              "icu_training_load": 10.0},
         ]
-        plan2, missed = reconcile(plan, events, ftp=182)
+        plan2, missed, info = reconcile(plan, events, ftp=182)
         self.assertEqual([m["external_id"] for m in missed],
                          [missed_one["external_id"]],
                          "exatamente um treino perdido")
-        nomes = [w["name"] for w in plan2 if "Recuperacao" in w["name"]]
-        self.assertGreaterEqual(len(nomes), 2,
-                                "perdido e extra pesado devem gerar recuperacao")
+        # REGRA (Fase 2): o treino perdido e ABSORVIDO pelo orcamento (nao vira
+        # recuperacao). O EXTRA PESADO, esse sim, dispara a regra de extras e
+        # ainda insere recuperacao. Logo: 1 recuperacao (do extra), nao 2.
+        nomes = [w["name"] for w in plan2 if "Recuperacao (plano ajustado)" in w["name"]]
+        self.assertEqual(len(nomes), 1,
+                         "somente o extra pesado gera recuperacao; o perdido e absorvido")
         self.assertEqual(len(plan2), len(plan),
                          "reconcile nao muda o tamanho do plano (substitui dias)")
 
@@ -248,7 +360,7 @@ class ReconcileTest(unittest.TestCase):
         events += [{"external_id": None, "paired_activity_id": "999",
                     "start_date_local": f"{anchor.isoformat()}T10:00:00",
                     "icu_training_load": 8.0}]  # leve, bem abaixo do cap
-        plan2, missed = reconcile(plan, events, ftp=182)
+        plan2, missed, info = reconcile(plan, events, ftp=182)
         self.assertFalse(missed, "tudo feito em dia passado -> nada perdido")
         self.assertEqual(plan2, plan,
                          "extra leve nao pode alterar o plano")
@@ -278,7 +390,7 @@ class ReconcileTest(unittest.TestCase):
         events = [{"external_id": None, "paired_activity_id": "999",
                    "start_date_local": f"{anchor}T10:00:00",
                    "icu_training_load": 100.0}]
-        plan2, missed = reconcile(plan, events, ftp=182)
+        plan2, missed, info = reconcile(plan, events, ftp=182)
         self.assertFalse(missed)
         nomes = [w["name"] for w in plan2]
         self.assertTrue(any("Recuperacao" in n for n in nomes),
@@ -293,7 +405,7 @@ class ReconcileTest(unittest.TestCase):
         events = [{"external_id": None, "paired_activity_id": "123",
                    "start_date_local": f"{anchor}T10:00:00",
                    "icu_training_load": 15.0}]
-        plan2, missed = reconcile(plan, events, ftp=182)
+        plan2, missed, info = reconcile(plan, events, ftp=182)
         self.assertFalse(missed)
         self.assertEqual(plan, plan2)
 
@@ -305,7 +417,7 @@ class ReconcileTest(unittest.TestCase):
                    "paired_activity_id": "999",
                    "start_date_local": f"{anchor}T10:00:00",
                    "icu_training_load": 100.0}]
-        plan2, missed = reconcile(plan, events, ftp=182)
+        plan2, missed, info = reconcile(plan, events, ftp=182)
         self.assertFalse(missed)
         self.assertEqual(plan, plan2)
 
@@ -316,8 +428,8 @@ class ReconcileTest(unittest.TestCase):
         events = [{"external_id": None, "paired_activity_id": "999",
                    "start_date_local": f"{anchor}T10:00:00",
                    "icu_training_load": 100.0}]
-        plan_a, _ = reconcile(plan, events, ftp=182)
-        plan_b, _ = reconcile(plan_a, events, ftp=182)
+        plan_a, _, _ = reconcile(plan, events, ftp=182)
+        plan_b, _, _ = reconcile(plan_a, events, ftp=182)
         ocorrencias = [w for w in plan_b if "Recuperacao" in w["name"]]
         self.assertEqual(len(ocorrencias), 1,
                          "reconcile repetido nao pode empilhar recuperacoes")
@@ -451,6 +563,37 @@ class OrphanTest(unittest.TestCase):
                          ["hermes-plan-2026-09-17", "hermes-plan-2026-09-19"])
 
 
+class ManualDuplicateTest(unittest.TestCase):
+    """Duplicatas manuais (sem external_id) que repetem um dia do plano: nao
+    sae apagadas por bulk-delete (so aceita external_id) e exigem delete por id."""
+
+    def _plan(self):
+        return [{"day": "2026-09-21", "external_id": "hermes-plan-2026-09-21"},
+                {"day": "2026-09-22", "external_id": "hermes-plan-2026-09-22"}]
+
+    def test_marca_manual_que_duplica_dia_do_plano(self):
+        events = [
+            {"id": 1, "external_id": None, "start_date_local": "2026-09-21T07:30:00"},
+            {"id": 2, "external_id": None, "start_date_local": "2026-09-23T07:30:00"},
+        ]
+        self.assertEqual(manual_duplicate_ids(self._plan(), events), [1])
+
+    def test_ignora_evento_hermes_ao_gerar_manuais(self):
+        events = [
+            {"id": 1, "external_id": "hermes-plan-2026-09-21",
+             "start_date_local": "2026-09-21T07:30:00"},
+        ]
+        self.assertEqual(manual_duplicate_ids(self._plan(), events), [])
+
+    def test_respeita_janela_start(self):
+        events = [
+            {"id": 1, "external_id": None, "start_date_local": "2026-09-21T07:30:00"},
+        ]
+        # dia 21 fica fora da janela (>= start=22) -> nao e duplicata
+        self.assertEqual(
+            manual_duplicate_ids(self._plan(), events, start="2026-09-22"), [])
+
+
 class FthrTest(unittest.TestCase):
     """FTHR (#3): frequencia cardiaca no limiar para prescricao sem medidor
     de potencia (modo FC, %FTHR + RPE)."""
@@ -529,7 +672,7 @@ class HeartRateModeTest(unittest.TestCase):
         today = date.today()
         plan = self._fc_plan(days=6, start=today - timedelta(days=4))
         # todos os dias passados: treino perdido -> recuperacao inserida
-        plan, missed = reconcile(plan, [], ftp=182)
+        plan, missed, info = reconcile(plan, [], ftp=182)
         self.assertTrue(missed)
         self.assertTrue(all(w.get("hr_mode") for w in plan),
                         "recuperacao inserida deve herdar o modo FC")
@@ -732,6 +875,136 @@ class RaceTsbVerdictTest(unittest.TestCase):
         self.assertEqual(_tsb_race_verdict(5), "ok")
         self.assertEqual(_tsb_race_verdict(20), "ok")
         self.assertEqual(_tsb_race_verdict(25), "acima")
+
+
+class ZoneIntegrityTest(unittest.TestCase):
+    """Invariante de zona (docs/EMBASAMENTO-CIENTIFICO.md, Tabela Z1-Z7).
+
+    REGRA: um treino NUNCA entrega menos de %FTP do que o piso da zona que ele
+    declara. O `focus` e o nome podem nao mudar enquanto a potencia rebaixada
+    entrega outro estímulo - foi exatamente o bug do `_fit_budget`, que
+    descia `on_power` ate 0.55 fixo e produzia "Treino de Sweet Spot" com
+   功率 de recuperacao (caso real: 2026-10-02, sweetspot @0.55).
+    """
+
+    def test_fit_budget_nunca_rebaixa_abaixo_do_piso_da_zona(self):
+        from src.plan import _fit_budget
+        from src.coach import estimate_tss
+        for focus, on_sec, on_pow in [("zone2", 1800, 0.70),
+                                      ("sweetspot", 480, 0.88),
+                                      ("threshold", 480, 0.98),
+                                      ("vo2max", 180, 1.15)]:
+            piso = zone_floor(focus)
+            self.assertIsNotNone(piso, f"{focus} sem faixa definida")
+            params = WorkoutParams(focus=focus, repeats=3, on_sec=on_sec,
+                                   off_sec=240, on_power=on_pow, off_power=0.55,
+                                   cadence=90, cadence_rest=85)
+            tss = estimate_tss(params, 250)
+            # budget apertadissimo: forcaria rebaixar a intensidade
+            out, _ = _fit_budget(params, tss, [(None, 200)], 210, 250)
+            self.assertGreaterEqual(
+                out.on_power, piso,
+                f"{focus}: on_power {out.on_power} < piso da zona {piso}")
+            self.assertEqual(out.focus, focus,
+                             "o focus nao pode mudar ao cortar carga")
+
+    def test_reducao_de_carga_preserva_o_nome_do_treino(self):
+        # cortar volume (reps/duracao) mantem o nome coerente com a zona
+        from src.plan import _fit_budget
+        from src.coach import estimate_tss
+        params = WorkoutParams(focus="sweetspot", repeats=3, on_sec=480,
+                               off_sec=240, on_power=0.88, off_power=0.55,
+                               cadence=90, cadence_rest=85)
+        out, tss = _fit_budget(params, estimate_tss(params, 250),
+                               [(None, 200)], 210, 250)
+        self.assertGreaterEqual(out.on_power, zone_floor("sweetspot"))
+        self.assertGreaterEqual(tss, 0.0)
+
+    def test_templates_respeitam_a_faixa_da_zona(self):
+        # os blocos-base nao podem nascer fora da banda da sua zona
+        for focus, bloco in templates().items():
+            piso = zone_floor(focus)
+            if piso is None:
+                continue
+            topo = zone_ceiling(focus)
+            pot = bloco["on_power"]
+            self.assertTrue(
+                piso <= pot <= topo,
+                f"template {focus} @ {pot} fora da faixa [{piso}, {topo}]")
+
+    def test_plano_gerado_respeita_a_faixa_de_cada_zona(self):
+        # build_plan nao pode emitir treino abaixo do piso da zona declarada
+        for tsb in (-20, 0, 10, 25):
+            for ftp in (182, 250):
+                plan = build_plan([], tsb, ftp=ftp, days=21,
+                                  start=date(2026, 9, 14))
+                for w in plan:
+                    piso = zone_floor(w["focus"])
+                    if piso is None:
+                        continue
+                    pot = w["params"]["on_power"]
+                    self.assertGreaterEqual(
+                        pot, piso,
+                        f"{w['day']} {w['focus']} @ {pot} < piso {piso}")
+
+    def test_zona_bands_espelham_a_tabela_do_documento(self):
+        # ZONE_BANDS e a versao legivel da "Tabela Cientifica Z1-Z7" de
+        # docs/EMBASAMENTO-CIENTIFICO.md. Se a tabela mudar, este teste falha.
+        # ordem e identical a "Tabela Cientifica Z1-Z7" do documento
+        esperado = {
+            FOCUS_ZONE1_RECOVERY: (0.00, 0.55),    # Z1 Recuperacao  <55%
+            FOCUS_ZONE2_ENDURANCE: (0.56, 0.75),   # Z2 Endurance  56-75%
+            FOCUS_ZONE3_TEMPO: (0.76, 0.90),       # Z3 Tempo      76-90%
+            ZONE_SWEETSPOT: (0.84, 0.97),          # Sweet Spot    84-97%
+            FOCUS_ZONE4_LIMIAR: (0.91, 1.05),      # Z4 Limiar     91-105%
+            FOCUS_ZONE5_VO2MAX: (1.06, 1.20),      # Z5 VO2max    106-120%
+            FOCUS_ZONE6_ANAEROBICA: (1.21, 1.50),  # Z6 Anaerobica 121-150%
+        }
+        self.assertEqual(ZONE_BANDS, esperado)
+        # Z7 e potencia maxima: nao cabe numa faixa de %FTP
+        self.assertEqual([z for z in ZONE_BANDS if z.startswith("z7")], [])
+
+    def test_focos_de_prescricao_mapeiam_para_a_zona_canonica(self):
+        # 'zone2' e 'endurance' sao a MESMA zona do documento (Z2), nao zonas
+        # distintas; 'sweetspot' e categoria de prescricao, nao numero de zona.
+        self.assertEqual(focus_zone(FOCUS_ZONE2), FOCUS_ZONE2_ENDURANCE)
+        self.assertEqual(focus_zone(FOCUS_ENDURANCE), FOCUS_ZONE2_ENDURANCE)
+        self.assertEqual(focus_zone(FOCUS_SWEETSPOT), ZONE_SWEETSPOT)
+        self.assertEqual(focus_zone(FOCUS_THRESHOLD), FOCUS_ZONE4_LIMIAR)
+        self.assertEqual(focus_zone(FOCUS_VO2), FOCUS_ZONE5_VO2MAX)
+
+    def test_valores_string_dos_focos_nao_mudaram(self):
+        # INVARIANTE DE COMPATIBILIDADE: o valor string e persistido em
+        # plan.json e publicado no Intervals.icu. Renomear um valor quebraria
+        # planos salvos e o calendario -- por isso so as CONSTANTES mudaram.
+        self.assertEqual(FOCUS_ZONE2_ENDURANCE, "zone2")
+        self.assertEqual(FOCUS_ZONE4_LIMIAR, "threshold")
+        self.assertEqual(FOCUS_ZONE5_VO2MAX, "vo2max")
+        self.assertEqual(FOCUS_ZONE2, FOCUS_ZONE2_ENDURANCE)
+        self.assertEqual(FOCUS_THRESHOLD, FOCUS_ZONE4_LIMIAR)
+        self.assertEqual(FOCUS_VO2, FOCUS_ZONE5_VO2MAX)
+
+    def test_z1_recuperacao_nao_e_zona_de_prescricao_do_codigo(self):
+        # Z1 (<55%) tem faixa na tabela, mas nao existe foco prescrito: e uma
+        # intencao de sessao executada DENTRO da banda Z2 (active recovery).
+        self.assertIn(FOCUS_ZONE1_RECOVERY, ZONE_BANDS)
+        self.assertNotIn(FOCUS_ZONE1_RECOVERY, FOCUS_ZONE)
+        self.assertNotIn(FOCUS_ZONE1_RECOVERY, templates())
+
+    def test_active_recovery_permanece_detectavel_apos_o_corte(self):
+        # o corte nao pode transformar um treino de zona em active recovery
+        # (que se define por on_power baixo) sem renomear
+        from src.plan import _is_active_recovery
+        plan = build_plan([], 0, ftp=250, days=14, start=date(2026, 9, 14))
+        for w in plan:
+            piso = zone_floor(w["focus"])
+            if piso is None:
+                continue
+            if _is_active_recovery(w):
+                self.assertLessEqual(w["params"]["on_power"], 0.65,
+                                     "active recovery acima do limiar")
+                # so Z2 pode ser active recovery
+                self.assertEqual(w["focus"], FOCUS_ZONE2)
 
 
 if __name__ == "__main__":

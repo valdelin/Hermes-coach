@@ -153,6 +153,16 @@ class IntervalsClientRetryTest(unittest.TestCase):
         self.assertEqual(method, "PUT")
         self.assertEqual(kwargs["json"], [{"external_id": "a"}, {"external_id": "b"}])
 
+    def test_delete_event_por_id_numerico(self):
+        # Eventos manuais (sem external_id) so podem ser apagados por id.
+        session = _FakeSession([_FakeResponse(200, {})])
+        client = _client(session)
+        status = client.delete_event(136554084)
+        self.assertEqual(status, 200)
+        method, url, _ = session.calls[0]
+        self.assertEqual(method, "DELETE")
+        self.assertIn("/events/136554084", url)
+
     def test_activity_streams_achata_lista(self):
         session = _FakeSession([
             _FakeResponse(200, [{"type": "watts", "data": [1, 2]},

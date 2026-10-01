@@ -5,7 +5,8 @@ from src.plan import (build_plan, parse_long_day, parse_weekly_hours,
                       _place_long_day, _volume_scale, _scale_duration,
                       WorkoutParams, FOCUS_ZONE2, FOCUS_SWEETSPOT,
                       FOCUS_THRESHOLD, FOCUS_VO2, ENDURANCE,
-                      DEFAULT_TRAINING_DAYS, VOLUME_SCALE_MIN, VOLUME_SCALE_MAX)
+                      DEFAULT_TRAINING_DAYS, VOLUME_SCALE_MIN, VOLUME_SCALE_MAX,
+                      weekly_budget)
 
 
 class ParseWeeklyHoursTest(unittest.TestCase):
@@ -63,14 +64,43 @@ class VolumeScaleTest(unittest.TestCase):
         for w in plan:
             self.assertGreaterEqual(w["params"]["on_sec"], 120)
 
-    def test_mais_horas_aumenta_ate_o_teto(self):
+    def test_mais_horas_aumenta_a_carga_ate_o_teto(self):
+        # Mais horas disponiveis aumenta a carga, mas nunca acima do teto
+        # semanal (= cap diario x dias de treino). O scale pode elevar um
+        # treino enquanto houver folga; quando o teto aperta, o _fit_budget
+        # segura. Por isso a invariante e sobre o TOTAL da semana respectar
+        # o teto, e nao "todo dia cresce".
         base = build_plan([], 0, ftp=182, days=7,
                           start=date(2026, 9, 14))
         scaled = build_plan([], 0, ftp=182, days=7,
-                            start=date(2026, 9, 14), weekly_hours=12)
+                            start=date(2026, 9, 14), weekly_hours=8)
+        budget = weekly_budget(40.0)  # fallback do avg_load sem eventos
         for b, s in zip(base, scaled):
             self.assertLessEqual(s["params"]["on_sec"], b["params"]["on_sec"] * 1.5)
-            self.assertGreaterEqual(s["params"]["on_sec"], b["params"]["on_sec"])
+        # carga total subiu face ao plano base...
+        self.assertGreater(sum(w["tss"] for w in scaled),
+                           sum(w["tss"] for w in base) - 1)
+        # ...mas a semana rolante cabe no teto
+        for i, w in enumerate(scaled):
+            day = date.fromisoformat(w["day"])
+            janela = sum(x["tss"] for x in scaled
+                         if 0 <= (day - date.fromisoformat(x["day"])).days < 7)
+            self.assertLessEqual(janela, budget + 1)
+
+    def test_horas_acima_do_teto_sao_capadas_pelo_orcamento(self):
+        # O teto semanal = cap diario x dias de treino da semana. Pedir mais
+        # horas do que o teto comporta NAO pode estourar o orcamento: o
+        # _fit_budget reduz a carga ate caber. Com weekly_hours alto demais, o
+        # plano escala mas o teto segura (este era o comportamento antes da
+        # correcao do teto, que inflava em 7/dias_de_treino).
+        plan = build_plan([], 0, ftp=182, days=7,
+                          start=date(2026, 9, 14), weekly_hours=12)
+        budget = weekly_budget(40.0)  # fallback do avg_load sem eventos
+        for i, w in enumerate(plan):
+            day = date.fromisoformat(w["day"])
+            janela = sum(x["tss"] for x in plan
+                         if 0 <= (day - date.fromisoformat(x["day"])).days < 7)
+            self.assertLessEqual(janela, budget + 1)
 
     def test_tss_acompanha_a_reducao(self):
         base = build_plan([], 0, ftp=182, days=7,

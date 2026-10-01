@@ -8,7 +8,8 @@ try:
                        FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2)
 except ImportError:
     from .coach import (WorkoutParams, estimate_tss,
-                        FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2)
+                        FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2,
+                        zone_floor, zone_ceiling, ZONE_BANDS)
 
 START_TIME = "07:30:00"
 REST = "rest"
@@ -456,10 +457,24 @@ def weekly_template(tsb, goal=None, periodization=None):
     return templates[-1][1]
 
 
-def avg_load(events, window_days=60):
+# Janela (dias) usada para derivar a carga media e, portanto, o teto semanal.
+# Fonte unica: build_plan e o reconcile DEVEM usar a mesma, senao derivam tetos
+# diferentes da mesma carga e o reconcile absorve por cima/por baixo do plano.
+BUDGET_WINDOW_DAYS = 60
+
+
+def avg_load(events, window_days=BUDGET_WINDOW_DAYS, realized_only=True):
+    """Carga media por DIA DE TREINO na janela, para derivar o cap diario.
+
+    `realized_only` ignora eventos de treino nunca executados (planned sem
+    `paired_activity_id`): carga prescrita nao e evidencia de tolerancia. Sem
+    sessao realizada na janela, cai no fallback conservador de 40 TSS/dia.
+    """
     loads = []
     cutoff = date.today() - timedelta(days=window_days)
     for item in events:
+        if realized_only and not item.get("paired_activity_id"):
+            continue
         day = _day(item)
         load = _num(item.get("icu_training_load"))
         if day and load and load > 0 and day >= cutoff:
@@ -471,9 +486,16 @@ def daily_tss_cap(avg):
     return max(35, min(200, int(avg * 0.95)))
 
 
-def weekly_budget(avg):
-    """Orcamento de TSS para um janela de 7 dias (7x o cap diario)."""
-    return daily_tss_cap(avg) * 7
+def weekly_budget(avg, training_days=DEFAULT_TRAINING_DAYS, scale=1.0):
+    """Orcamento de TSS para a janela de 7 dias.
+
+    `avg_load` e media por DIA DE TREINO, nao por dia-calendario: multiplicar
+    por 7 concedia 7 sessoes numa semana que so tem `len(training_days)`
+    treinos, inflando o teto em 7/n (1,4x com 5 dias). O teto e o cap diario
+    vezes os dias de treino da semana.
+    """
+    cap = max(1, int(daily_tss_cap(avg) * scale))
+    return cap * max(1, len(training_days))
 
 
 def _recovery_budget(recovery_ramp, day_index, default):
@@ -515,14 +537,14 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
     avg = avg_load(events)
     cap = max(1, int(daily_tss_cap(avg) * scale))
-    budget = cap * 7
+    budget = weekly_budget(avg, training_days, scale)
     plan = []
     recent = []  # (day, tss) dos ultimos 7 dias
     for i in range(days):
         day = start + timedelta(days=i)
         if day.weekday() not in training_days:
             continue
-        budget = _recovery_budget(recovery_ramp, i, cap * 7)
+        budget = _recovery_budget(recovery_ramp, i, budget)
         focus = weekly[slots.index(day.weekday()) % len(weekly)]
         taper = _taper_focus(goal, day, race_date)
         if taper is not None:
@@ -744,23 +766,53 @@ def _protect_race(plan, race_date, training_days, start, days, ftp):
 
 
 def _fit_budget(params, tss, recent, budget, ftp):
-    """Reduz a carga deste dia (e por consequencia os subsequentes) para que a
-    soma rolante de 7 dias nao estoure o orcamento semanal."""
+    """Reduz a carga deste dia para que a soma rolante de 7 dias nao estoure o
+    orcamento semanal, SEM quebrar a zona que o treino declara.
+
+    Ordem de reducao. As tres primeiras sao reducoes de VOLUME: preservam
+    integralmente a intensidade e, portanto, a zona e o nome do treino.
+      1. `repeats` - cortar um intervalo inteiro (3x15min -> 2x15min) e o corte de
+         volume mais honesto: nao altera o estímulo-alvo, so a quantidade.
+      2. `on_sec` - encurta o trabalho dentro do intervalo.
+      3. `off_sec` - encurta a recuperacao entre intervalos (corte de sessao).
+      4. `on_power` - ULTIMO recurso, e so ate o PISO de %FTP da zona
+         (`ZONE_BANDS`). Ex.: Sweet Spot 0.88 -> 0.84 ainda e Sweet Spot.
+
+    Regra inviolavel: `on_power` nunca fica abaixo do piso da zona. A versao
+    anterior descia ate 0.55 fixo, o que rebaixava um treino de `sweetspot`
+    (piso 0.84) para um estimulo de recuperacao - mantendo o nome "Treino de
+    Sweet Spot" e o `focus` intactos. Isso e pior que estourar o teto: produz
+    um treino nomeado que nao entrega a zona prometida, e ainda quebra a
+    deteccao de active recovery (que se baseia em `on_power`).
+    """
     used = sum(t for _, t in recent)
     if used + tss <= budget:
         return params, tss
-    on_sec, on_power = params.on_sec, params.on_power
-    for _ in range(20):
+    piso = zone_floor(params.focus)
+    repeats, on_sec, off_sec, on_power = (params.repeats, params.on_sec,
+                                          params.off_sec, params.on_power)
+    for _ in range(30):
         if used + tss <= budget:
             break
-        if on_sec > 120:
+        if repeats > 1:
+            # 1) corta um intervalo inteiro: volume sem mexer na intensidade
+            repeats -= 1
+        elif on_sec > 120:
+            # 2) encurta o trabalho dentro do intervalo
             on_sec = max(120, int(on_sec * 0.8))
-        elif on_power > 0.55:
-            on_power = max(0.55, round(on_power - 0.05, 2))
+        elif off_sec > 0:
+            # 3) encurta a recuperacao entre intervalos
+            off_sec = max(0, int(off_sec * 0.8))
+        elif piso is not None and on_power > piso:
+            # 4) so agora mexe na potencia, e nunca abaixo do piso da zona
+            on_power = max(piso, round(on_power - 0.05, 2))
         else:
+            # 5) nao cabe sem sair da zona. O limite de zona vale mais que o
+            #    teto: nao rebaixamos o estimulo para forcar a conta.
             break
-        params = WorkoutParams(**{**params.__dict__,
-                                  "on_sec": on_sec, "on_power": on_power})
+        params = WorkoutParams(**{**params.__dict__, "repeats": repeats,
+                                  "on_sec": on_sec, "off_sec": off_sec,
+                                  "on_power": on_power})
         tss = estimate_tss(params, ftp)
     return params, tss
 
@@ -1152,17 +1204,38 @@ def _zone(frac):
     return "Z1"
 
 
-def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS):
+def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS,
+              budget=None):
+    """Reconcilia o plano com o historico real.
+
+    `budget` e o teto semanal de TSS. Deve ser calculado pelo caller com a MESMA
+    base do build_plan (mesma janela de `avg_load` e mesma `GOAL_BUDGET_SCALE` do
+    goal); se omitido, cai no legado basedo em `events`, que pode subestimar o
+    teto quando `events` cobre uma janela menor que a do build.
+    """
     today = date.today()
     hr_mode = any(w.get("hr_mode") for w in plan)
     done_ids, extras = _done_and_extra(events)
     reduced_ids = set()
+    absorbed_ids = set()
     missed = [w for w in plan
               if w["day"] < today.isoformat() and w["external_id"] not in done_ids]
+    absorbed_tss = 0.0
+    absorbable = 0.0
     if missed:
-        for m in missed:
-            plan = _insert_recovery(plan, m["day"], ftp, training_days)
-            plan = _reduce_next_hard(plan, m["day"], ftp, reduced_ids)
+        # Um treino perdido e absorvido pelo ORCAMENTO semanal: distribui-se a
+        # carga nao feita nos treinos Z2/SweetSpot posteriores que ainda tem
+        # folga dentro do teto (weekly_budget). Nao se insere "recuperacao"
+        # nem se reduz -5% no proximo Limiar: a compensacao e limitada pelo
+        # teto, nao por um fator arbitrario (ver _absorb_missed_into_budget).
+        # A carga absorvivel depende da INTENSIDADE do treino perdido
+        # (_absorbable_tss): active recovery nao se compensa; alta intensidade
+        # (Limiar/VO2) nao se substitui com mais volume - fica para o build
+        # seguinte repriorizar conforme o TSB real.
+        absorbable = _absorbable_tss(missed)
+        plan, absorbed_tss = _absorb_missed_into_budget(
+            plan, absorbable, ftp, events, training_days, absorbed_ids,
+            budget=budget)
     plan = _adjust_for_extra_workouts(plan, extras, ftp, training_days,
                                       cap=daily_tss_cap(avg_load(events)),
                                       reduced_ids=reduced_ids)
@@ -1172,7 +1245,10 @@ def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS
     if hr_mode:
         for w in plan:
             w["hr_mode"] = True
-    return plan, missed
+    info = {"absorbed_tss": absorbed_tss, "missed_tss":
+            sum(float(w["tss"]) for w in missed) if missed else 0.0,
+            "absorbable_tss": absorbable}
+    return plan, missed, info
 
 
 def _done_and_extra(events):
@@ -1315,6 +1391,156 @@ def _reduce_next_hard(plan, day, ftp, reduced_ids=None):
     return out
 
 
+# --- Absorcao de treino perdido pelo orcamento semanal -----------------------
+# Embasamento cientifico (docs/EMBASAMENTO-CIENTIFICO.md, secao "Treino
+# perdido: absorver pelo orcamento, nao substituir por recuperacao"): um treino
+# perdido nao se repara com uma sessao binaria de "recuperacao" nem com uma
+# reducao fixa de -5% no proximo Limiar. A literatura de periodizacao (Banister;
+# Seiler, Periodization Theory, 3a ed.; Friel, Periodization Bible) trata a
+# falta de adesao como ruido esperado e manda ABSORVER o deficit elevando a
+# carga das sessoes restantes DENTRO do orcamento semanal ja calculado pelo
+# _fit_budget. O limite da compensacao e o proprio teto (guardrail), nao um
+# -5% arbitrario.
+#
+# O QUE E (e nao e) absorvivel depende da INTENSIDADE do treino perdido, nao
+# do seu TSS bruto - o stimulus fisiologico e o que determina o custo real de
+# uma falta (Seiler; Friel):
+#   - ACTIVE RECOVERY (Z2 ~0.55-0.60, ~14 TSS): o proprio objetivo do treino e
+#     NAO gerar carga. Perder e praticamente sem custo -> nao se compensa
+#     (compensar exiquria carga, contradizendo o proposito do treino);
+#   - BASE Z2 (~0.70) / SWEETSPOT (~0.88): volume puro; perder esse workload e
+#     absorvivel com mais volume da mesma natureza -> redistribui-se dentro do
+#     teto semanal;
+#   - LIMIAR (~0.98) / VO2MAX (~1.15): o estímulo e de ALTA INTENSIDADE. VO2max
+#     nao se constroi com mais Z2 (Seiler: a adaptacao aerobica vem da
+#     intensidade acima do LT1). Nao se compensa com volume - deixa-se o
+#     treino de intensidade como "debito" e deixa o proprio build seguinte
+#     repriorizar a intensidade conforme o TSB real.
+#
+# Limites (conservadores, para nao estourar o teto nem criar picos):
+#   - so sessoes ZONA2/SWEETSPOT recebem a elevacao: sessoes VO2/Limiar nao
+#     sao "enchidas" por causa de uma falta;
+#   - cada treino cresce no maximo ABSORB_MAX_GAIN (20%) de on_sec por chamada
+#     (evita inflar um unico treino e criar um pico apos a falta);
+#   - so absorve enquanto a soma rolante de 7 dias couber no teto
+#     (weekly_budget). Sem folga, a falta e grande demais para compensar: o
+#     plano fica intacto e a carga nao feita sobe o TSB, o proprio motor de
+#     autorregulacao reduz a proxima semana no build seguinte.
+ABSORB_MAX_GAIN = 1.20
+ABSORB_FOCUSES = (FOCUS_ZONE2, FOCUS_SWEETSPOT)
+# Focos que NAO se compensam com volume: o estímulo nao e substituido por Z2.
+ABSORB_SKIP_FOCUSES = (FOCUS_THRESHOLD, FOCUS_VO2)
+# Abaixo desta potencia, um Z2 e active recovery (nao compensa).
+ACTIVE_RECOVERY_MAX_POWER = 0.65
+_ABSORB_STEP_SEC = 30  # granularidade do ajuste de on_sec
+
+
+def _is_active_recovery(w):
+    """Active recovery = Z2 muito leve (on_power <= ~0.65). Perder e sem custo
+    fisiologico relevante, logo nao se compensa com volume."""
+    return (w.get("focus") == FOCUS_ZONE2
+            and float((w.get("params") or {}).get("on_power", 1.0))
+            <= ACTIVE_RECOVERY_MAX_POWER)
+
+
+def _absorbable_tss(missed):
+    """Carga realmente absorvivel de uma lista de treinos perdidos: soma
+    apenas os de BASE (Z2 >=~0.70 / SweetSpot). Active recovery (nao compensa)
+    e alta intensidade (nao se substitui com volume) ficam de fora."""
+    total = 0.0
+    for m in missed:
+        if m.get("focus") in ABSORB_SKIP_FOCUSES:
+            continue
+        if _is_active_recovery(m):
+            continue
+        total += float(m["tss"])
+    return total
+
+
+def _absorb_missed_into_budget(plan, missed_tss, ftp, events, training_days,
+                               absorbed_ids=None, budget=None):
+    """Eleva a duracao (on_sec) dos treinos Z2/SweetSpot posteriores para
+    reabsorver `missed_tss`, sem estourar o teto semanal (weekly_budget).
+
+    Devolve (plan, ganho_tss), sendo ganho_tss a parcela da falta
+    efetivamente redistribuida. Sem folga no teto, devolve o plano intacto.
+    """
+    absorbed_ids = absorbed_ids if absorbed_ids is not None else set()
+    if missed_tss <= 0:
+        return plan, 0.0
+    # O teto deve vir do mesmo calculo do build_plan (mesma janela de eventos e
+    # mesma escala do goal). Se o caller nao informar, cai no comportamento
+    # legado basedo nos `events` recebidos - que pode ser mais estreito que a
+    # janela do build e, por isso, subestimar a media e o teto.
+    budget = (budget if budget is not None
+              else weekly_budget(avg_load(events), training_days))
+    plan = [dict(w) for w in plan]
+    by_id = {w["external_id"]: w for w in plan}
+    dias = [date.fromisoformat(x["day"]) for x in plan]
+    # Se o plano JA esta acima do teto que o reconcile calculou, nao absorve:
+    # isso significa que o plano veio de um build com um teto diferente (o
+    # reconcile ve uma janela de eventos mais estreita que o build) e elevar
+    # aqui so agravaria. defensive: nao piora o que ja estourou.
+    ja_estourado = max(
+        sum(x["tss"] for x in plan
+            if 0 <= (d - date.fromisoformat(x["day"])).days < 7)
+        for d in dias) > budget
+    if ja_estourado:
+        return plan, 0.0
+    gained = 0.0
+    remaining = missed_tss
+    for w in sorted((w for w in plan
+                     if w["focus"] in ABSORB_FOCUSES
+                     and w["external_id"] not in absorbed_ids
+                     and not _is_active_recovery(w)),
+                    key=lambda x: x["day"]):
+        if remaining <= 0:
+            break
+        day = date.fromisoformat(w["day"])
+        params = dict(w["params"])
+        on = int(params.get("on_sec", 0))
+        if on <= 0:
+            continue
+        base_tss = float(estimate_tss(WorkoutParams(**params), ftp))
+        # Elevar este treino cresce a soma de TODA janela rolante de 7 dias que
+        # o contem. A forma correta de respeitar o teto e checar, para cada
+        # dia D >= `day` em que o treino entra na janela, se
+        # soma(D) + ganho <= budget. `folga` e a menor folga entre esses dias.
+        folga = min(
+            (budget - sum(x["tss"] for x in plan
+                          if 0 <= (d - date.fromisoformat(x["day"])).days < 7))
+            for d in dias if d >= day)
+        if folga <= 0:
+            continue
+        # procura o maior on_sec que cabe na folga, ate ABSORB_MAX_GAIN
+        best = None
+        for target_on in range(on + _ABSORB_STEP_SEC,
+                               int(on * ABSORB_MAX_GAIN) + 1,
+                               _ABSORB_STEP_SEC):
+            cand = dict(params, on_sec=target_on)
+            cand_tss = float(estimate_tss(WorkoutParams(**cand), ftp))
+            ganho = cand_tss - base_tss
+            if ganho <= 0 or ganho > folga:
+                break
+            best = (cand, cand_tss, ganho)
+        if not best:
+            continue
+        cand, cand_tss, ganho = best
+        # grava o treino elevado
+        off = int(params.get("off_sec", 0))
+        warm = int(params.get("warmup_sec", 600))
+        cool = int(params.get("cooldown_sec", 600))
+        duration = warm + int(params["repeats"]) * (cand["on_sec"] + off) + cool
+        w["params"] = cand
+        w["tss"] = cand_tss
+        w["planned_duration"] = duration
+        absorbed_ids.add(w["external_id"])
+        by_id[w["external_id"]] = w
+        gained += ganho
+        remaining -= ganho
+    return plan, gained
+
+
 def _next_training_day(day, training_days=DEFAULT_TRAINING_DAYS):
     d = date.fromisoformat(day) + timedelta(days=1)
     while d.weekday() not in training_days:
@@ -1330,6 +1556,19 @@ def orphan_external_ids(plan, events, start=None):
     return [e["external_id"] for e in events
             if (e.get("external_id") or "").startswith(EXTERNAL_ID_PREFIX)
             and e["external_id"] not in keep]
+
+
+def manual_duplicate_ids(plan, events, start=None):
+    """IDs numericos de eventos MANUAIS (sem `external_id`) que duplicam um
+    dia do plano -- isto e, existe um `hermes-plan-*` no mesmo dia.
+
+    O `bulk-delete` so apaga por `external_id`, entao essas duplicatas (criadas
+    direto no app do Intervals) exigem `delete_event(id)`. Um evento manual
+    em dia SEM treino do plano nao e duplicata e e preservado.
+    """
+    plan_days = {w["day"] for w in plan if not start or w["day"] >= start}
+    return [e["id"] for e in events
+            if not e.get("external_id") and e["start_date_local"][:10] in plan_days]
 
 
 def save_plan(plan, path="plan.json", goal=None, race_date=None,

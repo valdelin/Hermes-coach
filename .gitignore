@@ -6,4 +6,5 @@ __pycache__/
 .venv/
 plan.json
 logs/
-data/
+data/relatorio-*.html
+relatorio-*.pdf

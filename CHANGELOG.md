@@ -9,6 +9,129 @@ As versões aqui correspondem às **tags** do repositório (git tag) e aos
 As versões intermediárias (v0.0.3–v0.0.6) foram bumpados no `VERSION` sem tag
 própria — foram agrupadas na tag/release v0.0.7.
 
+## [Unreleased]
+
+### Corrigido
+
+- **Integridade de zona: `_fit_budget` rebaixava a potência abaixo da zona
+  declarada** — ao apertar o orçamento semanal, o redutor cortava `on_power`
+  até um piso fixo de **0.55**, independente da zona do treino. Isso produzia
+  treinos nomeados que não entregavam a zona prometida: um `focus=sweetspot`
+  (piso 84% FTP) saía com **0.55**, ou seja, estímulo de recuperação com o
+  nome "Treino de Sweet Spot" intacto. Caso real observed no plano:
+  `2026-10-02` com `focus=sweetspot` @ 55% FTP. Isso quebrava também a
+  detecção de *active recovery* (que se baseia em `on_power` baixo), e
+  tensionava a Zona 2 base (0.70 → 0.65 → 0.60 → 0.55, atravessando Z1).
+  Agora a redução de carga é **hierárquica e preserva a zona**: (1) corta
+  `repeats` — remove um intervalo inteiro, o corte de volume mais honesto;
+  (2) encurta `on_sec`; (3) encurta `off_sec`; (4) só então reduz `on_power`,
+  e **nunca abaixo do piso da zona**. As três primeiras levers são volume
+  puro e preservam intensidade, nome e `focus`. O limite de zona passa a
+  prevalecer sobre o teto: quando não cabe sem sair da zona, o plano
+  preferencialmente estoura o teto a rebaixar o estímulo.
+
+- **Orçamento semanal: teto inflado em ~1,4×** — o teto de TSS da janela
+  rolante de 7 dias era calculado como `cap diário × 7`. Como a média de
+  carga (`avg_load`) é **por dia de treino** (não por dia-calendário),
+  multiplicar por 7 concedia 7 sessões numa semana que tem apenas `n` dias
+  de treino. Com 5 dias, o teto caiu de ~287 para ~220 TSS, e 5 dias de
+  treino passaram a caber em 5 sessões. `weekly_budget()` passou a receber
+  `training_days` e virou a única fonte da fórmula (antes `build_plan`
+  hardcodeava `cap * 7`, deixando a função oficial sem uso).
+
+- **`avg_load` contava carga prescrita não realizada** — eventos de treino
+  **nunca executados** (`paired_activity_id` ausente) entravam na média de
+  carga que deriva o teto. Carga prescrita não é evidência de tolerância.
+  Agora só sessões efetivamente realizadas alimentam a média (fallback
+  conservador de 40 TSS/dia preservado). Impacto real: média 44,1 → 47,1
+  TSS/dia.
+
+- **`push` nunca varria órfãos além do horizonte do plano** (#38) — o limite
+  superior da busca de órfãos era derivado do **último dia do plano**, então
+  eventos `hermes-plan-*` de um plano anterior **mais longo** nunca eram
+  examinados e sobreviviam indefinidamente, com o `--dry-run` reportando
+  "0 órfãos" em silêncio. Caso real: 16 eventos de 16/10 a 06/11 — incluindo o
+  **Ramp Test de 22/10**, o `ftp_test_date` do plano — sobraram de um plano de
+  20 dias quando o vigente tinha 14. A varredura passou a ter **duas
+  camadas**: a busca é ampla (`start + 120 dias`) apenas para **enxergar** o que
+  existe no calendário, mas só se **apaga** o que está **dentro** do horizonte
+  do plano; o que está além é reportado como mantido, de plano anterior mais
+  longo. Sem essa distinção, um plano mais curto apagaria um plano mais longo
+  legítimo — que foi exatamente o que a primeira versão da correção faria.
+
+- **Duplicatas manuais no calendário eram inalcançáveis para limpeza** (#39) —
+  eventos criados direto no app do Intervals têm `external_id = None`;
+  `orphan_external_ids` filtra pelo prefixo `hermes-plan-` e `bulk-delete`
+  aceita apenas `external_id`. Um treino manual que repetia um dia do plano
+  (ex.: `VO2max 2026-10-14` convivendo com `Treino de Sweet Spot`) não tinha
+  caminho de remoção. Adicionado `IntervalsClient.delete_event(id)`
+  (`DELETE /events/{id}`) e `plan.manual_duplicate_ids()`, que detecta evento
+  manual sem `external_id` cujo dia existe no plano — ambos ligados ao `push`,
+  com relatório no `--dry-run`. Precedência: o evento do Hermes vence sobre o
+  manual do mesmo dia; evento manual em dia **sem** treino no plano **não** é
+  duplicata e é preservado.
+
+### Mudado
+
+- **Treino perdido é absorvido pelo orçamento semanal, não substituído por
+  recuperação** — a regra anterior inseria uma sessão binária de
+  "recuperação" e reduzia −5% no próximo Limiar para **qualquer** falta,
+  sem distinguir a natureza do treino perdido. Agora a carga não feita é
+  redistribuída nos treinos Z2/SweetSpot posteriores que ainda têm folga
+  dentro do teto semanal — limitada pelo teto, não por fator arbitrário.
+  O que **não** se compensa:
+  - **Active recovery** (Z2 ≈0,55–0,60): o propósito do treino é *não*
+    gerar carga; compensar exigiria carga, contradizendo o objetivo. Perder
+    é quase sem custo.
+  - **Limiar / VO2máx**: o estímulo é de alta intensidade e não se substitui
+    com mais volume de base (a adaptação aeróbica vem da intensidade acima do
+    LT1). A falta fica como "débito" e o `build` seguinte reprioriza pelo TSB
+    real.
+
+  Limites de segurança da absorção: apenas Z2/SweetSpot recebem elevação;
+  cada treino cresce no máximo 20% de `on_sec` por reconciliação; só absorve
+  enquanto a soma rolante de 7 dias couber no teto.
+
+### Adicionado
+
+- **`ZONE_BANDS` — faixas de prescrição por zona** (`src/coach.py`), espelhando
+  a "Tabela Científica Z1–Z7" de `docs/EMBASAMENTO-CIENTIFICO.md`, com helpers
+  `zone_floor()` / `zone_ceiling()`. Torna a tabela do documento uma
+  **invariante verificável em código**: um teste de regressão compara `ZONE_BANDS`
+  com os valores da tabela, de modo que divergir entre código e documento falha
+  a suíte. Z1 (`<55%`) não entra como zona independente — é uma *intenção de
+  sessão* executada dentro da banda Z2 (*active recovery* ≈0,60), sem foco
+  próprio no código.
+- `reconcile` passa a devolver `info` com `missed_tss`, `absorbable_tss` e
+  `absorbed_tss`, permitindo reportar quanto da falta foi efetivamente
+  redistribuído dentro do orçamento (e o que ficou para o TSB absorver).
+- Documentação: seção "Orçamento Semanal de Carga" e "Treino Perdido:
+  Absorver pelo Orçamento" em `docs/EMBASAMENTO-CIENTIFICO.md`, com as
+  referências de Seiler (*Periodization Theory*) e Friel (*Periodization
+  Bible*). Diagrama de estados atualizado (`Perdido → Ajustado` absorve pelo
+  teto; nova transition `Perdido → Debito` para faltas de alta intensidade).
+- Documentação: "Tabela Científica Z1–Z7" em `docs/EMBASAMENTO-CIENTIFICO.md`
+  (vault), com %FCmáx, %FC de limiar, RPE Borg, sistema energético e recuperação
+  típica por zona; ressalva de que %FTP/%FC/RPE não têm conversão universal;
+  hierarquia de controle por zona (não usar FC como "segunda régua"); tabela de
+  prescrição para geração de `.ZWO`; ressalvas por zona (Sweet Spot não é zona
+  fisiológica universal; FTP ≠ limiar fisiológico; FC inutilizável em Z6/Z7;
+  sprint ≠ "150% FTP"). 4 referências novas (PMC5033582, PMC7552657,
+  PubMed 42237396, PubMed 39788807).
+
+### Testes
+
+- `ZoneIntegrityTest` (5 casos): `_fit_budget` nunca rebaixa `on_power` abaixo
+  do piso da zona; `focus` não muda ao cortar carga; templates-base nascem
+  dentro da faixa; plano gerado (5 valores de TSB × 2 FTP) respeita a faixa de
+  cada zona; *active recovery* continua detectável e limitado a Z2; `ZONE_BANDS`
+  bate com a tabela do documento. Varredura de 2.000 treinos (5 TSB × 4 FTP ×
+  5 `weekly_hours`): **0 violações de zona**.
+- `ManualDuplicateTest` (3 casos): identifica duplicatas manuais por dia,
+  ignora eventos `hermes-plan-*`, respeita janela `start`.
+- Cliente HTTP: `delete_event(id)` (DELETE `/events/{id}`) com teste de regressão
+  dedicado.
+
 ## [0.0.29] - 2026-09-28
 
 ### Corrigido

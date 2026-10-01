@@ -17,11 +17,14 @@ try:
                                   forecast_pmc)
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
                       reconcile, save_plan, orphan_external_ids,
+                      manual_duplicate_ids,
                       parse_training_days, parse_goal, parse_weekly_hours,
                       parse_long_day, parse_fthr, parse_periodization,
                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
-                      GOALS, adherence_report, _tsb_race_verdict)
+                      GOALS, adherence_report, _tsb_race_verdict,
+                      GOAL_BUDGET_SCALE, weekly_budget, avg_load,
+                      BUDGET_WINDOW_DAYS)
     import ftp_scan
     import recovery
     import activity_summary
@@ -36,12 +39,25 @@ except ImportError:
     from .impulse_response import (ImpulseResponseEngine, daily_tss_series,
                                    forecast_pmc)
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
+                      reconcile, save_plan, orphan_external_ids,
+                      manual_duplicate_ids,
+                      parse_training_days, parse_goal, parse_weekly_hours,
+                      parse_long_day, parse_fthr, parse_periodization,
+                      GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
+                      PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
+                      GOALS, adherence_report, _tsb_race_verdict,
+                      GOAL_BUDGET_SCALE, weekly_budget, avg_load,
+                      BUDGET_WINDOW_DAYS)
+    from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
+                      manual_duplicate_ids,
                        parse_training_days, parse_goal, parse_weekly_hours,
                        parse_long_day, parse_fthr, parse_periodization,
                        GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                        PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
-                       GOALS, adherence_report, _tsb_race_verdict)
+                       GOALS, adherence_report, _tsb_race_verdict,
+                      GOAL_BUDGET_SCALE, weekly_budget, avg_load,
+                      BUDGET_WINDOW_DAYS)
     from . import ftp_scan
     from . import recovery
     from . import activity_summary
@@ -937,19 +953,48 @@ def cmd_reconcile(args):
     plan = load_plan(PLAN_FILE)
     client = get_client()
     ftp = get_ftp()
+    training_days = get_training_days()
+    meta = load_plan_meta(PLAN_FILE)
     newest = date.today() + timedelta(days=1)
     oldest = newest - timedelta(days=args.days)
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
-    plan, missed = reconcile(plan, events, ftp=ftp,
-                             training_days=get_training_days())
-    meta = load_plan_meta(PLAN_FILE)
+    # O teto do reconcile precisa ser o MESMO do build_plan: mesma janela do
+    # avg_load (BUDGET_WINDOW_DAYS) e mesma escala do goal. Sem isso, o reconcile
+    # derivaria um teto de outra janela e absorveria por cima/por baixo do plano.
+    scale = GOAL_BUDGET_SCALE.get(meta.get("goal"), 1.0)
+    if args.days >= BUDGET_WINDOW_DAYS:
+        budget_events = events
+    else:
+        budget_events = client.events(
+            oldest=(newest - timedelta(days=BUDGET_WINDOW_DAYS)).isoformat(),
+            newest=newest.isoformat())
+    budget = weekly_budget(avg_load(budget_events), training_days, scale)
+    plan, missed, info = reconcile(plan, events, ftp=ftp,
+                                   training_days=training_days, budget=budget)
     save_plan(plan, PLAN_FILE, goal=meta["goal"], race_date=meta["race_date"],
               ftp_test_date=meta["ftp_test_date"],
               ftp_candidates=meta["ftp_candidates"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
-        print("Plano ajustado: recuperacao inserida e proximo limiar reduzido.")
+        absorbed = info["absorbed_tss"]
+        lost = info["missed_tss"]
+        absorbable = info["absorbable_tss"]
+        if absorbed > 0:
+            pct = 100.0 * absorbed / absorbable if absorbable else 0.0
+            print(f"Plano ajustado: carga redistribuida dentro do orcamento "
+                  f"semanal (+{absorbed:.0f} de {absorbable:.0f} TSS absorviveis, "
+                  f"{pct:.0f}%).")
+        elif absorbable <= 0:
+            print("Plano mantido: falta nao absorvivel por volume "
+                  "(active recovery ou alta intensidade); o TSB real "
+                  "reprioriza no proximo build.")
+        else:
+            print("Plano mantido: a falta excede a folga do orcamento "
+                  "semanal; absorvida pelo proprio TSB no proximo build.")
+        if lost - absorbable > 0.5:
+            print(f"  ({lost - absorbable:.0f} TSS de alta intensidade nao se "
+                  f"substitui com mais volume; ficam para o proximo build.)")
     else:
         print("Nenhum treino perdido; plano mantido.")
     hr_hint = _hr_mode_hint()
@@ -1073,10 +1118,23 @@ def cmd_push(args):
                            prev=_prev_same_focus(plan, w), fthr=fthr)
              for w in plan if w["day"] >= start]
 
-    newest = (max((w["day"] for w in plan), default=None)
-              or (date.fromisoformat(start) + timedelta(days=120)).isoformat())
-    recent = client.events(oldest=start, newest=newest)
-    orphans = orphan_external_ids(plan, recent, start=start)
+    # Varredura de orfaos em duas camadas. `newest` = ultimo dia do plano: e
+    # por isso que um plano anterior MAIS LONGO nao e apagado (ex.: plano de 20
+    # dias vs atual de 14). A busca e ampla (start+120) para ver o que existe,
+    # mas so removemos o que esta DENTRO do horizonte do plano -- eventos
+    # alem do horizonte pertencem a um plano anterior e nao sao nostros para
+    # apagar.
+    start_dt = date.fromisoformat(start)
+    plan_end = max((w["day"] for w in plan), default=None)
+    fetch_end = (start_dt + timedelta(days=120)).isoformat()
+    recent = client.events(oldest=start, newest=fetch_end)
+    all_orphans = orphan_external_ids(plan, recent, start=start)
+    orphans = [oid for oid in all_orphans
+               if plan_end is None or oid <= f"hermes-plan-{plan_end}"]
+    beyond = [oid for oid in all_orphans if oid not in orphans]
+    # Duplicatas manuais (sem external_id) que repetem um dia do plano: o
+    # bulk-delete nao as alcanca, entao sao removidas por id numerico.
+    dup_ids = manual_duplicate_ids(plan, recent, start=start)
 
     if args.dry_run:
         print(f"dry-run: enviaria {len(batch)} eventos ao calendario")
@@ -1084,11 +1142,23 @@ def cmd_push(args):
             print(f"  {p['start_date_local']} {p['name']}")
         if orphans:
             print(f"dry-run: removeria {len(orphans)} orfaos: {orphans}")
+        if dup_ids:
+            print(f"dry-run: removeria {len(dup_ids)} duplicatas manuais "
+                  f"(ids): {dup_ids}")
+        if beyond:
+            print(f"dry-run: {len(beyond)} orfaos ALÉM do horizonte do plano "
+                  f"(mantidos, de plano anterior mais longo): {beyond}")
         return
 
     if orphans:
         st, body = client.delete_events(orphans)
         print(f"Orfaos removidos (HTTP {st}): {body.get('eventsDeleted')}")
+    for did in dup_ids:
+        cst = client.delete_event(did)
+        print(f"Duplicata manual removida (id {did}, HTTP {cst})")
+    if beyond:
+        print(f"{len(beyond)} eventos hermes-plan além do horizonte do plano "
+              f"mantidos (de plano anterior mais longo).")
     status, body = client.create_events(batch)
     print(f"Calendario atualizado (HTTP {status}): {len(body)} eventos")
 

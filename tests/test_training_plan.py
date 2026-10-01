@@ -63,8 +63,8 @@ class _NoopReconcile:
     """Substituto puro de src.plan.reconcile (nao altera o plano)."""
 
     def __call__(self, plan, events, ftp=DEFAULT_FTP,
-                 training_days=DEFAULT_TRAINING_DAYS):
-        return plan, []
+                 training_days=DEFAULT_TRAINING_DAYS, budget=None):
+        return plan, [], {"absorbed_tss": 0.0, "missed_tss": 0.0, "absorbable_tss": 0.0}
 
 
 class ReconcileMetaTest(unittest.TestCase):
