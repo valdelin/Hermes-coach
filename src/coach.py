@@ -275,7 +275,14 @@ def zone_ceiling(focus):
     return band[1] if band else None
 
 
-def estimate_tss(params, ftp):
+def estimated_tss(params: WorkoutParams, ftp: float | None = None) -> float:
+    """TSS estimado para um treino PLANEJADO em fracoes de FTP.
+
+    E uma estimativa operacional para orcar o plano: os blocos usam %FTP e
+    nao possuem potencia normalizada (NP) observada. `ftp` e mantido na
+    assinatura por compatibilidade com os chamadores existentes; a formula usa
+    as fracoes do FTP e, portanto, nao deve ser apresentada como TSS executado.
+    """
     acc = 0.0
     mid = lambda a, b: (a + b) / 2
     acc += params.warmup_sec * mid(params.warmup_power_low, params.warmup_power_high) ** 3
@@ -283,6 +290,11 @@ def estimate_tss(params, ftp):
                              + params.off_sec * params.off_power ** 3)
     acc += params.cooldown_sec * mid(params.cooldown_power_low, params.cooldown_power_high) ** 3
     return round(acc / 36)
+
+
+def estimate_tss(params: WorkoutParams, ftp: float | None = None) -> float:
+    """Alias legado de `estimated_tss`; preserva consumidores e plan.json."""
+    return estimated_tss(params, ftp)
 
 
 FTP_TEST_KEYWORDS = ("ramp", "ftp", "teste", "test", "prova")

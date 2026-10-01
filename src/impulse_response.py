@@ -1,8 +1,9 @@
 """Motor de carga fisiologica (Banister Impulse-Response).
 
 Implementa o modelo descrito no doc de arquitetura do projeto
-(docs/ARQUITETURA.md, secao 1): calculo de TSS padrao (IF^2 x horas x 100) e
-atualizacao continua de Fitness (CTL), Fadiga (ATL) e Forma (TSB) por
+(docs/ARQUITETURA.md, secao 1): calculo de TSS por potencia executada
+(IF^2 x horas x 100, quando NP e FTP existem) e atualizacao continua de
+Fitness (CTL), Fadiga (ATL) e Forma (TSB) por
 suavizacao exponencial com constantes de tempo de 42 e 7 dias.
 
 Uso:
@@ -15,7 +16,48 @@ O fluxo principal (build/reconcile/push) usa as metricas do Intervals.icu
 projecao (CLI `model`).
 """
 import math
+from dataclasses import dataclass
 from datetime import date, timedelta
+
+
+@dataclass(frozen=True)
+class TrainingLoadComponents:
+    """Componentes de carga sem conversao fisiologica inventada.
+
+    `power_training_load` e TSS calculado APOS execucao por NP/FTP.
+    `estimated_tss` pertence somente a treino planejado. `external_load` e
+    `internal_load` sao valores brutos de suas respectivas fontes (por exemplo,
+    trabalho mecanico/distancia e FC/RPE/TRIMP); nao sao intercambiaveis nem
+    devem ser somados sem um contrato explicito de unidade e origem.
+    """
+    power_training_load: float | None = None
+    estimated_tss: float | None = None
+    external_load: float | None = None
+    internal_load: float | None = None
+
+
+MIN_NORMALIZED_POWER_DURATION_SEC = 30
+
+
+def power_training_load(duration_sec: int | float,
+                        normalized_power: float | None,
+                        ftp: float | None) -> float | None:
+    """TSS executado por potencia: `horas * (NP / FTP)^2 * 100`.
+
+    NP e uma medida observada do treino executado. Sem NP ou FTP valido, a
+    carga e desconhecida (`None`), em vez de fabricar NP a partir de potencia
+    media, duracao, ou de uma sessao planejada. NP tambem e desconhecida para
+    segmento de 30 s ou menos. Duracao/potencia zero retornam 0.0 quando o
+    contrato de potencia e valido.
+    """
+    if normalized_power is None or ftp is None or ftp <= 0:
+        return None
+    if duration_sec <= 0 or normalized_power <= 0:
+        return 0.0
+    if duration_sec <= MIN_NORMALIZED_POWER_DURATION_SEC:
+        return None
+    intensity_factor = normalized_power / ftp
+    return round((duration_sec / 3600) * intensity_factor ** 2 * 100, 2)
 
 
 class ImpulseResponseEngine:
@@ -34,11 +76,8 @@ class ImpulseResponseEngine:
         `(dur * avg_intensity * IF) / (threshold * 3600) * 100`).
         Retorna 0.0 para threshold invalido (<= 0).
         """
-        if threshold <= 0:
-            return 0.0
-        intensity_factor = avg_intensity / threshold
-        tss = (duration_sec * (avg_intensity * intensity_factor)) / (threshold * 3600) * 100
-        return round(tss, 2)
+        load = power_training_load(duration_sec, avg_intensity, threshold)
+        return 0.0 if load is None else load
 
     def compute_metrics(self, daily_tss_history, initial_ctl: float = 0.0,
                         initial_atl: float = 0.0) -> dict:

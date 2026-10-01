@@ -2,12 +2,45 @@ import unittest
 import math
 from datetime import date, timedelta
 
-from src.impulse_response import (ImpulseResponseEngine, daily_tss_series,
-                                  daily_load_by_date, fill_daily_series,
-                                  forecast_pmc)
+from src.impulse_response import (ImpulseResponseEngine, TrainingLoadComponents,
+                                   power_training_load, daily_tss_series,
+                                   daily_load_by_date, fill_daily_series,
+                                   forecast_pmc)
 
 
 class CalculateTssTest(unittest.TestCase):
+    def test_power_training_load_formula_operacional(self):
+        self.assertEqual(power_training_load(3600, 200, 200), 100.0)
+        self.assertEqual(power_training_load(3600, 140, 200), 49.0)
+        self.assertEqual(power_training_load(3600, 150, 200), 56.25)
+        self.assertEqual(power_training_load(7200, 140, 200), 98.0)
+
+    def test_power_training_load_variavel_usa_np_observada(self):
+        # Potencia media de um treino variavel nao entra na formula: NP=200W.
+        self.assertEqual(power_training_load(3600, 200, 200), 100.0)
+
+    def test_power_training_load_nao_fabrica_np(self):
+        self.assertIsNone(power_training_load(1800, None, 200))
+        self.assertIsNone(power_training_load(600, None, 200))
+        self.assertIsNone(power_training_load(30, 300, 200))
+        self.assertIsNone(power_training_load(1800, 200, None))
+        self.assertIsNone(power_training_load(1800, 200, 0))
+        self.assertIsNone(power_training_load(1800, 200, -1))
+
+    def test_power_training_load_bordas_sem_carga(self):
+        self.assertEqual(power_training_load(0, 200, 200), 0.0)
+        self.assertEqual(power_training_load(3600, 0, 200), 0.0)
+
+    def test_componentes_nao_convertem_carga_externa_em_interna(self):
+        load = TrainingLoadComponents(power_training_load=56.25,
+                                      estimated_tss=60.0,
+                                      external_load=800.0,
+                                      internal_load=42.0)
+        self.assertEqual(load.power_training_load, 56.25)
+        self.assertEqual(load.estimated_tss, 60.0)
+        self.assertEqual(load.external_load, 800.0)
+        self.assertEqual(load.internal_load, 42.0)
+
     def test_exemplo_60min_95pct(self):
         # Exemplo do doc de arquitetura: 60 min a 95% do limiar (threshold=1.0)
         engine = ImpulseResponseEngine()

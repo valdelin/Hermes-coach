@@ -27,6 +27,30 @@
 
 O **Hermes Coach** não aplica ajustes arbitrários. Toda a lógica de distribuição de dias, redução de carga por faltas, compensação de intensidade e estrutura de blocos baseia-se em princípios consolidados da **fisiologia do exercício** e da **metodologia do treinamento desportivo de endurance**.
 
+### Contrato de carga: medida, estimativa e sinais distintos
+
+O motor distingue quatro coisas que não podem ser somadas ou tratadas como
+sinônimos:
+
+| Campo | Origem | Uso no Hermes |
+| --- | --- | --- |
+| `power_training_load` | **Executado**: NP, duração e FTP válidos | TSS operacional: `horas × IF² × 100`, com `IF = NP / FTP`. Sem NP, ou em segmento de 30 s ou menos, é desconhecido; o motor não inventa NP para treino curto ou planejado. |
+| `estimated_tss` | **Planejado**: blocos em %FTP, duração e recuperação | Orça carga futura para `build`, `reconcile` e forecast. Não representa TSS medido após execução. |
+| `external_load` | Trabalho mecânico, distância, elevação ou outro marcador externo, com unidade declarada | Contexto de volume; não é convertido automaticamente para TSS. |
+| `internal_load` | FC, RPE, TRIMP ou score de fonte declarada | Contexto de resposta do atleta; não é convertido automaticamente para carga externa. |
+
+`icu_training_load` é a carga autoritativa que o Intervals.icu expõe para os
+fluxos atuais de CTL/ATL/TSB. O Hermes a preserva em vez de recalcular o
+histórico, porque a pipeline interna do Intervals não é reproduzível apenas por
+TSS local. **Modelo computacional:** o PMC local usa TSS/`icu_training_load`
+como entrada de EWMA 42/7 para projeção; não é uma medida fisiológica direta.
+
+> **Limite operacional:** IF/NP/TSS são definições de prescrição e quantificação
+> de carga por potência, não equivalentes a MLSS, LT, RCP ou Critical Power. Em
+> HIIT curto, o valor depende fortemente de como a NP foi calculada, da janela
+> analisada e das recuperações; não se deve inferir NP de potência média ou
+> atribuir precisão fisiológica a um TSS estimado.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
@@ -224,3 +248,7 @@ Verificação: varredura de 2.000 treinos gerados (5 TSB × 4 FTP × 5
 4. **Coggan, A., & Allen, H. (2010).** *Training and Racing with a Power Meter*. Velopress.
 5. **Billat, L. V. (2001).** *Interval Training for Performance: A Scientific and Empirical Update*. Sports Medicine.
 6. **Friel, J. (2014).** *The Periodization Bible*. 2nd ed. Velo.
+7. **Coggan, A. (2026).** *Normalized Power, Intensity Factor and Training Stress Score.* TrainingPeaks — <https://www.trainingpeaks.com/learn/articles/normalized-power-intensity-factor-training-stress/>.
+   *Definição operacional de NP, IF e TSS; não é evidência fisiológica primária.*
+8. **Galán-Rioja, M. Á., Gonzalez-Ravé, J. M., González-Mohíno, F., & Seiler, S. (2023).** *Training Periodization, Intensity Distribution, and Volume in Trained Cyclists: A Systematic Review.* International Journal of Sports Physiology and Performance. <https://doi.org/10.1123/ijspp.2022-0302>
+   *Contexto de periodização, distribuição de intensidade e volume em ciclistas treinados.*

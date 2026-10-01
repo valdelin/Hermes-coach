@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from src.coach import (build_workout, decide_focus, estimate_tss,
+from src.coach import (build_workout, decide_focus, estimated_tss, estimate_tss,
                        last_ftp_test, latest_metrics, metrics_history,
                        real_pmc_by_day, suggest_ftp_test, wellness_summary,
                        format_wellness, FOCUS_SWEETSPOT, FOCUS_THRESHOLD,
@@ -93,6 +93,10 @@ class TssTest(unittest.TestCase):
     def test_zona_2_estimado(self):
         p = build_workout(-20, 200)
         self.assertGreater(estimate_tss(p, 200), 0)
+
+    def test_alias_legado_mantem_estimativa_planejada(self):
+        p = build_workout(-20, 200)
+        self.assertEqual(estimate_tss(p, 200), estimated_tss(p, 200))
 
 
 class FtpTestSuggestionTest(unittest.TestCase):
