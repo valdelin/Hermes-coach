@@ -154,9 +154,9 @@ class GoalVarietyTest(unittest.TestCase):
             by_focus.setdefault(w["focus"], []).append(w)
         ss = by_focus.get(FOCUS_SWEETSPOT, [])
         if len(ss) >= 2:
-            structs = {(w["params"]["repeats"], w["params"]["on_sec"]) for w in ss}
-            self.assertEqual(len(structs), 1,
-                             "sem GOAL o template atual nao deve variar")
+            powers = {w["params"]["on_power"] for w in ss}
+            self.assertEqual(len(powers), 1,
+                             "sem GOAL o corte de orcamento nao muda a zona")
 
 
 class PlanMetaTest(unittest.TestCase):

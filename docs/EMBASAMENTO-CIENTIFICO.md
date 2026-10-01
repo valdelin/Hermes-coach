@@ -51,6 +51,18 @@ como entrada de EWMA 42/7 para projeção; não é uma medida fisiológica diret
 > analisada e das recuperações; não se deve inferir NP de potência média ou
 > atribuir precisão fisiológica a um TSS estimado.
 
+### Periodização e autoregulação são camadas distintas
+
+**Heurística do sistema:** `GOAL` e a proximidade da prova definem fase e alvo
+semanal. `TrainingPlanState` mantém goal, fase, semanas, cargas, TSB e
+readiness, mas TSB não troca fase nem template semanal. TSB < -15 ou readiness
+desfavorável adaptam somente a primeira sessão de qualidade para recuperação Z2.
+
+**Evidência científica:** Galán-Rioja et al. (2023) contextualizam
+periodização, distribuição de intensidade e volume. A separação acima é uma
+decisão arquitetural do Hermes, não uma afirmação de que limites de TSB ou
+readiness determinem universalmente a fase fisiológica.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento

@@ -357,7 +357,7 @@ Hermes/opencode:
   notificacao no desktop (`notify-send`) e sai com codigo != 0 — assim uma
   falha silenciosa nao passa despercebida.
 
-## Regras de decisao (TSB)
+## Plano e autoregulação
 
 Treinos planejados apenas nos dias configurados em `TRAINING_DAYS` (padrao:
 **segunda a sexta**); os demais dias sao descanso (treino fora da agenda so por
@@ -405,12 +405,10 @@ replicação de planos prontos.
 O nome de cada evento no Intervals leva a data na frente:
 `YYYY-MM-DD - Treino de <Foco>` (ex.: `2026-09-21 - Treino de Zona 2`).
 
-| TSB          | Ciclo semanal (5 dias de treino)               |
-|--------------|-----------------------------------------------|
-| < -15        | Z2, Z2, Sweet Spot, Z2, Sweet Spot            |
-| -15 a 0      | Z2, Sweet Spot, Z2, Sweet Spot, VO2 Max       |
-| 0 a 5        | Sweet Spot, Limiar, Sweet Spot, Limiar, VO2   |
-| >= +5        | Limiar, VO2 Max, Sweet Spot, Limiar, VO2 Max  |
+`GOAL` e proximidade da prova definem a fase e o alvo semanal. TSB e readiness
+são sinais de autoregulação diária: TSB abaixo de −15 ou readiness desfavorável
+adaptam somente a primeira sessão de qualidade para recuperação Z2. Eles não
+mudam automaticamente a fase do macrociclo.
 
 Cada treino tem aquecimento 10 min (45% -> 75%) e desaquecimento 10 min
 (70% -> 45%). A descricao publicada usa a notacao nativa do workout builder do

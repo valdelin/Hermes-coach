@@ -81,6 +81,19 @@ class PlannedWorkout:
     external_id: str
 
 
+@dataclasses.dataclass(frozen=True)
+class TrainingPlanState:
+    """Estado calculado que separa periodizacao de autoregulacao diaria."""
+    goal: str | None
+    phase: str
+    week_in_phase: int
+    cycle_week: int
+    planned_load: float
+    current_load: float
+    tsb: float
+    readiness: object | None = None
+
+
 def templates():
     return {
         FOCUS_ZONE2: _block(1, 1800, 0, 0.70),
@@ -457,6 +470,66 @@ def weekly_template(tsb, goal=None, periodization=None):
     return templates[-1][1]
 
 
+def training_phase(goal, race_date, day):
+    """Fase do plano: GOAL e data da prova a definem, nunca o TSB."""
+    if goal == "race" and race_date:
+        try:
+            days_to_race = (date.fromisoformat(race_date) - day).days
+        except (TypeError, ValueError):
+            days_to_race = None
+        if days_to_race is not None and 0 <= days_to_race < TAPER_DAYS:
+            return "taper"
+    if goal == "back-to-fitness":
+        return "base"
+    if goal == "active-off-season":
+        return "transition"
+    return "build"
+
+
+def training_plan_state(goal, race_date, day, planned_load, current_load, tsb,
+                        readiness=None):
+    """Monta o estado transitório usado por um build, sem mudar plan.json."""
+    return TrainingPlanState(
+        goal=goal,
+        phase=training_phase(goal, race_date, day),
+        week_in_phase=1,
+        cycle_week=(day.isocalendar().week - 1) % 4 + 1,
+        planned_load=float(planned_load),
+        current_load=float(current_load),
+        tsb=float(tsb),
+        readiness=readiness,
+    )
+
+
+def phase_weekly_template(state, periodization=None):
+    """Alvo semanal da fase, independente dos sinais diarios do atleta."""
+    if periodization and periodization in PERIODIZATION_TEMPLATES:
+        templates_by_phase = PERIODIZATION_TEMPLATES[periodization]
+    else:
+        templates_by_phase = GOAL_TEMPLATES.get(state.goal, WEEKLY_BY_TSB)
+    index = {"base": 0, "transition": 0, "build": 2, "taper": 0}.get(
+        state.phase, 0)
+    return templates_by_phase[min(index, len(templates_by_phase) - 1)][1]
+
+
+def _readiness_unfavorable(readiness):
+    if not readiness or not getattr(readiness, "has_data", False):
+        return False
+    return bool(getattr(readiness, "illness", False) or
+                any(getattr(readiness, "signals", {}).values()))
+
+
+def _adapt_session(params, state):
+    """Troca somente qualidade por recuperacao quando o estado diario pede."""
+    quality = (FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2)
+    needs_adaptation = state.tsb < -15 or _readiness_unfavorable(state.readiness)
+    if not needs_adaptation or params.focus not in quality:
+        return params
+    return WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=900, off_sec=0,
+                         on_power=0.70, off_power=0.70, cadence=90,
+                         cadence_rest=90)
+
+
 # Janela (dias) usada para derivar a carga media e, portanto, o teto semanal.
 # Fonte unica: build_plan e o reconcile DEVEM usar a mesma, senao derivam tetos
 # diferentes da mesma carga e o reconcile absorve por cima/por baixo do plano.
@@ -510,7 +583,8 @@ def _recovery_budget(recovery_ramp, day_index, default):
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
-               hr_mode=False, recovery_ramp=None, periodization=None):
+               hr_mode=False, recovery_ramp=None, periodization=None,
+               readiness=None):
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -527,19 +601,23 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          goal=goal, race_date=race_date,
                                          ftp_test_date=ftp_test_date,
                                          weekly_hours=weekly_hours,
-                                         long_day=long_day, hr_mode=hr_mode,
-                                         recovery_ramp=recovery_ramp,
-                                         periodization=periodization)
-    weekly = weekly_template(tsb, goal, periodization)
+                                          long_day=long_day, hr_mode=hr_mode,
+                                          recovery_ramp=recovery_ramp,
+                                          periodization=periodization,
+                                          readiness=readiness)
     slots = sorted(training_days)
-    weekly = _place_long_day(weekly, long_day, slots)
-    volume_scale = _volume_scale(weekly, weekly_hours, slots)
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
     avg = avg_load(events)
     cap = max(1, int(daily_tss_cap(avg) * scale))
     budget = weekly_budget(avg, training_days, scale)
+    state = training_plan_state(goal, race_date, start, budget,
+                                avg * len(training_days), tsb, readiness)
+    weekly = phase_weekly_template(state, periodization)
+    weekly = _place_long_day(weekly, long_day, slots)
+    volume_scale = _volume_scale(weekly, weekly_hours, slots)
     plan = []
     recent = []  # (day, tss) dos ultimos 7 dias
+    adapted = False
     for i in range(days):
         day = start + timedelta(days=i)
         if day.weekday() not in training_days:
@@ -554,6 +632,13 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
             params = WorkoutParams(focus=focus, **_block_for(focus, i, goal))
             params = _scale_duration(params, volume_scale)
             day_name = workout_name(day.isoformat(), focus)
+        if not adapted:
+            adjusted = _adapt_session(params, state)
+            if adjusted is not params:
+                params = adjusted
+                focus = params.focus
+                day_name = workout_name(day.isoformat(), focus)
+                adapted = True
         tss = estimate_tss(params, ftp)
         if tss > cap:
             factor = max(0.4, cap / tss)

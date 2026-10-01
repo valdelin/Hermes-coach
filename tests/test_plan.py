@@ -2,7 +2,8 @@ import unittest
 from datetime import date, timedelta
 
 from src.plan import (build_plan, event_payload, reconcile, templates,
-                      weekly_template, workout_text, orphan_external_ids,
+                       weekly_template, phase_weekly_template, training_plan_state,
+                       workout_text, orphan_external_ids,
                       manual_duplicate_ids,
                       parse_training_days, _next_training_day,
                       _reduce_next_hard, parse_fthr, hr_target_bpm,
@@ -127,7 +128,8 @@ class TrainingDaysTest(unittest.TestCase):
         self.assertEqual(len(days), 4)  # 2 segundas + 2 domingos
 
     def test_foco_usa_posicao_da_agenda_nao_dia_da_semana(self):
-        weekly = weekly_template(0)  # [Z2, SS, Z2, SS, VO2]
+        state = training_plan_state(None, None, date(2026, 9, 14), 200, 200, 0)
+        weekly = phase_weekly_template(state)
         plan = build_plan([], 0, ftp=182, days=7,
                           start=date(2026, 9, 14),  # segunda
                           training_days=(0, 2, 4))

@@ -195,8 +195,8 @@ class BuildPlanPeriodizationTest(unittest.TestCase):
                           training_days=(0, 1, 2, 3, 4),
                           periodization="block", goal=None)
         self.assertEqual(len(plan), 5)
-        for w in plan:
-            self.assertEqual(w["focus"], FOCUS_ZONE2)
+        self.assertEqual(plan[0]["focus"], FOCUS_ZONE2)
+        self.assertIn(FOCUS_THRESHOLD, [w["focus"] for w in plan[1:]])
 
     def test_build_plan_sem_periodization_comportamento_padrao(self):
         plan = build_plan([], tsb=30, days=5, start=date(2026, 9, 28),
