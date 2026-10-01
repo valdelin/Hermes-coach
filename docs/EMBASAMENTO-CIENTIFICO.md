@@ -63,6 +63,13 @@ periodização, distribuição de intensidade e volume. A separação acima é u
 decisão arquitetural do Hermes, não uma afirmação de que limites de TSB ou
 readiness determinem universalmente a fase fisiológica.
 
+### TrainingPhase é uma arquitetura, não uma sequência universal
+
+`TrainingPhaseEngine` explicita as fases `BASE`, `BUILD`, `SPECIFIC`, `PEAK`,
+`RECOVERY` e `TEST`, cada uma com objetivo, duração configurável, estímulos,
+limites de carga e critérios de progressão, deload e saída. As transições são
+regras de plano; a ordem não representa uma sequência fisiológica universal.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
