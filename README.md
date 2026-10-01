@@ -33,8 +33,16 @@ hermes-coach/
 │   ├── charts.py                      # gráficos em texto: PMC + carga semanal (#21)
 │   ├── report.py                      # export HTML (SVG) / PDF via chromium (#21)
 │   ├── ftp_estimation.py              # estimativa de FTP de pedais não agendados (#6)
+│   ├── training_phase.py              # fases do plano (base/build/specific/peak/recovery/test)
+│   ├── progression.py                 # progressão de estímulos por família de treino
+│   ├── intensity_distribution.py      # distribuição de intensidade por minutos efetivos
+│   ├── athlete_profile.py             # perfil fisiológico (FTP/CP/W′/VO₂max/FC, todos opcionais)
+│   ├── adaptation.py                  # estado de adaptação heurístico (6 domínios)
+│   ├── training_decision.py           # decisão adaptativa com rationale e confidence
+│   ├── readiness_assessment.py        # prontidão multimodal (adequação ao treino, não diagnóstico)
+│   ├── critical_power.py              # Critical Power / W′ como complemento ao FTP
 │   └── training_plan.py               # CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 278 testes (stdlib unittest)
+├── tests/                             # 439 testes (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 
@@ -416,6 +424,29 @@ Intervals (os watts aparecem calculados pelo app) e inclui **mensagens
 explicativas** antes de cada passo (o aquecimento explica a zona, e cada
 intervalo recebe "Agora voce vai entrar em X minutos a Y por cento do seu
 FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
+
+### Camada de decisão adaptativa (módulos, ainda não no fluxo de publicação)
+
+A v0.0.34 adiciona um conjunto de módulos de domínio que **ainda não alteram o
+que é publicado no Intervals.icu**. O `build`/`push` continuam usando
+`src/plan.py` exatamente como antes; os módulos abaixo existem para que a lógica
+de decisão possa ser testada e revisada isoladamente antes de entrar no caminho
+de publicação.
+
+| Módulo | Papel |
+|---|---|
+| `training_phase.py` | Fases `base`/`build`/`specific`/`peak`/`recovery`/`test` com critérios de progressão, deload e saída |
+| `progression.py` | Progressão por família de estímulo; só avança com `CompletionScore` bem-sucedido |
+| `intensity_distribution.py` | Minutos efetivos LOW/MOD/HIGH por semana, sem pressupor 80/20 |
+| `athlete_profile.py` | Marcadores fisiológicos opcionais, com `FtpSource`/`FtpConfidence` |
+| `adaptation.py` | Seis domínios de adaptação com decaimento e saturação |
+| `training_decision.py` | Compõe tudo numa decisão com `rationale` e `confidence` |
+| `readiness_assessment.py` | Prontidão multimodal; `GREEN`/`YELLOW`/`RED` = adequação ao treino |
+| `critical_power.py` | CP e W′ como complemento ao FTP, com ajuste `P = CP + W′/t` |
+
+Os limiares e sequências desses módulos são **heurísticas computacionais
+configuráveis**, não constantes fisiológicas universais — ver
+[docs/EMBASAMENTO-CIENTIFICO.md](docs/EMBASAMENTO-CIENTIFICO.md).
 
 ## Direções futuras (em validação)
 

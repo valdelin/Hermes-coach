@@ -11,6 +11,55 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.34] - 2026-10-01
+
+Camada de decisão adaptativa adicionada como módulos isolados. Nenhum deles
+substitui o motor de publicação: `plan.json`, os valores de `focus` e os
+identificadores do Intervals.icu seguem idênticos.
+
+### Adicionado
+
+- **Fases de treino** (`src/training_phase.py`) — `TrainingPhaseEngine` explicita
+  `BASE`, `BUILD`, `SPECIFIC`, `PEAK`, `RECOVERY` e `TEST`, cada uma com
+  objetivo, duração configurável, estímulos, limites de carga e critérios de
+  progressão, deload e saída. Arquitetura de plano, não sequência fisiológica
+  universal.
+- **Progressão de estímulos** (`src/progression.py`) — `ProgressionEngine`
+  indexa sequências por família (`sweet_spot`, `threshold`, `vo2max`,
+  `endurance`, `anaerobic`). `CompletionScore` classifica `COMPLETED`,
+  `PARTIAL`, `FAILED` e `EASY`; a sequência só avança após sucesso, parcial
+  repete e falha reduz um degrau.
+- **Distribuição de intensidade** (`src/intensity_distribution.py`) — relatório
+  semanal de minutos efetivos de baixa, moderada e alta intensidade, por tempo
+  e não por número de sessões. `POLARIZED`, `PYRAMIDAL`, `THRESHOLD_HEAVY` e
+  `CUSTOM` são rótulos de configuração; o motor não pressupõe 80/20.
+- **Perfil fisiológico** (`src/athlete_profile.py`) — marcadores opcionais
+  (CP, W′, VO₂max, FC, volume, training age) com `FtpSource` e `FtpConfidence`
+  explícitos. FTP-only permanece válido; nenhum marcador ausente é inferido.
+- **Estado de adaptação** (`src/adaptation.py`) — seis domínios normalizados de
+  0 a 1 com vetor de contribuição, decaimento temporal e saturação. Heurística
+  computacional, não medição fisiológica.
+- **Motor de decisão** (`src/training_decision.py`) — `TrainingDecisionEngine`
+  compõe objetivo, fase, prioridades de adaptação, carga recente, readiness,
+  família, progressão, dose e segurança num resultado com `rationale` e
+  `confidence`.
+- **Prontidão multimodal** (`src/readiness_assessment.py`) — combina HRV contra
+  baseline individual, tendência de RHR, sono, fadiga subjetiva, carga,
+  desempenho opcional e consistência. `GREEN`/`YELLOW`/`RED` indicam adequação
+  ao treino, não diagnóstico; um sinal isolado não cancela sessão automaticamente.
+- **Critical Power / W′** (`src/critical_power.py`) — `CriticalPowerProfile` com
+  `protocol`, `confidence` e `test_dates`. `estimate_cp()` e `estimate_w_prime()`
+  ajustam `P = CP + W′/t` e devolvem `None` sem dados suficientes;
+  `work_above_cp()`, `w_prime_balance()` e `w_prime_reconstitution()` tratam
+  esforço, saldo e recuperação de W′. Complementares ao FTP — nunca o
+  substituem, nem equivalentes a MLSS, LT ou RCP.
+
+### Testes
+
+- **439 testes** verdes, incluindo fronteiras de CP/W′, dado insuficiente,
+  saturação de adaptação, sinal isolado de prontidão e isolamento de dose por
+  carga.
+
 ## [0.0.33] - 2026-10-01
 
 ### Mudado
