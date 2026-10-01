@@ -115,6 +115,54 @@ configurável por atleta, não constante fisiológica universal.
 Uso previsto: esforços acima do limiar, Z6, HIIT e análise power-duration.
 Revisão sobre CP/W′ e reconstituição: PMID 32899777.
 
+### Gerador estruturado VO2max
+
+`VO2Workout` descreve o bloco VO2 por `interval_duration`, `repetitions`,
+`work_power_range`, `recovery_duration`, `recovery_power`, `total_work_time`,
+`progression_step` e `lever`. Três famílias: `LONG_INTERVALS`,
+`SHORT_INTERVALS`, `VARIABLE_INTERVALS`.
+
+**Evidência.** Intervalos de trabalho longos (≥2 min) produziram mais tempo
+próximo de V̇O₂max que intervalos curtos (≤30 s) ou moderados (>30 s e <2 min);
+intervalos de intensidade variável superaram formatos de ritmo par
+(SMD = 0,80, p < 0,01). *Time spent at or near V̇O₂max during HIIT*, PMID
+42237396, DOI 10.1186/s13102-026-01766-x. A família `LONG_INTERVALS` e a
+baseline de 4 min seguem esse achado.
+
+**Ausência de superioridade.** Nenhuma estrutura de protocolo de HIIT se
+mostrou superior para tempo acumulado ≥90% V̇O₂max numa network meta-analysis;
+todas as comparações de referência foram não significativas, com heterogeneidade
+substancial (I² = 69,2%) e inconsistência significativa. *Comparison of HIIT
+protocol designs on accumulated time ≥90% V̇O₂max*, PMID 42482078, DOI
+10.1186/s13102-026-01891-7.
+
+**O que é heurística do sistema, e não fisiologia.**
+
+- 4x4, 5x3 e 3x5 são **templates de prescrição configuráveis** (`generate_mixed`),
+  não protocolos universais. A escolha entre eles deve priorizar viabilidade,
+  características do atleta e correspondência de carga — explicitamente, não um
+  ranking de eficácia, que a NMA classificou como exploratório.
+- A faixa inicial **106–120% FTP** é a banda Z5 declarada, e 115% **não** é um
+  valor universal: `evaluate()` compara a faixa contra a configurada.
+- O `ProgressionLever.INTENSITY` sobe o teto da faixa em 2% por degrau e é
+  limitado por `Z5_CEILING` = `ZONE_BANDS[FOCUS_ZONE5_VO2MAX][1]`. Como a faixa
+  padrão já encosta no teto, o degrau de intensidade só tem folga quando a
+  faixa prescrita é mais estreita que a banda. A direção desse degrau é
+  **heurística**; a NMA posicionou duração decrescente e intensidade variável
+  acima das demais, mas de forma exploratória e não significativa.
+- `recovery_power` padrão de 0,40 e a razão mínima de recuperação
+  (`evaluate`, `recovery_ratio` = 0,5) são convenções do gerador. A
+  recuperação ativa **vs** passiva não afetou o tempo perto de V̇O₂max
+  (PMID 42237396), então essa escolha não é uma exigência fisiológica.
+- A faixa de trabalho acumulado (600–2400 s) em `evaluate()` é heurística: os
+  templates ficam sempre dentro dela.
+
+**Progressão por dimensão.** Cada degrau altera **uma** variável só — duração,
+repetições, tempo total ou intensidade. Subir repetições e duração no mesmo
+degrau é erro de prescrição, e `progression_ledger()` expõe as escadas para
+que isso seja verificável. O módulo é isolado: não participa de `build`/`push`
+nem altera `plan.json`.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
@@ -302,8 +350,9 @@ Verificação: varredura de 2.000 treinos gerados (5 TSB × 4 FTP × 5
 
 ## 📚 Referências Bibliográficas Relevantes
 
-> A lista completa (8 referências, incluindo a base das faixas de %FCmáx/%FC de
-> limiar por zona e da meta-análise de distribuição de intensidade) está no
+> A lista completa, incluindo a base das faixas de %FCmáx/%FC de
+> limiar por zona, da meta-análise de distribuição de intensidade e das duas
+> meta-análises de HIIT (PMIDs 42237396 e 42482078), está no
 > documento canônico do vault.
 
 1. **Banister, E. W. (1991).** *Modeling Muscle Fatigue and Recovery in Training*.

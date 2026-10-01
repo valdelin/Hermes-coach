@@ -11,6 +11,34 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+### Adicionado
+- **Gerador estruturado VO2max** (`src/vo2_generator.py`) — `VO2Workout` com
+  `interval_duration`, `repetitions`, `work_power_range`, `recovery_duration`,
+  `recovery_power`, `total_work_time`, `progression_step` e `lever`. Famílias
+  `LONG_INTERVALS`, `SHORT_INTERVALS` e `VARIABLE_INTERVALS`, com templates 4x4,
+  5x3 e 3x5 via `generate_mixed()`.
+- **Progressão por dimensão** — escadas separadas para duração do intervalo,
+  repetições, tempo total e intensidade, de modo que cada degrau altera **uma**
+  variável só. `progression_ledger()` expõe as escadas para verificação.
+- **Faixa de intensidade configurável** — 106–120% FTP por padrão, ancorada em
+  `ZONE_BANDS[FOCUS_ZONE5_VO2MAX]` por teste; 115% não é valor universal. O
+  degrau de intensidade é limitado por `Z5_CEILING` e não atravessa para Z6.
+- **`evaluate()`** — avalia intensidade, duração do trabalho, recuperação
+  proporcional e trabalho acumulado, com limites configuráveis.
+
+### Notas científicas
+- Nenhuma estrutura de protocolo de HIIT mostrou superioridade estatística para
+  tempo acumulado ≥90% V̇O₂max (network meta-analysis, PMID 42482078): as
+  comparações de referência foram não significativas, com I² = 69,2%. Os
+  templates e a direção da progressão de intensidade são **heurísticas do
+  sistema**, não recomendações de eficácia.
+- Intervalos ≥2 min produziram mais tempo perto de V̇O₂max que intervalos curtos
+  ou moderados, e intensidade variável superou ritmo par (SMD = 0,80;
+  PMID 42237396). A recuperação ativa vs. passiva não afetou esse tempo, então
+  `recovery_power` e `recovery_ratio` são convenções do gerador.
+- 17 testes novos; suíte com 456 testes. Módulo isolado: não altera
+  `build`/`push`, `plan.json` nem a publicação no Intervals.icu.
+
 ## [0.0.34] - 2026-10-01
 
 Camada de decisão adaptativa adicionada como módulos isolados. Nenhum deles
