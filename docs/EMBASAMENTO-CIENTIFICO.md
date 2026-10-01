@@ -70,6 +70,14 @@ readiness determinem universalmente a fase fisiológica.
 limites de carga e critérios de progressão, deload e saída. As transições são
 regras de plano; a ordem não representa uma sequência fisiológica universal.
 
+### Distribuição de intensidade
+
+`IntensityDistributionEngine` reporta minutos efetivos de baixa, moderada e alta
+intensidade, independentemente do número de sessões. `POLARIZED`, `PYRAMIDAL`,
+`THRESHOLD_HEAVY` e `CUSTOM` são modelos de configuração, sem pressupor 80/20
+universal. Galán-Rioja et al. (2023) e a revisão/meta-análise de 2025 (PMID
+39788807) contextualizam a evidência; o relatório é um modelo computacional.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
