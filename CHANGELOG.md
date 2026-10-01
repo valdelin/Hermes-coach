@@ -12,6 +12,14 @@ própria — foram agrupadas na tag/release v0.0.7.
 ## [Unreleased]
 
 ### Adicionado
+- **Suíte de regressão científica** (`tests/scientific/`) — 222 testes em nove
+  módulos, um por contrato algorítmico do embasamento: `test_training_load`
+  (22), `test_periodization` (20), `test_progression` (22), `test_readiness`
+  (19), `test_adaptation` (20), `test_ftp` (34), `test_critical_power` (35),
+  `test_vo2` (24) e `test_intensity_distribution` (26). Cada teste registra
+  em docstring se é **evidência**, **heurística do sistema** ou
+  **modelo computacional**, e fixa a fronteira: o que a evidência sustenta e
+  o que o Hermes escolheu.
 - **Contrato documental testado** (`tests/test_embasamento_cientifico.py`) — 19
   testes que verificam as 15 seções do embasamento em ordem, o uso das três
   classificações, os 11 PMIDs exigidos, ausência de PMID órfão ou fora do
@@ -30,6 +38,27 @@ própria — foram agrupadas na tag/release v0.0.7.
   memória.
 
 ### Correções
+- **Nenhuma alteração em `src/` neste P3** — os 222 testes novos passaram sem
+  exigir mudança de comportamento. Quatro divergências entre documentação e
+  código foram registradas como testes vivos, para que corrigi-las seja uma
+  decisão explícita e não um efeito colateral de uma suíte nova:
+  - `SEQUENCES` em `src/progression.py` viola a invariante "uma dimensão por
+    degrau" da §11 em quatro transições (3x12→2x15 min, 5x3→4x4 min, 8x1→6x2
+    min, e a de Sweet Spot/Limiar equivalente). O código está coerente com a
+    intenção; **a frase da §11 está errada** e precisa ser corrigida.
+  - A docstring de `src/vo2_generator.py` afirma que `MIXED_TEMPLATES` mudam
+    repetições **e** duração em todo degrau. Isso vale para `long_intervals` e
+    para a segunda transição de `short_intervals`, mas não para a primeira
+    transição de `short_intervals` nem para `variable_intervals`, que é escada
+    só de repetições. O lever `INTENSITY` também é **inoperante com
+    `DEFAULT_INTENSITY_RANGE`**, porque a faixa padrão já encosta no teto de Z5
+    (1,20) — só age sobre faixa prescrita mais estreita.
+  - `AdaptationState.decay()` só limita por baixo (`max(0, ...)`): com `days` ou
+    `daily_rate` negativo o fator passa de 1 e a adaptação **cresce** acima do
+    estado anterior, contrariando o nome da função.
+  - `estimate_cp` usa OLS de P contra 1/t, que enviesa o intercepto e dá peso
+    dez vezes maior a um esforço de 120 s que a um de 1200 s. O estimador não
+    é ponderado por duração e não filtra outlier.
 - **PMID 34469178 não existe**; o correto é **34489178** (Düking et al., 2021).
   Um teste agora rejeita PMIDs fora do limite estrutural.
 - **Prontidão não prediz desempenho** (seção nova): treino guiado por HRV teve
