@@ -44,7 +44,7 @@ hermes-coach/
 │   ├── vo2_generator.py               # gerador VO2max estruturado (progressão por dimensão)
 │   ├── zone_intent.py                 # intenção e dose por família (a potência não decide a zona)
 │   └── training_plan.py               # CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 470 testes (stdlib unittest)
+├── tests/                             # 489 testes (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 

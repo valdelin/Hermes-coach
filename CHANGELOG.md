@@ -12,6 +12,41 @@ própria — foram agrupadas na tag/release v0.0.7.
 ## [Unreleased]
 
 ### Adicionado
+- **Contrato documental testado** (`tests/test_embasamento_cientifico.py`) — 19
+  testes que verificam as 15 seções do embasamento em ordem, o uso das três
+  classificações, os 11 PMIDs exigidos, ausência de PMID órfão ou fora do
+  limite estrutural, e ausência de superlativo sem base comparativa.
+
+### Alterado
+- **`docs/EMBASAMENTO-CIENTIFICO.md` reestruturado** em 15 seções (Princípios,
+  FTP, CP/W′, Zonas, Periodização, Distribuição, Training Load, CTL/ATL/TSB,
+  Readiness, Adaptation State, Progression Engine, VO2max, Recovery/Deload,
+  Limitações, Referências), com índice e classificação explícita de cada bloco
+  como **EVIDÊNCIA CIENTÍFICA**, **HEURÍSTICA DO SISTEMA** ou **MODELO
+  COMPUTACIONAL**. Nenhuma faixa de `ZONE_BANDS` foi alterada.
+- **Autores corrigidos na bibliografia** — conferidos contra o abstract no
+  NCBI: Mackey (34304689), Inglis (31689684), Sitko (33728842), Schoenmakers
+  (42237396) e Held (42482078). As citações anteriores traziam autores de
+  memória.
+
+### Correções
+- **PMID 34469178 não existe**; o correto é **34489178** (Düking et al., 2021).
+  Um teste agora rejeita PMIDs fora do limite estrutural.
+- **Prontidão não prediz desempenho** (seção nova): treino guiado por HRV teve
+  efeito médio em parâmetros submáximos (g = 0,296) mas efeito pequeno e não
+  significativo em desempenho (g = 0,079; p = 0,597) e V̇O₂*pico* (g = 0,171;
+  p = 0,130) — PMID 34489178. Noutra meta-análise o efeito no desempenho foi
+  pequeno e **condicionado ao nível e sexo** do atleta (ES = 0,402; PMID
+  33143175).
+- **TSS é metodologia de indústria**, não evidência fisiológica, e não equivale a
+  MLSS, LT, RCP ou CP. Marcado como tal na referência e na seção 7.
+- **Seção 14 (Limitações)** nova, enumerando oito ressalvas: FTP não é
+  fisiologia; não há modelo de periodização superior; não há protocolo de
+  VO2max superior; TSS é indústria; prontidão não prediz desempenho; módulos
+  isolados não afetam a publicação; heurísticas não são constantes fisiológicas;
+  base de evidência restrita.
+
+### Adicionado
 - **Intenção e dose por família** (`src/zone_intent.py`) — `FamilyProfile` para
   `ENDURANCE`, `SWEET_SPOT` e `THRESHOLD`, com `intent`, `dose`, `dose_shape`,
   `levers`, `not_claim` e `criterion`. As bandas %FTP vêm de `ZONE_BANDS` e não
