@@ -1392,7 +1392,7 @@ def _reduce_next_hard(plan, day, ftp, reduced_ids=None):
 
 
 # --- Absorcao de treino perdido pelo orcamento semanal -----------------------
-# Embasamento cientifico (docs/EMBASAMENTO-CIENTIFICO.md, secao "Treino
+# Embasamento cientifico (docs/EMBASAMENTO-CIENTIFICO.md secao 5, "Treino
 # perdido: absorver pelo orcamento, nao substituir por recuperacao"): um treino
 # perdido nao se repara com uma sessao binaria de "recuperacao" nem com uma
 # reducao fixa de -5% no proximo Limiar. A literatura de periodizacao (Banister;

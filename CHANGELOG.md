@@ -11,6 +11,49 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.31] - 2026-10-01
+
+### Mudado
+
+- **Fonte única da verdade para o embasamento científico** — a tabela Z1–Z7
+  (com %FCmáx, %FC de limiar, RPE, sistema energético, recuperação típica,
+  ressalvas por zona e a matriz de geração `.ZWO`) passa a viver **exclusivamente
+  no documento canônico do vault**, e `docs/EMBASAMENTO-CIENTIFICO.md` no
+  repositório passa a ser o **contrato algorítmico** — o que o código faz e por
+  quê, em seção e fórmula — apontando explicitamente para o vault. Isso elimina
+  uma divergência real: o arquivo do repo prometia uma "Tabela Científica Z1–Z7"
+  que ele **não continha** (só tinha as seções de blocos, e apenas SweetSpot e
+  VO₂máx), enquanto `ZoneIntegrityTest` e comentários em `src/` citavam aquele
+  arquivo como origem da tabela.
+- **Seções 1–3 do documento do repo reescritas** — descreviam o algoritmo
+  anterior: "reagendamento Ter/Qui/Sáb" (a agenda é configurável via
+  `TRAINING_DAYS`, padrão seg–sex), "redução de volume de 5% a 25%" (o teto é
+  `cap × nº de dias de treino × escala do goal`, com `avg_load` contando só
+  carga realizada) e "corte de 10% se IF > 1,15" (a redução agora é
+  hierárquica e preserva a zona declarada).
+- **Nova seção 6 no documento do repo — "Zonas como Invariante do Código"**,
+  espelhando a §6 do vault: as quatro decisões que a tabela impõe ao motor
+  (bandas ≠ focos; Z7 fora de `ZONE_BANDS` por ser potência máxima; active
+  recovery é sessão dentro de Z2 e não foco Z1; um foco pode servir mais de uma
+  zona), o mapeamento `FOCUS_ZONE` e a justificativa de por que as **constantes**
+  renomearam mas os **valores string** não (persistência em `plan.json` +
+  calendário do Intervals.icu).
+- **Seção 6 antiga removida** — os blocos "SweetSpot" e "VO2máx" do repo eram
+  redundantes com o vault e estavam desatualizados quanto à terminologia: o
+  documento canônico **rejeita explicitamente** "vVO₂max" como nome de zona
+  para ciclismo, e o texto antigo ainda usava essa notação.
+
+### Corrigido
+
+- **Referências que prometiam uma tabela ausente** — comentários em
+  `src/coach.py` e `src/plan.py`, docstrings de `tests/test_plan.py`, e as
+  entradas de ROADMAP/CHANGELOG passaram a apontar para a origem correta
+  (documento canônico do vault, via seção que faz a ponte).
+
+### Testes
+
+- Sem mudança de comportamento: **395 testes** verdes (nenhum código de motor
+  alterado nesta versão).
 ### Corrigido
 
 - **Integridade de zona: `_fit_budget` rebaixava a potência abaixo da zona

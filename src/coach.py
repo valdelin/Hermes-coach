@@ -198,8 +198,9 @@ _BLOCKS = {
     },
 }
 
-# Faixas de prescricao por zona, espelhando a "Tabela Cientifica Z1-Z7" de
-# docs/EMBASAMENTO-CIENTIFICO.md. Sao FAIXAS DE REFERENCIA, nao limites
+# Faixas de prescricao por zona, espelhando a "Tabela Cientifica Z1-Z7" do
+# documento canonico no vault (ver docs/EMBASAMENTO-CIENTIFICO.md, secao 6, que
+# aponta para o vault). Sao FAIXAS DE REFERENCIA, nao limites
 # fisiologicos universais: nao existe conversao universal entre %FTP, %FCmax,
 # %FC de limiar e RPE.
 #

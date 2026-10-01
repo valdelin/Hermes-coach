@@ -1,6 +1,23 @@
 # 🧬 Embasamento Científico do Algoritmo — Hermes Coach
 
-**Data:** 25/09/2026  
+> [!important] Fonte única da verdade: o vault
+> A **tabela científica Z1–Z7** e o embasamento completo vivem no vault do
+> Obsidian, e é de lá que `ZONE_BANDS` (`src/coach.py`) deriva:
+>
+> ```
+> ~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/EMBASAMENTO-CIENTIFICO.md
+> ```
+>
+> Este arquivo guarda apenas o **contrato algorítmico**: o que o código faz e
+> por quê, em termos de seção e fórmula. O *por quê fisiológico* (a tabela
+> Z1–Z7 com %FCmáx, %FC de limiar, RPE, sistema energético, recuperação
+> típica, ressalvas por zona e a matriz de geração `.ZWO`) está no vault.
+>
+> Alterar a tabela exige alterar **os dois lados** — o teste
+> `ZoneIntegrityTest` compara `ZONE_BANDS` com os valores da tabela e falha a
+> suíte se divergirem (v0.0.30).
+
+**Data:** 25/09/2026 · atualizado 01/10/2026 (v0.0.31)  
 **Projeto:** Hermes Coach  
 **Mapeamento:** Fisiologia do Exercício aplicada ao Algoritmo de Treino  
 
@@ -12,39 +29,40 @@ O **Hermes Coach** não aplica ajustes arbitrários. Toda a lógica de distribui
 
 ---
 
-## 📊 1. Distribuição Semanal e Reagendamento (Ter/Qui/Sáb)
+## 📊 1. Distribuição Semanal e Reagendamento
 
-* **Regra do Algoritmo:** Treinos perdidos são reagendados prioritariamente para Terças, Quintas ou Sábados, garantindo que não haja dois treinos intensos em dias consecutivos.
+* **Regra do Algoritmo:** A agenda é **configurável** (`TRAINING_DAYS` no `.env`; padrão `seg,ter,qua,qui,sex`), não fixa. Um treino perdido é redistribuído para o **próximo dia de treino da agenda**, e a redistribuição obedece ao teto de carga ([seção 4](#4-orçamento-semanal-de-carga-guardrail-do-algoritmo)) — não a uma regra fixa de dias. Implementação: `cmd_reconcile` / `_absorb_missed_into_budget`.
 * **Fisiologia Aplicada:** **Princípio da Carga e Recuperação / Adaptação Genética**.
-* **Fundamentação:** 
+* **Fundamentação:**
   - O estímulo do treino causa microlesões musculares e depleção de glicogénio. A ressíntese total e a supercompensação mitocôndrial exigem um intervalo de **24h a 48h**.
   - Espaçar os treinos em dias intercalados evita o acúmulo de fadiga residual não funcional (*Non-Functional Overreaching*), garantindo que o sistema nervoso e metabólico esteja pronto para produzir a potência alvo.
+  - **Ressalva:** a agenda é do **atleta**, não do algoritmo — impô-la ignoraria férias, turnos ou chuva. O que o motor garante é o **espaçamento mínimo** entre estímulos intensos, via ordenação dos focos na sequência de slots.
 
 ---
 
 ## 📉 2. Autorregulação de Carga e TSS Futuro
 
-* **Regra do Algoritmo:** Redução proporcional do volume/TSS dos próximos 7 dias (5% a 25%) em função da taxa de aderência e faltas acumuladas.
+* **Regra do Algoritmo:** O teto da janela rolante de 7 dias é `cap diário × nº de dias de treino × escala do goal` (`weekly_budget()`), com o cap diário derivado da carga média **realizada** (`avg_load`, janela `BUDGET_WINDOW_DAYS = 60`). `build_plan` e `reconcile` partilham a mesma base, para nunca derivarem tetos diferentes da mesma carga.
 * **Fisiologia Aplicada:** **Modelo Fitness-Fadiga de Banister & Teoria do Estresse**.
 * **Fundamentação:**
   - **Fórmula de Banister:** $\text{Desempenho} = \text{Fitness} - \text{Fadiga}$.
   - Faltas e baixa aderência costumam ser sintomas de estresse extrínseco (trabalho, sono deficiente, doença ou fadiga oculta).
-  - Tentar "compensar" treinos perdidos acumulando TSS em semanas seguintes gera um pico desproporcional de fadiga sobre um nível de *Fitness* que diminuiu levemente. A redução de TSS ajusta a carga à **capacidade absorutiva atual do atleta**, prevenindo lesões e imunodepressão.
+  - Tentar "compensar" treinos perdidos acumulando TSS em semanas seguintes gera um pico desproporcional de fadiga sobre um nível de *Fitness* que diminuiu levemente. O teto ajusta a carga à **capacidade absorutiva atual do atleta**, prevenindo lesões e imunodepressão.
 
 > **Nota:** esta seção trata da **autorregulação de volume futuro** pelo `build` (faltas
-> acumuladas/aderência). O tratamento **imediato** de um treino perdido Isolado, absorvido
+> acumuladas/aderência). O tratamento **imediato** de um treino perdido isolado, absorvido
 > pelo orçamento semanal, está na [seção 5](#5-treino-perdido-absorver-pelo-orçamento-não-substituir-por-recuperação).
 
 ---
 
-## ⚡ 3. Compensação de Excesso de Intensidade ($IF > 1.15$)
+## ⚡ 3. Limiar versus Teto: o que se preserva quando o orçamento aperta
 
-* **Regra do Algoritmo:** Se o *Intensity Factor* (IF) real for $> 15\%$ superior ao planeado, o algoritmo reduz a carga do ciclo seguinte em $10\%$.
-* **Fisiologia Aplicada:** **Modelo de Treinamento Polarizado (Dr. Stephen Seiler)**.
+* **Regra do Algoritmo:** Quando o orçamento semanal não comporta o plano, a redução é **hierárquica e preserva a zona declarada**: (1) corta `repeats`; (2) encurta `on_sec`; (3) encurta `off_sec`; (4) só então reduz `on_power`, **nunca abaixo do piso da zona**. Quando não cabe sem sair da zona, o código **prefere estourar o teto semanal a rebaixar o estímulo**.
+* **Fisiologia Aplicada:** **Modelo de Treinamento Polarizado (Dr. Stephen Seiler)**, e as ressalvas por zona do documento canônico (vault).
 * **Fundamentação:**
   - Pedalar acima do Primeiro Limiar Ventilatório ($VT1$) ou Limiar Autonômico provoca um estresse substancial no **Sistema Nervoso Simpático**.
-  - A literatura demonstrada por Stephen Seiler comprova que o tempo de recuperação autonômica (variabilidade da frequência cardíaca - HRV) após treinos de alta intensidade é significativamente mais longo do que após treinos de Z2 (Endurance). O corte de carga previne o *burnout* metabólico.
-
+  - A literatura mostra que o tempo de recuperação autonômica (variabilidade da frequência cardíaca - HRV) após treinos de alta intensidade é significativamente mais longo do que após treinos de Z2 (Endurance).
+  - **Consequência no motor:** cortar **volume** antes de cortar **intensidade** é fisiologicamente mais conservador. Um treino de limiar rebaixado vira um treino de endurance *travestido* de limiar: o nome mente e a adaptação esperada (acima do LT1) não acontece. Bug real corrigido em v0.0.30: `2026-10-02` estava com `focus=sweetspot @ 0,55` — 55% é estímulo de recuperação com o nome de Sweet Spot intacto.
 ---
 
 ## 📏 4. Orçamento Semanal de Carga (Guardrail do Algoritmo)
@@ -113,19 +131,92 @@ O custo de perder uma sessão é proporcional ao **estímulo fisiológico**, nã
 
 ---
 
-## 🎯 6. Arquitetura dos Blocos de Treino (Workout Builder)
+## 🎯 6. Zonas como Invariante do Código (`ZONE_BANDS`)
 
-### A. SweetSpot ($88\%$ FTP)
-* **Estrutura:** $2 \times 15\text{ min}$ a $88\%$ FTP.
-* **Fundamentação:** Formulado por Frank Overton e Dr. Andy Coggan, a zona de *SweetSpot* ($84\%-97\%$ FTP) oferece a **máxima densidade de adaptação fisiológica** (aumento de densidade mitocondrial e limiar de lactato) com o **mínimo custo de fadiga neuroendócrina**, permitindo alta frequência semanal de treinos.
+*v0.0.30. Adicionado em v0.0.31.*
 
-### B. VO2máx ($110\%$ FTP)
-* **Estrutura:** $4 \times 3\text{ min}$ a $110\%$ FTP (Relação esforço/pausa $1:1$).
-* **Fundamentação:** Baseado nos estudos clássicos da Dra. Véronique Billat. Intervalos de 3 a 5 minutos nesta faixa de potência maximizam o tempo no qual o atleta permanece no débito cardíaco máximo ($vVO_2max$), recrutando fibras musculares do tipo IIa sem gerar acúmulo precoce de H+ que impediria a continuidade do treino.
+A tabela Z1–Z7 do documento canônico (vault) não é apenas documentação: ela é
+uma **invariante verificável em código**. `ZONE_BANDS` (`src/coach.py`) carrega
+pisos e tetos de %FTP, e `ZoneIntegrityTest` compara o dicionário com a tabela —
+divergir entre código e documento **falha a suíte**.
+
+```python
+ZONE_BANDS = {
+    FOCUS_ZONE1_RECOVERY:    (0.00, 0.55),   # Z1 Recuperação   <55%
+    FOCUS_ZONE2_ENDURANCE:   (0.56, 0.75),   # Z2 Endurance   56–75%
+    FOCUS_ZONE3_TEMPO:       (0.76, 0.90),   # Z3 Tempo       76–90%
+    ZONE_SWEETSPOT:          (0.84, 0.97),   # Sweet Spot     84–97%
+    FOCUS_ZONE4_LIMIAR:      (0.91, 1.05),   # Z4 Limiar      91–105%
+    FOCUS_ZONE5_VO2MAX:      (1.06, 1.20),   # Z5 VO₂máx      106–120%
+    FOCUS_ZONE6_ANAEROBICA:  (1.21, 1.50),   # Z6 Anaeróbica 121–150%
+}
+```
+
+Helpers: `zone_floor(focus)`, `zone_ceiling(focus)`, `zone_band(focus)` e
+`focus_zone(focus)` — aceitam tanto o foco de prescrição (`'sweetspot'`) quanto a
+zona canônica (`'Z4 Limiar'`).
+
+### Quatro decisões que a tabela impõe ao motor
+
+**1. Todas as zonas têm faixa, mas nem todas têm foco prescrito.** `ZONE_BANDS`
+cobre Z1–Z6 integralmente; o que existe em `FOCUS_ZONE` são só os focos
+efetivamente prescritos hoje (Z2, Sweet Spot, Z4, Z5). Z1, Z3 e Z6 têm faixa
+declarada **sem** template que as gere — estão no dicionário para tornar a
+tabela completa e verificável, não para sugerir que sejam prescritas. Um teste
+trava essa separação.
+
+**2. Z7 está fora de `ZONE_BANDS` — deliberadamente.** A tabela o descreve como
+**potência máxima**, não como faixa de %FTP: a potência máxima pode ser várias
+vezes o FTP. Como `ZONE_BANDS` é um modelo de *faixa de %FTP*, não há o que
+colocar entre 1,21 e ∞. A ausência é intencional, tem comentário no código e um
+teste que verifica que nada `z7` entra.
+
+**3. Active recovery é uma sessão dentro de Z2, não um foco Z1.** A tabela
+define Z1 como `<55%`, mas o *active recovery* do motor é executado a **≈0,60** —
+dentro da banda **Z2**, não em Z1. Não é arredondamento: a **zona** descreve o
+estímulo fisiológico, enquanto *active recovery* descreve a **intenção da
+sessão** (descarregar, circular) aplicada sobre um estímulo que, se isolado, seria
+Z2. Logo Z1 é uma **intenção de sessão** dentro da banda Z2, sem foco próprio.
+Consequência: `_is_active_recovery()` classifica por `focus == zone2` **e**
+`on_power ≤ 0,65`, e o `reconcile` nunca compensa um active recovery perdido.
+
+**4. Um foco de prescrição pode ser servido por mais de uma zona.**
+
+```python
+FOCUS_ZONE = {
+    "zone2":     FOCUS_ZONE2_ENDURANCE,
+    "endurance": FOCUS_ZONE2_ENDURANCE,   # mesma zona, outra template
+    "sweetspot": ZONE_SWEETSPOT,          # categoria, não zona numerada
+    "threshold": FOCUS_ZONE4_LIMIAR,
+    "vo2max":    FOCUS_ZONE5_VO2MAX,
+}
+```
+
+`zone2` e `endurance` são **ambos Z2** — duas templates distintas na mesma zona.
+E `sweetspot` é **categoria de prescrição** (sobrepõe final de Z3 e início de
+Z4), não um número de zona.
+
+### Nomenclatura: constantes renomeadas, valores preservados
+
+As constantes seguem a nomenclatura da tabela (`FOCUS_ZONE2_ENDURANCE`, não
+`FOCUS_ZONE2`). Os **valores string** (`"zone2"`, `"threshold"`, `"vo2max"`) não
+mudaram, e é deliberado: o valor é **persistido** em `plan.json` e **publicado**
+no calendário do Intervals.icu — renomeá-lo quebraria planos salvos e eventos já
+publicados. Logo `FOCUS_ZONE2_ENDURANCE = "zone2"` (constante nova, valor legado)
+e `FOCUS_ZONE2 = FOCUS_ZONE2_ENDURANCE` (alias antigo, mesmo valor). O teste
+`test_valores_string_dos_focos_nao_mudaram` trava essa compatibilidade, para que
+uma futura "limpeza" de nomenclatura não quebre o histórico.
+
+Verificação: varredura de 2.000 treinos gerados (5 TSB × 4 FTP × 5
+`weekly_hours`) com **0 violações de zona**.
 
 ---
 
 ## 📚 Referências Bibliográficas Relevantes
+
+> A lista completa (8 referências, incluindo a base das faixas de %FCmáx/%FC de
+> limiar por zona e da meta-análise de distribuição de intensidade) está no
+> documento canônico do vault.
 
 1. **Banister, E. W. (1991).** *Modeling Muscle Fatigue and Recovery in Training*.
 2. **Seiler, S. (2010).** *What is Best Practice for Training Intensity Distribution in Endurance Athletes?* International Journal of Sports Physiology and Performance.

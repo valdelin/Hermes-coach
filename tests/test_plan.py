@@ -878,13 +878,14 @@ class RaceTsbVerdictTest(unittest.TestCase):
 
 
 class ZoneIntegrityTest(unittest.TestCase):
-    """Invariante de zona (docs/EMBASAMENTO-CIENTIFICO.md, Tabela Z1-Z7).
+    """Invariante de zona (Tabela Z1-Z7; ver docs/EMBASAMENTO-CIENTIFICO.md
+    secao 6, que aponta para o documento canonico no vault).
 
     REGRA: um treino NUNCA entrega menos de %FTP do que o piso da zona que ele
     declara. O `focus` e o nome podem nao mudar enquanto a potencia rebaixada
     entrega outro estímulo - foi exatamente o bug do `_fit_budget`, que
     descia `on_power` ate 0.55 fixo e produzia "Treino de Sweet Spot" com
-   功率 de recuperacao (caso real: 2026-10-02, sweetspot @0.55).
+    potencia de recuperacao (caso real: 2026-10-02, sweetspot @0.55).
     """
 
     def test_fit_budget_nunca_rebaixa_abaixo_do_piso_da_zona(self):
@@ -948,8 +949,9 @@ class ZoneIntegrityTest(unittest.TestCase):
                         f"{w['day']} {w['focus']} @ {pot} < piso {piso}")
 
     def test_zona_bands_espelham_a_tabela_do_documento(self):
-        # ZONE_BANDS e a versao legivel da "Tabela Cientifica Z1-Z7" de
-        # docs/EMBASAMENTO-CIENTIFICO.md. Se a tabela mudar, este teste falha.
+        # ZONE_BANDS e a versao legivel da "Tabela Cientifica Z1-Z7" do
+        # documento canonico no vault (docs/EMBASAMENTO-CIENTIFICO.md secao 6
+        # aponta para ele). Se a tabela mudar, este teste falha.
         # ordem e identical a "Tabela Cientifica Z1-Z7" do documento
         esperado = {
             FOCUS_ZONE1_RECOVERY: (0.00, 0.55),    # Z1 Recuperacao  <55%

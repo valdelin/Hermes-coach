@@ -7,7 +7,10 @@ espelho público.
 
 Referências: [ADR-003](https://github.com/valdelin/Hermes-coach/issues) (visão
 de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault);
-**fundamentação científica** do algoritmo em `docs/EMBASAMENTO-CIENTIFICO.md`;
+**fundamentação científica** do algoritmo em `docs/EMBASAMENTO-CIENTIFICO.md`
+(o **contrato algorítmico**; a tabela científica Z1–Z7 completa — com %FCmáx,
+%FC de limiar, RPE e ressalvas por zona — está no documento canônico do vault,
+ao qual o arquivo do repo aponta);
 **visão SaaS** (arquitetura alvo multi-tenant) em
 `docs/ROADMAP-2-CRIACAO-DE-SAAS.md` (itens #24-#27, Fases 1B/3B); **parecer da
 revisão técnica** (propostas aplicadas/não aplicadas) em
@@ -58,6 +61,7 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 | 39 | bug | **Duplicatas manuais no calendário não eram removíveis** — eventos criados direto no app do Intervals têm `external_id = None`, e `orphan_external_ids` filtra por `EXTERNAL_ID_PREFIX` **e** o `bulk-delete` só aceita `external_id`; logo, um treino manual que repetia um dia do plano (ex.: `VO2max 2026-10-14` vs `Treino de Sweet Spot`) coexistia para sempre sem caminho de limpeza. Adicionado `IntervalsClient.delete_event(id)` (`DELETE /events/{id}`) e `plan.manual_duplicate_ids()` (detecta manual sem `external_id` cujo dia existe no plano), ligado ao `push` com relatório no `--dry-run`. **Precedência:** evento do Hermes vence sobre o manual do mesmo dia; evento manual em dia **sem** treino no plano **não** é duplicata e é preservado | — (sessão 01/10 — "trate das duplicatas manuais") | **implementado (v0.0.30)** | 1 ✅ |
 | 40 | refactor | **Idempotência do `reconcile`** — `absorbed_ids` é **reconstruído a cada execução** dentro de `_absorb_missed_into_budget()` e não é persistido em `plan.json`. Efeito: o mesmo treino perdido pode ser absorvido repetidamente em execuções sucessivas do timer (`daily_reconcile.sh`), elevando `on_sec` a cada run até bater no teto — a absorção não é convergente. Correção: persistir os `external_id` já absorvidos na meta do plano e pulá-los, tornando `reconcile` idempotente | — (sessão 01/10 — revisão pós-release) | **aberto — fazer depois** | 1 |
 | 41 | limpeza | **`by_id` não utilizado em `_absorb_missed_into_budget()`** — mapa `by_id` é montado e populado mas nunca consultado na função (dead code). Remover junto da #40, ambos tocam a mesma função | — (sessão 01/10 — revisão pós-release) | **aberto — fazer depois** | 0 |
+| 42 | docs | **Fonte única do embasamento científico** — a tabela Z1–Z7 e as ressalvas por zona passam a viver **só no vault** (documento canônico); `docs/EMBASAMENTO-CIENTIFICO.md` no repo vira o **contrato algorítmico** (o que o código faz e por quê, em seção/fórmula) e passa a apontar para o vault. Elimina uma divergência real: o arquivo do repo **prometia** uma "Tabela Científica Z1–Z7" que não continha, enquanto `ZoneIntegrityTest` e comentários em `src/` o citavam como origem da tabela. Seções 1–3 do repo reescritas (descreviam o algoritmo antigo: Ter/Qui/Sáb fixo, redução 5–25%, corte de 10% por IF alto); §6 antiga (blocos SweetSpot/VO₂máx) removida por redundante e por usar "vVO₂max", terminologia que o documento canônico **rejeita** explicitamente para ciclismo; nova §6 espelha a do vault (invariante `ZONE_BANDS`) | — (sessão 01/10 — "o repo e o vaultdevem ser a mesma fonte") | **implementado (v0.0.31)** | 0 ✅ |
 
 ## Fases
 
