@@ -12,6 +12,17 @@ própria — foram agrupadas na tag/release v0.0.7.
 ## [Unreleased]
 
 ### Adicionado
+- **Intenção e dose por família** (`src/zone_intent.py`) — `FamilyProfile` para
+  `ENDURANCE`, `SWEET_SPOT` e `THRESHOLD`, com `intent`, `dose`, `dose_shape`,
+  `levers`, `not_claim` e `criterion`. As bandas %FTP vêm de `ZONE_BANDS` e não
+  são redefinidas.
+- **Sobreposição explícita** — `sweetspot` (84–97%) e `threshold` (91–105%) se
+  cruzam em 91–97% FTP. `classify()` levanta `AmbiguousIntensity` nessa faixa
+  em vez de escolher pelo número: a potência não decide a família.
+- **Alavancas de dose por família** — Z2 progride em duração e volume
+  (contínuo, sem intervalos artificiais); Sweet Spot em duração e volume;
+  Limiar em duração, repetições e recuperação. `distinguishes()` expõe os eixos
+  de   divergência.
 - **Gerador estruturado VO2max** (`src/vo2_generator.py`) — `VO2Workout` com
   `interval_duration`, `repetitions`, `work_power_range`, `recovery_duration`,
   `recovery_power`, `total_work_time`, `progression_step` e `lever`. Famílias
@@ -27,6 +38,16 @@ própria — foram agrupadas na tag/release v0.0.7.
   proporcional e trabalho acumulado, com limites configuráveis.
 
 ### Notas científicas
+- **95% FTP não é MLSS.** FTP correlaciona-se com a potência de lactato
+  4,0 mmol/L (r = 0,88), mas com limites de concordância de −45 a +51 W, o que
+  refuta equivalência; LT, IAT e Dmax diferiram significativamente (PMID 31269000).
+  MLSS medida foi 88,5% do FTP (DP 4,8%) e respondeu ao treino (+12 W, p = 0,002)
+  enquanto FTP95% não respondeu (p = 0,75) — PMID 31689684.
+- **FTP está mais perto de RCP do que de VT** (r 0,71–0,90), com ressalva
+  explícita de não usar os conceitos indistintamente (PMID 33728842).
+- **Sweet Spot não é zona fisiológica universal** nem equivalente a limiar
+  fisiológico; é categoria de prescrição sobreposta a Z3/Z4. As quatro
+  ressalvas ficam em `not_claim`, expostas por perfil.
 - Nenhuma estrutura de protocolo de HIIT mostrou superioridade estatística para
   tempo acumulado ≥90% V̇O₂max (network meta-analysis, PMID 42482078): as
   comparações de referência foram não significativas, com I² = 69,2%. Os
@@ -36,8 +57,9 @@ própria — foram agrupadas na tag/release v0.0.7.
   ou moderados, e intensidade variável superou ritmo par (SMD = 0,80;
   PMID 42237396). A recuperação ativa vs. passiva não afetou esse tempo, então
   `recovery_power` e `recovery_ratio` são convenções do gerador.
-- 17 testes novos; suíte com 456 testes. Módulo isolado: não altera
-  `build`/`push`, `plan.json` nem a publicação no Intervals.icu.
+- 17 testes novos do gerador VO2 e 14 da intenção por família; suíte com 470
+  testes. Ambos os módulos isolados: não alteram `build`/`push`, `plan.json`,
+  `ZONE_BANDS` nem a publicação no Intervals.icu.
 
 ## [0.0.34] - 2026-10-01
 

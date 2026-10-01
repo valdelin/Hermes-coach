@@ -42,8 +42,9 @@ hermes-coach/
 │   ├── readiness_assessment.py        # prontidão multimodal (adequação ao treino, não diagnóstico)
 │   ├── critical_power.py              # Critical Power / W′ como complemento ao FTP
 │   ├── vo2_generator.py               # gerador VO2max estruturado (progressão por dimensão)
+│   ├── zone_intent.py                 # intenção e dose por família (a potência não decide a zona)
 │   └── training_plan.py               # CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 456 testes (stdlib unittest)
+├── tests/                             # 470 testes (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 
@@ -445,6 +446,7 @@ de publicação.
 | `readiness_assessment.py` | Prontidão multimodal; `GREEN`/`YELLOW`/`RED` = adequação ao treino |
 | `critical_power.py` | CP e W′ como complemento ao FTP, com ajuste `P = CP + W′/t` |
 | `vo2_generator.py` | Bloco VO2max estruturado; 106–120% FTP, progressão alterando **uma** dimensão por degrau |
+| `zone_intent.py` | Intenção e dose de Z2 / Sweet Spot / Limiar; `classify()` recusa adivinhar na sobreposição de 91–97% FTP |
 
 Os limiares e sequências desses módulos são **heurísticas computacionais
 configuráveis**, não constantes fisiológicas universais — ver

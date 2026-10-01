@@ -163,6 +163,55 @@ degrau é erro de prescrição, e `progression_ledger()` expõe as escadas para
 que isso seja verificável. O módulo é isolado: não participa de `build`/`push`
 nem altera `plan.json`.
 
+### Intenção e dose por família: ENDURANCE, SWEET_SPOT, THRESHOLD
+
+`FamilyProfile` acrescenta a dimensão que falta ao modelo: **para que serve a
+sessão e como a dose progride**. `ZONE_BANDS` continua sendo o invariante das
+faixas; este módulo não redefine nenhum valor, apenas consome
+`profile.band = ZONE_BANDS[focus]`.
+
+**As famílias se sobrepõem, e isso é explícito.** `sweetspot` (84–97% FTP) e
+`threshold` (91–105% FTP) se cruzam em **91–97% FTP**. Nessa faixa a potência
+**não distingue** as duas famílias. Por isso `classify()` se recusa a
+adivinhar e levanta `AmbiguousIntensity`: escolher família pelo número seria
+reescrever a sobreposição como se a potência bastasse, e ela não basta. O que
+distingue é a intenção declarada e a dose.
+
+| Família | Intenção | Dose | Forma | Alavancas de progressão |
+| --- | --- | --- | --- | --- |
+| Z2 Endurance | Sustentar blocos contínuos e treinos longos; construir base aeróbica e capacidade deoload | Contínuo, 30 min–4 h, sem lacunas internas | `CONTINUOUS` | duração, volume total |
+| Sweet Spot | Alta densidade de estímulo com fadiga administrável, sobre o final de Z3 e o início de Z4 | Blocos de 8–30 min, com folga para sustentar a repetição | `INTERVAL` | duração, volume total |
+| Z4 Limiar | Elevar a potência de limiar e a depreciação de lactato em esforço máximo sustentável | Blocos de 5–20 min, recuperação 2:1 a 4:1 | `INTERVAL` | duração, repetições, recuperação |
+
+**Z2 não usa intervalos artificiais.** A progressão de Z2 é por volume e
+duração. Fragmentar o volume em pedaços para trabalhar "mais forte" destrói o
+que sustenta a base sem añadir estímulo específico.
+
+**Sweet Spot é faixa de prescrição, não zona fisiológica universal.** Ela se
+sobrepõe a Z3/Z4 justamente por ser uma categoria de prescrição. Não equivale
+a limiar fisiológico — MLSS, VT2/RCP e LT são distintos.
+
+**Não afirme que 95% FTP = MLSS.** FTP correlaciona-se fortemente com a
+potência de lactato 4,0 mmol/L (r = 0,88), mas o viés médio foi 2,9 W com
+limites de concordância amplos (−45 a +51 W), o que **refuta equivalência**; LT,
+IAT e Dmax diferiram significativamente de FTP. PMID 31269000. Noutro estudo, a
+potência em MLSS foi 88,5% do FTP (DP 4,8%) e 93,1% do FTP95% (DP 5,1%),
+divergindo de FTP95%; MLSS ainda respondeu ao treino (+12 W, p = 0,002) enquanto
+FTP95% não respondeu (p = 0,75) — o que torna 95% um substituto ruim para MLSS.
+PMID 31689684.
+
+**FTP está mais perto de RCP do que de VT.** Potência no FTP foi maior que no
+limiar ventilatório (p < 0,001), e FTP e RCP tiveram correlación muito alta
+(r 0,71–0,90 em W; viés médio não significativo), com autores alertando para
+não usar os dois conceitos indistintamente. PMID 33728842.
+
+**O teste FTP20 é confiável, mas não é生理ologicamente justificado.** Revisão
+de escopo (15 estudos) descreve limites de concordância amplos que impedem
+trocar parâmetros de forma intercambiável, com literatura ainda limitada e
+amostra majoritariamente masculina treinada. PMID 34304689.
+
+Módulo isolado: não altera `build`/`push`, `plan.json` nem as bandas.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
@@ -351,8 +400,9 @@ Verificação: varredura de 2.000 treinos gerados (5 TSB × 4 FTP × 5
 ## 📚 Referências Bibliográficas Relevantes
 
 > A lista completa, incluindo a base das faixas de %FCmáx/%FC de
-> limiar por zona, da meta-análise de distribuição de intensidade e das duas
-> meta-análises de HIIT (PMIDs 42237396 e 42482078), está no
+> limiar por zona, da meta-análise de distribuição de intensidade, das duas
+> meta-análises de HIIT (PMIDs 42237396 e 42482078) e da equivalência
+> FTP vs. MLSS/RCP (PMIDs 31269000, 31689684, 33728842, 34304689), está no
 > documento canônico do vault.
 
 1. **Banister, E. W. (1991).** *Modeling Muscle Fatigue and Recovery in Training*.
