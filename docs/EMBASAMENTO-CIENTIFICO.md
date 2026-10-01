@@ -99,6 +99,22 @@ RED indicam adequação ao treino, não diagnóstico; um sinal isolado não canc
 automaticamente uma sessão. Referências: Düking et al. (2021), PMID 34489178;
 Granero-Gallegos et al. (2020), PMID 33143175.
 
+### Critical Power e W'
+
+`CriticalPowerProfile` guarda `critical_power`, `w_prime`, `protocol`,
+`confidence` e `test_dates`. `estimate_cp()` e `estimate_w_prime()` ajustam
+`P = CP + W'/t` por mínimos quadrados e devolvem `None` com menos de dois
+esforços válidos — nunca um valor inventado. CP e W′ são **complementares** ao
+FTP: não o substituem e não são equivalentes a MLSS, LT ou RCP.
+
+`work_above_cp()` limita o esforço acima de CP pelo W′ disponível;
+`w_prime_balance()` e `w_prime_reconstitution()` tratam saldo e recuperação de
+W′. O ritmo padrão de reconstituição (0,1 W/s) é **heurística do sistema**,
+configurável por atleta, não constante fisiológica universal.
+
+Uso previsto: esforços acima do limiar, Z6, HIIT e análise power-duration.
+Revisão sobre CP/W′ e reconstituição: PMID 32899777.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
