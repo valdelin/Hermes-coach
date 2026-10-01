@@ -11,6 +11,34 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.32] - 2026-10-01
+
+### Adicionado
+
+- **Contrato explícito de carga de treino** — `TrainingLoadComponents` separa
+  carga executada por potência, TSS estimado do treino planejado, carga externa
+  e carga interna. Os quatro sinais não são somados ou convertidos entre si sem
+  uma fonte e unidade declaradas.
+- **TSS executado por potência** — `power_training_load()` calcula
+  `horas × (NP / FTP)² × 100` quando NP e FTP válidos são observados após a
+  sessão. Não infere NP de potência média, duração ou treino planejado; também
+  retorna carga desconhecida para segmentos de até 30 segundos.
+
+### Mudado
+
+- **TSS planejado agora é nomeado** `estimated_tss()` — a estimativa baseada
+  nos blocos em %FTP continua orçando `build`, `reconcile` e forecast, mas não
+  é apresentada como uma medida executada. `estimate_tss()` permanece como alias
+  compatível para os consumidores e formatos persistidos existentes.
+- **CTL/ATL/TSB preservam a autoridade do Intervals.icu** — os fluxos atuais
+  continuam usando `icu_training_load`; o Hermes não tenta reconstruir a
+  pipeline proprietária do Intervals a partir de TSS local.
+
+### Testes
+
+- **401 testes** verdes, incluindo fórmula de TSS por NP/FTP, bordas sem
+  NP/FTP, segmentos curtos, carga nula e compatibilidade do alias planejado.
+
 ## [0.0.31] - 2026-10-01
 
 ### Mudado

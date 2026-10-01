@@ -4,8 +4,8 @@
 
 > **English version:** [README.en.md](README.en.md)
 
-Agente que consulta o **Intervals.icu**, calcula o **TSB** (forma), decide o
-foco do dia e publica o treino no calendario do Intervals.icu (os arquivos
+Agente que consulta o **Intervals.icu**, acompanha o **TSB** (forma), monta o
+plano e publica o treino no calendario do Intervals.icu (os arquivos
 `.zwo` sao baixados direto no app).
 
 ## Custo de modelos: R$ 0
@@ -23,7 +23,7 @@ hermes-coach/
 ├── hermes/skills/cycling-coach/       # skill de delegacao do Hermes
 ├── src/
 │   ├── intervals_client.py            # cliente da API do Intervals.icu
-│   ├── coach.py                       # TSB -> foco -> carga (TSS)
+│   ├── coach.py                       # prescrição e TSS estimado do plano
 │   ├── impulse_response.py            # motor Banister (CTL/ATL/TSB) + Expected PMC com zonas Friel
 │   ├── plan.py                        # plano semanal (build/reconcile/adherence/taper de prova)
 │   ├── plan_run.py                    # protótipo de corrida (#18): %LTHR/RPE/pace, sem power meter
@@ -256,9 +256,9 @@ calendario.
   lembrada (`localStorage`). A **linha de forma (TSB) muda de cor pelo estado**
   do atleta: vermelho = alto risco (TSB ≤ −10), verde = treino ideal, azul =
   fresco e em forma (`docs/TEMAS.md` tem o kit portátil dos temas).
-- `reconcile` — treino perdido vira recuperacao no proximo dia + proximo Limiar
-  -5%; treino **extra fora do plano** com carga cheia insere recuperacao e
-  reduz o Limiar.
+- `reconcile` — treino perdido de Z2/Sweet Spot pode ser absorvido no orçamento
+  semanal disponível; recuperação ativa e Limiar/VO2 não são compensados por
+  volume. Treino extra fora do plano é considerado pela carga real.
 - `push` — upsert no calendario + limpeza automatica de eventos `hermes-plan*`
   orfaos; `.zwo` baixado no app (sem geracao local).
 - `model` — Expected PMC (Banister): CTL/ATL/TSB projetados do real + plano,
@@ -480,7 +480,9 @@ FTP"). O idioma das mensagens e controlado por `CUE_LANG` no `.env` (`pt`|`en`).
   (`tsb`/`ctl`/`atl` vêm do parametro `?summary=1` por evento, ou de dentro de
   `summary`). `src/coach.py::latest_metrics` tolera ambos; ajuste se o seu
   plano retornar outro formato.
-- A estimativa de TSS e aproximada (somatorio de `seg*fracao^3 / 36`), suficiente
-  para comparar carga dia a dia, nao para planejamento cientifico.
+- `estimated_tss` é uma estimativa operacional do **treino planejado**
+  (somatório de `seg*fração³ / 36`), usada para orçamento. TSS **executado** por
+  potência usa NP/FTP (`horas × IF² × 100`) apenas quando essas medidas existem;
+  o Intervals continua sendo a fonte autoritativa de carga histórica.
 - Fora do escopo: geracao de `.zwo` local. Baixe os treinos em
   **Custom Workouts / exportar** no app do Intervals para usar no Zwift.
