@@ -85,6 +85,12 @@ de CP, W′, VO2max e marcadores de frequência cardíaca, todos opcionais. FTP 
 uma referência operacional de potência; não é tratado como sinônimo de MLSS,
 LT, CP ou RCP, nem usado para inferir marcadores ausentes.
 
+### Estado de adaptação
+
+`AdaptationState` mantém domínios normalizados de 0 a 1, atualizados por vetor
+de contribuição, decaimento temporal e saturação. São heurísticas
+computacionais para o motor, não medições fisiológicas.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
