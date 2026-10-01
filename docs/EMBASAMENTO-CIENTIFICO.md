@@ -91,6 +91,14 @@ LT, CP ou RCP, nem usado para inferir marcadores ausentes.
 de contribuição, decaimento temporal e saturação. São heurísticas
 computacionais para o motor, não medições fisiológicas.
 
+### Prontidão multimodal
+
+`ReadinessAssessment` combina HRV contra baseline individual, tendência de RHR,
+sono, fadiga subjetiva, carga, desempenho opcional e consistência. GREEN/YELLOW/
+RED indicam adequação ao treino, não diagnóstico; um sinal isolado não cancela
+automaticamente uma sessão. Referências: Düking et al. (2021), PMID 34489178;
+Granero-Gallegos et al. (2020), PMID 33143175.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
