@@ -11,6 +11,20 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.33] - 2026-10-01
+
+### Mudado
+
+- **Periodização separada de autoregulação** — `TrainingPlanState` explicita
+  goal, fase, semana/ciclo, cargas, TSB e readiness. `GOAL` e proximidade de
+  prova escolhem fase e alvo semanal; TSB baixo ou readiness desfavorável
+  adaptam apenas a primeira sessão de qualidade para recuperação Z2.
+
+### Testes
+
+- **409 testes** verdes. A validação independente cobriu 8 critérios da spec e
+  eliminou 3/3 mutações comportamentais.
+
 ## [0.0.32] - 2026-10-01
 
 ### Adicionado
