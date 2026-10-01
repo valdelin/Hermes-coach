@@ -50,6 +50,10 @@ class SessionAutoregulationTest(unittest.TestCase):
                              if workout["focus"] == FOCUS_SWEETSPOT)
         self.assertEqual(low[quality_index]["focus"], FOCUS_ZONE2)
         self.assertEqual(adequate[quality_index]["focus"], FOCUS_SWEETSPOT)
+        next_quality = next(i for i, workout in enumerate(adequate[quality_index + 1:],
+                                                           quality_index + 1)
+                            if workout["focus"] != FOCUS_ZONE2)
+        self.assertEqual(low[next_quality], adequate[next_quality])
         self.assertEqual(
             training_plan_state("ftp-builder", None, self.START, 220, 200, -20).phase,
             training_plan_state("ftp-builder", None, self.START, 220, 200, 0).phase)
@@ -57,7 +61,15 @@ class SessionAutoregulationTest(unittest.TestCase):
     def test_readiness_desfavoravel_adapta_primeira_sessao_de_qualidade(self):
         readiness = Readiness({"rhr_rising": True}, False, "RHR alto", True)
         plan = self._plan(0, readiness=readiness)
+        expected = self._plan(0)
         self.assertEqual(plan[0]["focus"], FOCUS_ZONE2)
+        self.assertEqual(plan[1]["focus"], expected[1]["focus"])
+        self.assertEqual(plan[1]["params"]["on_power"],
+                         expected[1]["params"]["on_power"])
+        self.assertEqual(
+            training_plan_state("ftp-builder", None, self.START, 220, 200, 0,
+                                readiness=readiness).phase,
+            training_plan_state("ftp-builder", None, self.START, 220, 200, 0).phase)
 
     def test_tsb_adequado_e_readiness_favoravel_mantem_sessao_planejada(self):
         readiness = Readiness({"rhr_rising": False}, False, "normal", True)
@@ -69,8 +81,9 @@ class SessionAutoregulationTest(unittest.TestCase):
         self.assertEqual(self._plan(0), self._plan(0, readiness=None))
 
     def test_sessao_z2_planejada_permanece_z2(self):
-        plan = self._plan(-20, goal="active-off-season")
-        self.assertEqual(plan[0]["focus"], FOCUS_ZONE2)
+        planned = self._plan(0, goal="active-off-season")
+        adapted = self._plan(-20, goal="active-off-season")
+        self.assertEqual(adapted[0], planned[0])
 
 
 if __name__ == "__main__":
