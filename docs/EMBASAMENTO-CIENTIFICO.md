@@ -78,6 +78,13 @@ intensidade, independentemente do número de sessões. `POLARIZED`, `PYRAMIDAL`,
 universal. Galán-Rioja et al. (2023) e a revisão/meta-análise de 2025 (PMID
 39788807) contextualizam a evidência; o relatório é um modelo computacional.
 
+### Perfil fisiológico
+
+`AthletePhysiologicalProfile` preserva FTP e sua fonte/confiança separadamente
+de CP, W′, VO2max e marcadores de frequência cardíaca, todos opcionais. FTP é
+uma referência operacional de potência; não é tratado como sinônimo de MLSS,
+LT, CP ou RCP, nem usado para inferir marcadores ausentes.
+
 ---
 
 ## 📊 1. Distribuição Semanal e Reagendamento
