@@ -11,6 +11,129 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Prontidão no caminho do plano (issue #58, Passo A).** `build` passou a ler
+  o wellness do Intervals e a adaptar o plano conforme a avaliação.
+  - `assess_readiness_assessment()` (`src/readiness.py`) traduz o wellness bruto
+    em `(ReadinessAssessment | None, trace)`: registra quais eixos foram
+    observados, quais não têm fonte, e a data do último registro.
+  - `readiness_decision()` converte a classe `GREEN`/`YELLOW`/`RED` em uma ação
+    explícita `NONE` / `REDUCE` / `REPLACE`, com motivo legível.
+  - `build --dry-run` e `all --dry-run` mostram o plano já adaptado sem gravar
+    `plan.json` e sem publicar nada. `all --dry-run` encerra após o build, para
+    não reconciliar o calendário contra o plano antigo.
+  - O motivo da decisão é impresso no CLI (cobertura, eixos observados, alerta,
+    aviso de leitura desatualizada, e **por que a leitura foi ou não aplicada**).
+    `plan.json` **não** ganhou campos; o desfecho chega ao CLI por
+    `build_plan(..., readiness_report=...)`, sem alterar o retorno.
+
+### Mudado
+
+- **Sinal de prontidão isolado não troca mais a sessão.** Antes, qualquer sinal
+  ligado — inclusive uma noite ruim de sono — substituía o treino por Z2 900 s.
+  Agora `YELLOW` **reduz volume** preservando `focus` e a intensidade da zona;
+  `REPLACE` fica reservado a `level() == RED` e ao alerta de possível doença.
+  RED **não** é alcançável por um sinal isolado: com um eixo a `0.2` e dois a
+  `0.8` a média é `0.60` e `poor = 1`, então a classe é YELLOW por construção.
+- `_fit_budget` teve sua escada de redução extraída em `_reduce_one_step`, agora
+  compartilhada pelo ajuste por orçamento e pela redução por prontidão — os dois
+  caminhos não podem mais divergir.
+
+### Corrigido
+
+- O gate de prontidão em `_adapt_session` lia atributos que `ReadinessAssessment`
+  não possui, então retornava "sem mudança" para **qualquer** avaliação. O
+  caminho estava inerte e nunca adaptou nada.
+- `readiness_decision(None)` quebrava com `AttributeError` — exatamente o caso
+  mais comum do sistema, o atleta sem sensor de sono/HRV.
+- `all --dry-run` reconciliaria e publicaria contra o `plan.json` anterior ao
+  plano recém-proposto.
+- **Reduzir um dia por prontidão aumentava a carga dos dias seguintes.** O
+  orçamento é julgado pelo TSS já planejado, então a redução devolvia teto: um
+  plano que cortava `14/09` de 37 para 27 TSS subia `18/09` de `4x139` para
+  `5x139`. O sinal de recuperação de um dia passou a entrar no razão do
+  orçamento com o TSS **pré-intervenção**, e nenhum dia sai com carga maior que
+  um plano equivalente sem prontidão. As regras de `_fit_budget` não mudaram.
+- **Uma leitura podia degradar a mesma sessão indefinidamente.** O sinal era
+  aplicado à primeira sessão de qualidade do plano, onde quer que estivesse: uma
+  única leitura de 01/10 levou a sessão de 05/10 de `3x480` para `3x360` e
+  depois para `1x720` em builds sucessivos. A decisão agora carrega
+  `applies_to_day` — o dia que a leitura **descreve** — e só atua naquele dia.
+  Substitui um prazo de validade arbitrário por uma âncora factual, e impede
+  que o sinal seja transferido para uma sessão futura.
+- **Uma decisão que não adapta nada alterava o plano assim que o TSB agia.** O
+  razão do orçamento recebia o TSS pré-intervenção pela simples *presença* de
+  uma avaliação de prontidão. Com TSB `-30` e decisão `NONE`, a carga total caía
+  de 173 para 166 sem que a prontidão tivesseParticipado. E, quando o TSB
+  venceu (REPLACE por TSB), uma REDUCE inflava o razão com o `tss_pre` do
+  treino que o próprio TSB tinha trocado, cortando um dia seguinte que a
+  referência não cortava (39 → 32 TSS) e reportando "aplicada" indevidamente.
+  O razão passou a ser por fonte: só usa o TSS pré-intervenção quando a
+  prontidão dirigiu a mudança.
+- O motivo pelo qual uma leitura não foi aplicada deixou de ser implícito: o
+  CLI informa quando a leitura é de um dia fora do plano, quando o dia não tem
+  sessão de qualidade, ou quando a sessão do dia foi preservada do plano
+  anterior.
+
+### Sem mudança (contratos preservados)
+
+`ZONE_BANDS`, `plan.json`, valores de `focus`, identificadores de evento do
+Intervals, `ReadinessAssessment.level()`/`adjustments()`, os 19 testes de
+`tests/scientific/test_readiness.py` e o contrato "preservar o treino de hoje"
+(`tests/test_plan.py:64`). Nenhuma publicação automática: o `build` continua
+exigindo `push` e aprovação explícita.
+
+- **A leitura de hoje nunca era acionada.** `build_plan` é chamado com
+  `start=None`, então o plano começa no dia seguinte e a sessão de hoje é
+  preservada verbatim; como a leitura descreve **hoje**, nada era adaptado no
+  uso diário. A regra estava correta e inerte.
+- **`check` rodava um motor diferente do `build`.** Desde a #31 ele usava
+  `assess_readiness`/`suggest_swap`/`recovery_workout`: trocava a sessão por
+  Z2 900 s diante de **qualquer** sinal ligado e **não checava se o treino já
+  tinha acontecido** — podia reescrever um treino já realizado. Agora `check`
+  usa o motor do Passo A (`build_plan` com `start=hoje`), que é a razão de
+  proposta e aplicação não divergirem.
+- **`check --apply` reduzia cumulativamente.** Reexecutar com a mesma leitura
+  dava 38 → 32 → 22 TSS. `build_plan` sempre reconstrói do template, então a
+  proposta é a mesma em toda execução; reexecutar agora é no-op declarado.
+
+### Fluxo diário
+
+- `scripts/daily_reconcile.sh` (o que o timer `cycling-coach-daily.timer`
+  dispara) passou a rodar `check --apply` **antes** de `reconcile` e `push`. Sem isso, `check` seria exatamente o comando opcional que o fluxo
+  diário nunca chama. `cmd_all` **não** ganhou `check`: ali avaliação e
+  publicação estariam no mesmo comando, sem confirmação no meio.
+- A sessão de hoje só é tocada se ainda não começou: **concluída** é
+  preservada; passado o horário planejado (`START_TIME`, 07:30) sem realização
+  confirmada pelo Intervals, o estado é **desconhecido** e o comando **propõe
+  sem aplicar** — o Intervals não distingue "começou e não sincronizou" de
+  "não começou", e adivinhar reescreveria um treino em andamento.
+- Proposta, aplicação local e publicação seguem separadas: `check` imprime a
+  proposta, `check --apply` grava só no `plan.json`, e só o `push` fala com o
+  calendário. `--dry-run` não grava nem publica.
+- O `check` foi migrado do motor legado para o do Passo A. Do motor antigo,
+  **só `assess_readiness` continua no caminho vivo**: o alerta de doença
+  (`check`, `src/training_plan.py:451`) e o bloco `legacy` do trace
+  (`src/readiness.py:369`). `suggest_swap` e `recovery_workout` ficaram **sem
+  chamador em produção** — continuam existindo e cobertos por
+  `tests/test_readiness.py`, mas nada os invoca; são código morto que a issue
+  #58 deve resolver, e não foram removidos aqui para não alterar contrato nem
+  cobertura de teste.
+
+### Limitações conhecidas
+
+- Sem fuso horário suportado no projeto: a "data local do atleta" é a data
+  local da máquina. Criar suporte a fuso seria refatorar `date.today()` no
+  projeto inteiro.
+- **Timer movido de 00:00 para 05:30.** A 00:00 o dispositivo quase nunca tinha
+  sincronizado a leitura do dia, então a etapa estava no fluxo mas raramente
+  tinha dado para agir. Em `updated` de `/wellness`, as chegadas locais foram
+  00:23, 00:42, 00:43, 01:19, 03:52 e 04:05 — todas pós-meia-noite. 05:30 fica
+  depois desse agrupamento e 2 h antes da sessão (07:30). `Persistent=true`
+  cobre máquina dormindo; no catch-up após as 07:30 o `check` não aplica.
+  A chegada ainda é variável, então 05:30 maximiza a chance, não garante.
+
 ## [0.0.35] - 2026-10-02
 
 Camada algorítmica: gerador VO2max, intenção de zona, embasamento

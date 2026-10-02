@@ -11,6 +11,18 @@ except ImportError:
                         FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2,
                         zone_floor, zone_ceiling, ZONE_BANDS)
 
+try:
+    from . import readiness as readiness_mod
+    from .readiness import ReadinessAction, ReadinessDecision
+except ImportError:  # pragma: no cover - execucao como script solto
+    import readiness as readiness_mod
+    from readiness import ReadinessAction, ReadinessDecision
+
+# TSB abaixo disso conta como fadiga acumulada e dispara a adaptacao da sessao
+# de qualidade. Regra historica, inalterada pelo Passo A da #58 — o nome serve
+# para explicitar a precedencia contra a decisao de prontidao.
+TSB_ADAPT_LIMIT = -15
+
 START_TIME = "07:30:00"
 REST = "rest"
 DEFAULT_FTP = 182
@@ -512,22 +524,265 @@ def phase_weekly_template(state, periodization=None):
     return templates_by_phase[min(index, len(templates_by_phase) - 1)][1]
 
 
-def _readiness_unfavorable(readiness):
-    if not readiness or not getattr(readiness, "has_data", False):
+def _readiness_applies_on(decisao, day):
+    """O sinal de prontidao vale para o dia que ele DESCREVE, e so.
+
+    `decisao.applies_to_day` e o dia do ultimo registro de wellness. Uma
+    leitura descreve o dia em que foi medida; extrapola-la para um dia futuro
+    seria inventar um sinal. E a ancora que substitui um prazo de validade
+    arbitrario:
+
+    - leitura de hoje -> adapta a sessao de hoje;
+    - leitura de ontem -> nao toca na sessao de amanha;
+    - leitura de 9 dias atras -> nao toca em nada, porque o dia que ela
+      descreve ja passou e nao esta no plano.
+
+    `None` (decisao montada a mao, sem ancora) mantem o comportamento legado e
+    aplica onde for. O produtor sempre preenche o campo.
+
+    TSB NAO passa por aqui: a regra de TSB continua valendo para a primeira
+    sessao de qualidade do plano, como sempre.
+    """
+    alvo = getattr(decisao, "applies_to_day", None)
+    return alvo is None or alvo == day
+
+
+# --- Elegibilidade da sessao de hoje para a avaliacao de prontidao -----------
+# A avaliacao so pode agir sobre a sessao do dia que a LEITURA DESCREVE, e so
+# enquanto essa sessao nao comecou. Estas funcoes formalizam as tres perguntas
+# que a CLI precisa responder antes de tocar no plan.json:
+#
+#   1. o que o Intervals efetivamente sabe sobre esta sessao (estado);
+#   2. se a sessao e elegivel a uma intervencao (politica);
+#   3. qual proposta a intervencao produziria (motor unico).
+#
+# Elas moram aqui, e nao no CLI, porque `START_TIME` e o criterio de "feito"
+# (`paired_activity_id`, em `_done_and_extra`) ja sao politica deste modulo.
+
+QUALITY_FOCUSES = (FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2)
+
+# Estados de execucao, do mais ao menos infosso. `desconhecido` e o estado
+# honesto para "o horario planejado ja passou e o Intervals nao confirma a
+# realizacao": pode ser que o atleta esteja treinando com a sincronizacao
+# pendente, e tratar isso como "nao iniciado" seria reescrever uma sessao em
+# andamento.
+SESSAO_CONCLUIDA = "concluida"
+SESSAO_PUBLICADA = "publicada"
+SESSAO_NAO_PUBLICADA = "nao_publicada"
+SESSAO_SEM_IDENTIDADE = "sem_identidade"
+SESSAO_DESCONHECIDA = "estado_desconhecido"
+
+
+def session_execution_state(workout, events):
+    """O que o Intervals diz sobre a execucao desta sessao. Nada alem disso.
+
+    Reusa o criterio de `_done_and_extra`: um treino do plano so conta como
+    realizado quando o evento traz `paired_activity_id` (ou `activity_id`) E o
+    `external_id` e nosso. Sem isso, a ausencia de evento nao prova que o atleta
+    nao treinou — prova apenas que ainda nao sincronizou.
+    """
+    eid = (workout or {}).get("external_id")
+    if not eid:
+        return SESSAO_SEM_IDENTIDADE
+    achados = [e for e in (events or []) if e.get("external_id") == eid]
+    if any(e.get("paired_activity_id") or e.get("activity_id")
+           for e in achados):
+        return SESSAO_CONCLUIDA
+    if achados:
+        return SESSAO_PUBLICADA
+    return SESSAO_NAO_PUBLICADA
+
+
+def _planned_start(day_iso):
+    """Instante planejado da sessao: `START_TIME` na data do treino.
+
+    `START_TIME` ja e a hora que o `push` publica (via `event_payload`), entao
+    este e o horario real da sessao, nao uma suposicao nova.
+    """
+    return datetime.fromisoformat(f"{day_iso}T{START_TIME}")
+
+
+@dataclasses.dataclass(frozen=True)
+class ReadinessEligibility:
+    """Resposta as tres perguntas, para a CLI decidir o que fazer."""
+
+    workout: dict | None
+    state: str
+    eligible: bool
+    reason: str
+
+    @property
+    def day(self):
+        return self.workout["day"] if self.workout else None
+
+
+def readiness_eligibility(plan, events, today=None, now=None):
+    """A sessao de hoje aceita uma intervencao de prontidao?
+
+    Sequencia de filtros, na ordem em que cada um pode barrar:
+
+    - sem treino hoje            -> nada a adaptar;
+    - foco nao qualitativo       -> REDUCE/REPLACE so existe para qualidade;
+    - sem `external_id`          -> sem identidade, nada a confirmar depois;
+    - concluida                  -> preservada sempre (evidencia de que aconteceu);
+    - horario planejado ja passou e sem realizacao confirmada -> ESTADO
+      DESCONHECIDO: propoe, nao aplica (pode estar em andamento);
+    - caso contrario             -> nao iniciada, elegivel.
+
+    A data e a do sistema local (`date.today()`), que e o que o resto do projeto
+    usa: nao existe configuracao de fuso suportada, e criar uma seria uma
+    refatoracao global de datas fora do escopo deste passo. Ver a SPEC.
+    """
+    today = today or date.today()
+    now = now or datetime.now()
+    alvo = today.isoformat()
+    treino = next((w for w in (plan or []) if w["day"] == alvo), None)
+    if treino is None:
+        return ReadinessEligibility(None, "sem_sessao", False,
+                                    "hoje nao tem treino no plano")
+    if treino.get("focus") not in QUALITY_FOCUSES:
+        return ReadinessEligibility(treino, SESSAO_NAO_PUBLICADA, False,
+                                    f"o treino de hoje e {treino.get('focus')}, "
+                                    "nao uma sessao de qualidade")
+    estado = session_execution_state(treino, events)
+    if estado == SESSAO_CONCLUIDA:
+        return ReadinessEligibility(treino, estado, False,
+                                    "o treino de hoje ja foi realizado; "
+                                    "preservado")
+    if estado == SESSAO_SEM_IDENTIDADE:
+        return ReadinessEligibility(treino, estado, False,
+                                    "o treino de hoje nao tem external_id; "
+                                    "nao da para confirmar o estado")
+    inicio = _planned_start(alvo)
+    if now >= inicio:
+        return ReadinessEligibility(
+            treino, SESSAO_DESCONHECIDA, False,
+            f"o horario planejado ({inicio.strftime('%H:%M')}) ja passou e o "
+            "Intervals nao confirma a realizacao; pode haver treino em "
+            "andamento com sincronizacao pendente")
+    return ReadinessEligibility(treino, estado, True,
+                               "sessao de hoje ainda nao iniciada")
+
+
+def rebuild_workout(workout, params, ftp=DEFAULT_FTP):
+    """Reconstroi o registro do plano a partir de `params`, preservando identidade.
+
+    `planned_duration`, `name`, `tss` e `focus` sao DERIVADOS de `params`, entao
+    recalcula-los aqui e nao no CLI: um segundo lugar que recontaisses volume
+    seria um segundo motor de adaptacao, que e o que a SPEC proibe.
+    """
+    focus = params.focus
+    duration = sum((params.warmup_sec,
+                    params.repeats * (params.on_sec + params.off_sec),
+                    params.cooldown_sec))
+    novo = PlannedWorkout(
+        day=workout["day"], focus=focus, planned_duration=duration,
+        name=workout_name(workout["day"], focus),
+        params=_params_dict(params), tss=float(estimate_tss(params, ftp)),
+        external_id=workout["external_id"])
+    saida = _as_dict(novo)
+    # `hr_mode` nao vem de `params`: e uma marca de prescricao do registro
+    # original e precisa sobreviver a reconstrucao (ver `reconcile`).
+    if workout.get("hr_mode"):
+        saida["hr_mode"] = True
+    return saida
+
+
+def _readiness_dirige(state, day):
+    """A prontidao dirigiu a adaptacao deste dia, ou so o TSB agiu?
+
+    Distingue os dois casos porque o livro-razao do orcamento so deve preservar
+    o TSS pre-intervencao quando a PRONTIDAO foi a fonte da mudanca. Marcar
+    `readiness_agiu` pela simples presenca de `state.readiness` fazia uma decisao
+    `NONE` (que nao adapta nada) alterar o plano assim que o TSB agisse: o
+    registro usava `tss_pre` e a reducao por TSB devolvia menos teto do que
+    devolvia antes. Medido com TSB -30 e decisao NONE: carga total 173 -> 166.
+
+    Portanto: a prontidao dirigiu se e uma `ReadinessDecision`, se a acao e
+    adaptativa, se a leitura vale para este dia, e se o TSB nao forçou REPLACE.
+
+    A ultima condicao importa: com TSB abaixo do limite a acao ja e REPLACE por
+    TSB, e a prontidao nao dirigiu nada. Sem ela, uma decisao REDUCE inflava o
+    razao com o `tss_pre` do treino que o proprio TSB tinha substituido por Z2,
+    e cortava um dia seguinte que o plano de referencia nao cortava
+    (medido: 18/09 de 39 para 32), alem de reportar "aplicada" indevidamente.
+    """
+    if state.tsb < TSB_ADAPT_LIMIT:
         return False
-    return bool(getattr(readiness, "illness", False) or
-                any(getattr(readiness, "signals", {}).values()))
+    decisao = state.readiness
+    if not isinstance(decisao, ReadinessDecision):
+        return False
+    if not decisao.is_adaptive:
+        return False
+    return day is None or _readiness_applies_on(decisao, day)
 
 
-def _adapt_session(params, state):
-    """Troca somente qualidade por recuperacao quando o estado diario pede."""
+def _adapt_session(params, state, day=None):
+    """Adapta a sessao quando o estado diario pede. Duas fontes, uma so saida.
+
+    Fontes: TSB (regra historica, preservada como estava) e a decisao de
+    prontidao (issue #58 Passo A). **Precedencia: a regra mais restritiva
+    vence e nenhuma desfaz a outra.**
+
+    - TSB < -15            -> REPLACE (comportamento historico, inalterado)
+    - prontidao REPLACE    -> REPLACE, so no dia que o sinal descreve
+    - prontidao REDUCE     -> REDUCE, so no dia que o sinal descreve
+    - prontidao NONE       -> nao mexe
+
+    Nao existe "dupla reducao": a escalao e unica e ordenada, e REDUCE nunca
+    e aplicado sobre um REPLACE. `NONE` por prontidao nao impede a adaptacao
+    por TSB, porque as duas fontes sao avaliadas antes de escolher a acao.
+
+    O escopo por dia (`_readiness_applies_on`) vale **apenas para prontidao**.
+    `day` e o dia do plano em montagem, em ISO. Sem `day` (chamadores antigos),
+    a prontidao continua sem escopo e o comportamento e o de sempre.
+
+    `state.readiness` carrega um `ReadinessDecision` (ver
+    `readiness.readiness_decision`); `None` significa "sem avaliacao", e e o
+    que os chamadores antigos continuam passando.
+    """
     quality = (FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2)
-    needs_adaptation = state.tsb < -15 or _readiness_unfavorable(state.readiness)
-    if not needs_adaptation or params.focus not in quality:
+    tsb_forca_replace = state.tsb < TSB_ADAPT_LIMIT
+    decisao = state.readiness
+    acao_readiness = (decisao.action if isinstance(decisao, ReadinessDecision)
+                      else ReadinessAction.NONE)
+
+    if tsb_forca_replace:
+        acao = ReadinessAction.REPLACE
+    else:
+        # Escapa por dia: fora do dia que a leitura descreve, a prontidao nao
+        # vota. TSB acima ja estava descartado aqui.
+        acao = acao_readiness if (day is None or not isinstance(decisao, ReadinessDecision)
+                                  or _readiness_applies_on(decisao, day)) \
+            else ReadinessAction.NONE
+
+    if acao is ReadinessAction.NONE or params.focus not in quality:
         return params
-    return WorkoutParams(focus=FOCUS_ZONE2, repeats=1, on_sec=900, off_sec=0,
-                         on_power=0.70, off_power=0.70, cadence=90,
-                         cadence_rest=90)
+    if acao is ReadinessAction.REPLACE:
+        return readiness_mod.legacy_recovery_params()
+    return _reduce_for_readiness(params)
+
+
+def _reduce_for_readiness(params):
+    """REDUCE: um degrau da escada de volume-antes-potencia.
+
+    Reusa `_reduce_one_step` — a mesma escada e os mesmos fatores de
+    `_fit_budget` — para que reduzir por prontidao e reduzir por orcamento nao
+    possam divergir. Um degrau porque a magnitude nao esta calibrada: e uma
+    escolha de projeto, marcada como tal, e nao um percentual com lastro
+    cientifico (ver `docs/SPEC-passo-A-readiness.md`).
+
+    Garantias: preserva `focus`, tipo e ordem dos segmentos, nunca aumenta
+    intensidade nem duracao, e nunca baixa `on_power` abaixo do piso da zona.
+    Devolve o MESMO objeto quando nao ha o que reduzir, para o chamador
+    distinguir "adaptou" de "nao-adaptou" por identidade.
+    """
+    piso = zone_floor(params.focus)
+    repeats, on_sec, off_sec, on_power, mudou = _reduce_one_step(
+        params, piso, params.repeats, params.on_sec, params.off_sec, params.on_power)
+    if not mudou:
+        return params
+    return _apply_state(params, repeats, on_sec, off_sec, on_power)
 
 
 # Janela (dias) usada para derivar a carga media e, portanto, o teto semanal.
@@ -584,7 +839,10 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
                hr_mode=False, recovery_ramp=None, periodization=None,
-               readiness=None):
+               readiness=None, readiness_report=None):
+    # `readiness_report` e preenchido in-place para o CLI relatar o desfecho da
+    # avaliacao sem alterar o retorno (que e a lista de treinos, contrato).
+    readiness_report = {} if readiness_report is None else readiness_report
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -593,6 +851,14 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         if existing and today.weekday() in training_days:
             kept = [w for w in existing if w["day"] == today.isoformat()]
             if kept:
+                # A sessao de hoje vem do plano anterior, verbatim. Se a leitura
+                # de prontidao for sobre hoje, ela nao pode ser aplicada aqui:
+                # "preservar o treino de hoje" e contrato, e reescrever o treino
+                # de hoje seria contradize-lo. Registrado para o CLI explicar.
+                if isinstance(readiness, ReadinessDecision) and \
+                        readiness.applies_to_day == today.isoformat():
+                    readiness_report.setdefault("situacao",
+                                                "sessao_do_dia_preservada")
                 plan = [kept[0]]
                 recent = [(today, kept[0]["tss"])]
                 return plan + build_plan(events, tsb, ftp=ftp, days=days,
@@ -601,10 +867,11 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          goal=goal, race_date=race_date,
                                          ftp_test_date=ftp_test_date,
                                          weekly_hours=weekly_hours,
-                                          long_day=long_day, hr_mode=hr_mode,
-                                          recovery_ramp=recovery_ramp,
-                                          periodization=periodization,
-                                          readiness=readiness)
+                                         long_day=long_day, hr_mode=hr_mode,
+                                         recovery_ramp=recovery_ramp,
+                                         periodization=periodization,
+                                         readiness=readiness,
+                                         readiness_report=readiness_report)
     slots = sorted(training_days)
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
     avg = avg_load(events)
@@ -618,6 +885,9 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
     plan = []
     recent = []  # (day, tss) dos ultimos 7 dias
     adapted = False
+    notas = []
+    dias_do_plano = set()
+    dias_qualidade = set()
     for i in range(days):
         day = start + timedelta(days=i)
         if day.weekday() not in training_days:
@@ -632,13 +902,26 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
             params = WorkoutParams(focus=focus, **_block_for(focus, i, goal))
             params = _scale_duration(params, volume_scale)
             day_name = workout_name(day.isoformat(), focus)
+        # Issue #58 Passo A revisao 2: uma intervencao de prontidao nao pode
+        # devolver orcamento para os dias seguintes. `tss_pre` e a carga que a
+        # sessao teria sem a intervencao, e e ela que entra no livro-razon.
+        # O teto e um GUARDA-CHUVA, nao uma meta: ficar abaixo dele e correto,
+        # e "o atleta reduziu hoje, logo aguenta mais amanha" e exatamente a
+        # inferencia que nao se pode fazer a partir de um sinal de um dia so.
+        tss_pre = estimate_tss(params, ftp)
+        readiness_agiu = False
+        dias_do_plano.add(day.isoformat())
+        if params.focus in (FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2):
+            dias_qualidade.add(day.isoformat())
         if not adapted:
-            adjusted = _adapt_session(params, state)
+            adjusted = _adapt_session(params, state, day.isoformat())
             if adjusted is not params:
                 params = adjusted
                 focus = params.focus
                 day_name = workout_name(day.isoformat(), focus)
                 adapted = True
+                readiness_agiu = _readiness_dirige(state, day.isoformat())
+                notas.append((day.isoformat(), readiness_agiu))
         tss = estimate_tss(params, ftp)
         if tss > cap:
             factor = max(0.4, cap / tss)
@@ -656,10 +939,24 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
             params=_params_dict(params), tss=float(tss),
             external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
         ))
-        recent.append((day, tss))
+        recent.append((day, tss_pre if readiness_agiu else tss))
         while recent and day - recent[0][0] >= timedelta(days=7):
             recent.pop(0)
     plan = [_as_dict(w) for w in plan]
+    # Relatorio de aplicacao da prontidao. `build_plan` devolve a lista de
+    # treinos (contrato preservado), entao o desfecho vai por `readiness_report`,
+    # um dict que o chamador pode passar e que o motor preenche in-place. Sem
+    # ele, o CLI nao tem como dizer "a leitura nao foi aplicada porque..." em
+    # vez de ficar em silencio.
+    aplicada = [d for d, por_readiness in notas if por_readiness]
+    readiness_report.update({
+        "aplicada_em": aplicada,
+        "adaptacoes": len(notas),
+        "situacao": _readiness_situacao(
+            readiness, aplicada,
+            readiness_report.get("situacao") == "sessao_do_dia_preservada",
+            dias_do_plano, dias_qualidade),
+    })
     # Preparacao do teste de FTP: o ciclo do dia manda no teste, nao no
     # template. Protege as 48h antes (D-2 facil, D-1 spin), cria o evento do
     # teste (D0) e a recuperacao pos-teste (D+1).
@@ -673,6 +970,49 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         for w in plan:
             w["hr_mode"] = True
     return plan
+
+
+def _readiness_situacao(readiness, aplicada, preservada, dias_do_plano,
+                        dias_qualidade):
+    """Por que a leitura de prontidao foi ou nao aplicada. Sem isto, o CLI
+    ficaria em silencio quando um sinal ruim nao chega a tocar em nada, e o
+    atleta nao distinguiria "prontidao ok" de "prontidao ruim mas nada foi
+    adaptationado".
+
+    `situacao` e um rotulo estavel; o texto vem em `SITUACOES_READINESS`.
+    """
+    if not isinstance(readiness, ReadinessDecision):
+        return "sem_avaliacao"
+    if not readiness.is_adaptive:
+        return "nenhuma_adaptacao_necessaria"
+    if preservada:
+        return "sessao_do_dia_preservada"
+    alvo = readiness.applies_to_day
+    if alvo is None:
+        return "aplicada" if aplicada else "sem_ancora_de_dia"
+    if alvo in aplicada:
+        return "aplicada"
+    if alvo not in dias_do_plano:
+        return "dia_alvo_fora_do_plano"
+    if alvo in dias_qualidade:
+        return "outra_adaptacao_ocorreu_antes"
+    return "sem_sessao_de_qualidade_no_dia"
+
+
+SITUACOES_READINESS = {
+    "aplicada": "aplicada",
+    "sem_avaliacao": "sem avaliacao de recuperacao",
+    "nenhuma_adaptacao_necessaria": "nenhuma adaptacao necessaria",
+    "sem_ancora_de_dia": "aplicada (decisao sem ancora de dia)",
+    "dia_alvo_fora_do_plano": "leitura e de um dia fora do plano; "
+                              "nao foi transferida para outra sessao",
+    "sem_sessao_de_qualidade_no_dia": "o dia da leitura nao tem sessao de "
+                                       "qualidade; nada foi adaptado",
+    "outra_adaptacao_ocorreu_antes": "outra adaptacao ja tinha ocorrido antes "
+                                     "no mesmo plano",
+    "sessao_do_dia_preservada": "sessao do dia preservada do plano anterior; "
+                                "preservacao tem precedencia",
+}
 
 
 def _block_for(focus, slot, goal):
@@ -850,6 +1190,33 @@ def _protect_race(plan, race_date, training_days, start, days, ftp):
     return kept
 
 
+def _reduce_one_step(params, piso, repeats, on_sec, off_sec, on_power):
+    """Aplica UM degrau da escada de reducao e devolve o novo estado.
+
+    Escada de reducao (documentada em `_fit_budget`): volume antes de
+    intensidade, e `on_power` nunca abaixo do piso da zona. Extrair o degrau
+    permite que a reducao por prontidao use exatamente a mesma politica e os
+    mesmos fatores do ajuste por orcamento, sem duplicar numeros.
+
+    Devolve `(repeats, on_sec, off_sec, on_power, mudou)`.
+    """
+    if repeats > 1:
+        return repeats - 1, on_sec, off_sec, on_power, True
+    if on_sec > 120:
+        return repeats, max(120, int(on_sec * 0.8)), off_sec, on_power, True
+    if off_sec > 0:
+        return repeats, on_sec, max(0, int(off_sec * 0.8)), on_power, True
+    if piso is not None and on_power > piso:
+        return repeats, on_sec, off_sec, max(piso, round(on_power - 0.05, 2)), True
+    return repeats, on_sec, off_sec, on_power, False
+
+
+def _apply_state(params, repeats, on_sec, off_sec, on_power):
+    return WorkoutParams(**{**params.__dict__, "repeats": repeats,
+                            "on_sec": on_sec, "off_sec": off_sec,
+                            "on_power": on_power})
+
+
 def _fit_budget(params, tss, recent, budget, ftp):
     """Reduz a carga deste dia para que a soma rolante de 7 dias nao estoure o
     orcamento semanal, SEM quebrar a zona que o treino declara.
@@ -869,6 +1236,10 @@ def _fit_budget(params, tss, recent, budget, ftp):
     Sweet Spot" e o `focus` intactos. Isso e pior que estourar o teto: produz
     um treino nomeado que nao entrega a zona prometida, e ainda quebra a
     deteccao de active recovery (que se baseia em `on_power`).
+
+    A escada esta extraida em `_reduce_one_step` e e compartilhada com a
+    reducao por prontidao (`_adapt_session`), para que os dois caminhos
+    usem os mesmos fatores e o mesmo piso de zona.
     """
     used = sum(t for _, t in recent)
     if used + tss <= budget:
@@ -879,25 +1250,13 @@ def _fit_budget(params, tss, recent, budget, ftp):
     for _ in range(30):
         if used + tss <= budget:
             break
-        if repeats > 1:
-            # 1) corta um intervalo inteiro: volume sem mexer na intensidade
-            repeats -= 1
-        elif on_sec > 120:
-            # 2) encurta o trabalho dentro do intervalo
-            on_sec = max(120, int(on_sec * 0.8))
-        elif off_sec > 0:
-            # 3) encurta a recuperacao entre intervalos
-            off_sec = max(0, int(off_sec * 0.8))
-        elif piso is not None and on_power > piso:
-            # 4) so agora mexe na potencia, e nunca abaixo do piso da zona
-            on_power = max(piso, round(on_power - 0.05, 2))
-        else:
+        repeats, on_sec, off_sec, on_power, mudou = _reduce_one_step(
+            params, piso, repeats, on_sec, off_sec, on_power)
+        if not mudou:
             # 5) nao cabe sem sair da zona. O limite de zona vale mais que o
             #    teto: nao rebaixamos o estimulo para forcar a conta.
             break
-        params = WorkoutParams(**{**params.__dict__, "repeats": repeats,
-                                  "on_sec": on_sec, "off_sec": off_sec,
-                                  "on_power": on_power})
+        params = _apply_state(params, repeats, on_sec, off_sec, on_power)
         tss = estimate_tss(params, ftp)
     return params, tss
 

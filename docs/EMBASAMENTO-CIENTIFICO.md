@@ -68,7 +68,9 @@ não uma validação das constantes do Hermes: `0,95` no cap diário e o
 proximidade da prova definem fase e alvo semanal. `TrainingPlanState` mantém
 goal, fase, semanas, cargas, TSB e readiness, mas **TSB não troca fase nem
 template semanal**. TSB < −15 ou readiness desfavorável adaptam somente a
-primeira sessão de qualidade. Galán-Rioja et al. (2023) contextualizam
+primeira sessão de qualidade — com a diferença de que TSB < −15 e o alerta de
+possível doença trocam a sessão por uma prescrição leve, enquanto prontidão
+YELLOW apenas **reduz volume** preservando `focus` e zona (ver §9.1). Galán-Rioja et al. (2023) contextualizam
 periodização, distribuição e volume; a separação em camadas é decisão
 arquitetural, não afirmação de que limites de TSB determinem universalmente a
 fase fisiológica.
@@ -366,6 +368,115 @@ al., 2020; PMID 33143175).
 entre várias** e justifica o tratamento de não-respondedores. Não justifica
 prometer ganho de VO₂max, nem tratar um único sinal como veredito — o que é
 exatamente o que o código faz.
+
+### 9.1 Do readiness ao plano (issue #58, Passo A)
+
+**O que é medido.** `assess_readiness_assessment()`
+(`src/readiness.py`) é o produtor: wellness bruto do Intervals →
+`(ReadinessAssessment | None, trace)`. O Intervals expõe quatro métricas em
+`/wellness` — `restingHR`, `hrv`/`hrvSDNN`, `sleepSecs` e o `readiness` do
+próprio Intervals — e **três dos sete eixos** do modelo têm fonte real
+(`hrv_score`, `rhr_score`, `sleep_score`). Carga recente, fadiga subjetiva,
+desempenho e consistência **ficam `None`**: não têm fonte nesse endpoint.
+Cobertura máxima real: **3/7 ≈ 43%**.
+
+**Ausência não é neutra.** Eixo sem observação permanece `None`, nunca `0.5`.
+Preencher ausente com valor neutro rebaixaria a média de todo mundo e leria RED
+um atleta saudável. `confidence` é reportado como **cobertura** (fração de eixos
+observados), não confiança estatística, e **não há piso de cobertura**: um sinal
+ruim de fato observado não deve ser descartado por falta de eixos vizinhos.
+
+**Por que o readiness do Intervals não é um sétimo eixo.** Ele é um composto
+derivado de HRV, sono e RHR — as mesmas entradas já convertidas em eixo.
+Mapeá-lo contaria o mesmo dado duas vezes. Entra como sinal separado
+(`composite_low`), com o limiar legado `< 60`, capaz de sustentar `REDUCE`
+isolado.
+
+**Escala dos escores.** `saudável → 0.8`, `sinal ligado → 0.2`. **Heurística do
+sistema, sem lastro em literatura.** A justificativa é operacional: o limiar
+*poor* do modelo (`< 0.4`) fica no meio do intervalo entre eles, então qualquer
+outro par é tão arbitrário — e com esse par um sinal ruim isolado **não** vira
+RED. `ReadinessAssessment.level()` e `adjustments()` não foram modificados.
+
+**Política (`readiness_decision`).** Precedência da mais restritiva para a
+menos, sem regra que desfaça a anterior:
+
+| Condição | Ação |
+|---|---|
+| alerta de possível doença (RHR 2+ noites **E** HRV caindo) | `REPLACE` |
+| `level() == RED` (≥ 3 eixos `< 0.4` **E** média `< 0.5`) | `REPLACE` |
+| `level() == YELLOW` | `REDUCE` |
+| `composite_low` isolado | `REDUCE` |
+| nenhuma | `NONE` |
+| sem observação e sem alerta | `NONE`, motivo "dados indisponíveis" |
+
+**O alerta separado.** `_illness()` legado é reutilizado sem alteração. É uma
+conjunção observada, não uma média, então vence inclusive com `level()` GREEN e
+cobertura baixa — e o `level()` original é preservado no `ReadinessDecision`
+para auditoria. O alerta **não** rebaixa `rhr_score`/`hrv_score`: fazer isso
+contaria o mesmo dado duas vezes e criaria um RED que o detector nunca pediu.
+Sempre nomeado **alerta de possível doença/recuperação comprometida**; ausência
+de RHR ou HRV não permite inferir a conjunção.
+
+**Consequência no motor.** Sinal ruim isolado passou de `REPLACE` para
+`REDUCE` — deixa de trocar a sessão e passa a cortar volume, preservando `focus`
+e intensidade da zona. É a tradução direta de "um sinal isolado não cancela
+automaticamente uma sessão", que a evidência acima sustenta.
+
+**Limites declarados.** `REPLACE` mantém Z2 900 s, recurso conservador **de
+convenção**, não resposta validada para possível doença — treino leve não é
+garantia de adequação para ninguém. `REDUCE` aplica um degrau da escada de
+`_fit_budget` (volume antes de intensidade, `on_power` nunca abaixo do piso de
+`ZONE_BANDS`); a **magnitude não está calibrada**, e um degrau é escolha de
+projeto. O `build` continua exigindo `push` e aprovação explícita para
+publicar.
+
+**A redução não pode virar aumento.** `_fit_budget` decide sobre o TSS já
+planejado (`recent`), de modo que reduzir um dia devolveria teto aos seguintes.
+Medido: reduzir `14/09` de 37 para 27 TSS fazia `18/09` subir de `4x139` para
+`5x139`. Um sinal de recuperação de **um dia** não informa capacidade de
+absorver carga em outro dia, e a evidência acima não sustenta essa inferência.
+Quando uma intervenção de prontidão age, o livro-razão do orçamento recebe o
+TSS **pré-intervenção**, de modo que a pressão de orçamento fica idêntica à de
+um plano sem prontidão e **nenhum dia sai com carga maior** que a referência.
+O teto é guarda-chuva, não meta; ficar abaixo dele é correto. Progressão
+continua possível, mas como decisão separada e rastreável — nunca como efeito
+colateral da redução.
+
+O razão é **por fonte**: só entra o TSS pré-intervenção quando a prontidão
+**dirigiu** a mudança — decisão adaptativa, válida para o dia, e sem REPLACE
+forçado por TSB. Uma decisão `NONE` não adapta nada e por isso não pode alterar
+o plano; com TSB abaixo do limite quem age é o TSB, e o razão é o dele.
+
+**Horizonte: o sinal vale para o dia que descreve.** `ReadinessDecision`
+carrega `applies_to_day`, o dia do último registro de wellness. A intervenção
+só ocorre quando o dia do plano é esse dia. Isso substitui um prazo de
+validade arbitrário por uma âncora factual — uma leitura descreve o dia em que
+foi medida. Leitura de ontem não adapta a sessão de hoje; leitura antiga não
+penaliza nada; dia sem sessão de qualidade não recebe o sinal de outro dia. O
+CLI informa o motivo quando a leitura **não** é aplicada, para que um sinal
+ruim ignorado seja distinguível de prontidão boa.
+
+### 9.2 A leitura de hoje: quando pode agir
+
+**POLÍTICA DO SISTEMA.** A intervenção só alcança a sessão do dia que a leitura
+**descreve** (§9.1, ancoragem por dia). Para que isso valha no uso diário, a
+avaliação roda antes de o dia ser publicado: `check`, no script do timer
+(`check --apply` → `reconcile` → `push`).
+
+**Limite de evidência, não de conveniência.** Só se toca numa sessão que o
+Intervals **não** confirma como realizada. "Concluída" (evento com
+`paired_activity_id`, o mesmo critério que o `reconcile` já usava) é
+preservada. Acima do horário planejado sem realização confirmada, o estado é
+**desconhecido** e o comando **propõe sem aplicar**: o Intervals não
+distingue "começou e ainda não sincronizou" de "não começou", e tratar a
+ausência como "não iniciada" reescreveria uma sessão em andamento. Preferir
+não agir a reescrever o treino que o atleta está fazendo é a escolha
+conservadora correta, e a incerteza é declarada na saída em vez de escondida.
+
+Isto **não** é validação fisiológica: é uma política de não agir sobre
+informação que o sistema não tem. E o fuso horário não é configurável no
+projeto — a "data local do atleta" é a data local da máquina.
 
 ## 10. Adaptation State
 

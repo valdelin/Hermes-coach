@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -24,7 +24,8 @@ try:
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                       GOALS, adherence_report, _tsb_race_verdict,
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
-                      BUDGET_WINDOW_DAYS)
+                      BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
+                      readiness_eligibility, TSB_ADAPT_LIMIT)
     import ftp_scan
     import recovery
     import activity_summary
@@ -57,7 +58,8 @@ except ImportError:
                        PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                        GOALS, adherence_report, _tsb_race_verdict,
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
-                      BUDGET_WINDOW_DAYS)
+                      BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
+                      readiness_eligibility, TSB_ADAPT_LIMIT)
     from . import ftp_scan
     from . import recovery
     from . import activity_summary
@@ -364,15 +366,41 @@ def cmd_info(args):
         print(hr_hint)
 
 
-def cmd_check(args):
-    """Prontidao do dia (#31): le wellbeing, avalia sinais de recuperacao e
-    SUGERE (nunca impoe) trocar o treino de hoje por recuperacao leve.
+def _agora():
+    """Instante local usado para avaliar a sessao de hoje.
 
-    - Sem `--apply`: so reporta (TB de hoje + sinais + sugestao).
-    - Com `--apply`: se a sugestao for de troca, substitui o treino do dia no
-      plan.json por uma recuperacao Z2 curta e avisa para rodar `push`.
-    - Inicio de doenca (RHR 2+ noites + HRV caindo): alerta na tela e, se
-      COACH_WEBHOOK estiver no .env, envia o aviso ao treinador tambem.
+    Ponto unico de leitura do relogio, para que os testes possam congelar o
+    horario sem refatorar `date.today()` no resto do projeto. O projeto nao tem
+    configuracao de fuso suportada (ver `readiness_eligibility`), entao "local"
+    aqui e o horario local da maquina, que e o que todo o resto do motor usa.
+    """
+    return datetime.now()
+
+
+def cmd_check(args):
+    """Prontidao do dia (#31 / #58 Passo A): avalia a sessao de HOJE.
+
+    Este e o ponto de entrada diario da avaliacao. Ele existe desde a #31 como
+    "sugere uma troca", mas usava o motor legado (`assess_readiness` /
+    `suggest_swap` / `recovery_workout`), que trocava a sessao por Z2 900 s
+    diante de QUALQUER sinal ligado e nao checava se o treino ja tinha
+    acontecido. Agora:
+
+    - a decisao vem do mesmo motor do `build` (`readiness_decision` +
+      `_adapt_session`), entao `check` e `build` nao podem divergir;
+    - a leitura vale para o dia que ela DESCREVE, e nao e transferida;
+    - a sessao so e tocada se ainda nao tiver comecado, com base no que o
+      Intervals efetivamente informa (`readiness_eligibility`);
+    - `NONE` ou dado ausente nao mexem em nada.
+
+    Tres etapas, deliberadamente separadas:
+
+    1. PROPOSTA  — sempre calculada e impressa (inclusive sem `--apply`);
+    2. APLICACAO — so com `--apply`, e so se a sessao for elegivel. Escreve
+       apenas no `plan.json` local; `--dry-run` bloqueia essa escrita;
+    3. PUBLICACAO — nunca aqui. Continua sendo o `push`, comando separado.
+
+    O alerta de doenca e o `COACH_WEBHOOK` seguem como na #31.
     """
     client = get_client()
     ftp = get_ftp()
@@ -388,44 +416,138 @@ def cmd_check(args):
         print("TSB: sem metricas na janela.")
     wellness = client.wellness(oldest=oldest.isoformat(),
                                newest=newest.isoformat())
-    assessment = readiness.assess_readiness(wellness, days=args.days)
-    print(f"Prontidao: {assessment.reason}")
-    if not assessment.has_data:
-        print("Sem dados de wellness sincronizados para avaliar o dia.")
-        return
-    planned = None
+
+    # --- Etapa 0: estado da sessao de hoje -------------------------------
+    # Antes de qualquer leitura: se nao ha sessao elegivel hoje, nao ha o que
+    # avaliar, e a leitura NAO e transferida para amanha.
     try:
         plan = load_plan(PLAN_FILE)
     except FileNotFoundError:
         plan = []
-    today_w = next((w for w in plan if w["day"] == today.isoformat()), None)
-    if today_w:
-        print(f"Treino de hoje: {today_w['name']} "
-              f"({today_w['planned_duration'] // 60}m, "
-              f"TSS {today_w['tss']:.0f})")
+    elegibilidade = readiness_eligibility(plan, events, today=today,
+                                        now=_agora())
+    treino = elegibilidade.workout
+    if treino is not None:
+        print(f"Treino de hoje: {treino['name']} "
+              f"({treino['planned_duration'] // 60}m, "
+              f"TSS {treino['tss']:.0f})")
     else:
         print("Hoje nao tem treino no plano.")
-    swap, why = readiness.suggest_swap(assessment, today_w)
-    if swap:
-        print(f"SUGESTAO: {why}")
-    else:
-        print(f"Sem troca sugerida: {why}")
-    if assessment.illness:
+    print(f"Estado da sessao: {elegibilidade.state} ({elegibilidade.reason})")
+
+    # --- Etapa 1: proposta ------------------------------------------------
+    avaliacao, trace = readiness.assess_readiness_assessment(
+        wellness, days=args.days)
+    decisao = readiness.readiness_decision(
+        avaliacao, trace.illness_alert, trace.composite_low, trace.coverage,
+        trace.observations, reference_day=trace.reference_day)
+    print(f"Prontidao: {decisao.reason}")
+    if trace.illness_alert:
         print("ALERTA DE DOENCA: considere descanso e monitore amanha.")
-        _notify_coach_if_configured(assessment, today)
-    if swap and args.apply and today_w:
-        new_w = readiness.recovery_workout(today.isoformat(), ftp)
-        plan = [new_w if w["day"] == today.isoformat() else w for w in plan]
-        meta = load_plan_meta(PLAN_FILE)
-        save_plan(plan, PLAN_FILE, goal=meta["goal"],
-                  race_date=meta["race_date"],
-                  ftp_test_date=meta["ftp_test_date"],
-                  ftp_candidates=meta.get("ftp_candidates"))
-        print(f"Aplicado: {today_w['name']} -> {new_w['name']} "
-              f"(TSS {new_w['tss']:.0f}, {new_w['planned_duration'] // 60}m).")
-        print("Rode `push` para publicar a troca no calendario.")
-    elif swap and args.apply:
-        print("Nada a trocar hoje (sem treino no plano).")
+        # O payload de alerta da #31 fala do `Readiness` legado, entao o
+        # webhook continua recebendo aquele objeto. A DECISAO do Passo A e a
+        # que governa a sessao; as duas nao sao misturadas.
+        _notify_coach_if_configured(
+            readiness.assess_readiness(wellness, days=args.days), today)
+
+    if not decisao.is_adaptive:
+        print("Sem alteracao por prontidao: "
+              + ("nao ha dado de wellness para avaliar." if avaliacao is None
+                 else "a leitura nao pede adaptacao."))
+        return None
+
+    # Validade temporal: a leitura so vale para o dia que descreve.
+    if decisao.applies_to_day != today.isoformat():
+        quando = decisao.applies_to_day or "dia desconhecido"
+        print(f"Leitura de {quando} nao descreve hoje ({today.isoformat()}); "
+              "nao foi transferida para outra sessao.")
+        return None
+
+    if treino is None or not elegibilidade.eligible:
+        print(f"Proposta: nao aplicada — {elegibilidade.reason}.")
+        return None
+
+    # --- Etapa 1b: proposta concreta, pelo MESMO motor do build ------------
+    # Nao existe um segundo motor aqui. `check` chama `build_plan` com
+    # `start=hoje` e compara TRES versoes do mesmo dia:
+    #
+    #   sem   = build_plan(..., start=hoje, readiness=None)
+    #   com   = build_plan(..., start=hoje, readiness=decisao)
+    #   atual = o que esta no plan.json
+    #
+    # Isso resolve a cumulatividade por construcao: `build_plan` SEMPRE
+    # reconstrue o dia a partir do template, entao rodar `check --apply` duas
+    # vezes com a mesma leitura produz a MESMA proposta, e nao 38 -> 30 -> 22.
+    # E o default de `start=None` (amanha) fica intacto: quem pede hoje e
+    # explicitamente o `check`.
+    meta = load_plan_meta(PLAN_FILE)
+    comum = dict(ftp=ftp, days=1, start=today, existing=None,
+                 training_days=get_training_days(), goal=meta.get("goal"),
+                 race_date=meta.get("race_date"),
+                 ftp_test_date=meta.get("ftp_test_date"),
+                 weekly_hours=get_weekly_hours(), long_day=get_long_day(),
+                 hr_mode=bool(treino.get("hr_mode")),
+                 periodization=get_periodization())
+    tsb = metrics.tsb if metrics else 0.0
+    relatorio = {}
+    sem = build_plan(events, tsb, readiness=None, **comum)[0]
+    com = build_plan(events, tsb, readiness=decisao,
+                     readiness_report=relatorio, **comum)[0]
+    autor = ("prontidao" if relatorio.get("aplicada_em") else "TSB")
+
+    def _igual(a, b):
+        return (a["focus"] == b["focus"] and a["params"] == b["params"]
+                and abs(float(a["tss"]) - float(b["tss"])) < 1e-9)
+
+    if not relatorio.get("aplicada_em") or _igual(sem, com):
+        if not _igual(treino, sem) and tsb < TSB_ADAPT_LIMIT:
+            # A regra mais restritiva venceu e foi o TSB: a leitura nao
+            # acrescenta nada. Dizer isso e melhor que um "nada a alterar"
+            # opaco, porque o operador precisa saber que o TSB ja manda.
+            print(f"Proposta: nada atribuivel a prontidao — o TSB "
+                  f"({tsb:.0f}) ja determina a sessao de hoje "
+                  f"({sem['tss']:.0f} TSS). A leitura nao acrescenta nada e "
+                  "nao recebe credito no orcamento; `build` e a autoridade "
+                  "do TSB.")
+        else:
+            print("Proposta: nada a alterar.")
+        return None
+    if _igual(treino, com):
+        print("Proposta: ja aplicada a sessao de hoje; "
+              "reexecucoes com a mesma leitura nao reduzem de novo.")
+        return com
+    if not _igual(treino, sem):
+        # O plan.json diverge da reconstrucao sem prontidao, entao a diferenca
+        # NAO e atribuivel a leitura de hoje. Propoe e nao aplica.
+        print(f"Proposta: a sessao de hoje no plano ({treino['tss']:.0f} TSS) "
+              f"diverge da reconstrucao sem prontidao ({sem['tss']:.0f} TSS), "
+              "entao a diferenca nao e atribuivel a leitura de hoje. "
+              "Rode `build` para repor a base antes de aplicar.")
+        return com
+    print(f"PROPOSTA ({autor}): {treino['name']} -> {com['name']} "
+          f"(TSS {treino['tss']:.0f} -> {com['tss']:.0f}, "
+          f"{treino['planned_duration'] // 60}m -> "
+          f"{com['planned_duration'] // 60}m, "
+          f"foco {treino['focus']} -> {com['focus']}).")
+
+    # --- Etapa 2: aplicacao local, so com --apply -------------------------
+    if not getattr(args, "apply", False):
+        print("Nada foi gravado. Rode `check --apply` para gravar a proposta "
+              "no plan.json, ou `build` para repropor o plano inteiro.")
+        return com
+    if getattr(args, "dry_run", False):
+        print("[dry-run] proposta NAO gravada em "
+              f"{PLAN_FILE.name}; nada foi publicado.")
+        return com
+    novo_plano = [com if w["day"] == today.isoformat() else w for w in plan]
+    save_plan(novo_plano, PLAN_FILE, goal=meta["goal"],
+              race_date=meta["race_date"], ftp_test_date=meta["ftp_test_date"],
+              ftp_candidates=meta.get("ftp_candidates"))
+    print(f"Aplicado no {PLAN_FILE.name}: sessao de hoje ajustada por "
+          f"{autor}. O plano NAO foi publicado no calendario.")
+    print("Rode `push` para publicar. A proposta so vai ao calendario por "
+          "essa etapa explicita.")
+    return com
 
 
 def _notify_coach_if_configured(assessment, today):
@@ -597,6 +719,17 @@ def cmd_build(args):
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
     metrics = latest_metrics(events)
     tsb = metrics.tsb if metrics else 0.0
+    # Issue #58 Passo A: uma unica leitura de wellness alimenta a avaliacao de
+    # prontidao que decide a adaptacao do plano. Antes, o `build` nunca
+    # consultava wellness e o gate de prontidao ficava inalcancavel.
+    wellness = client.wellness(oldest=oldest.isoformat(),
+                               newest=newest.isoformat())
+    avaliacao, trace = readiness.assess_readiness_assessment(wellness,
+                                                             days=args.days)
+    decisao = readiness.readiness_decision(
+        avaliacao, trace.illness_alert, trace.composite_low, trace.coverage,
+        trace.observations, reference_day=trace.reference_day)
+    readiness_report = {}
     try:
         existing = load_plan(PLAN_FILE)
     except FileNotFoundError:
@@ -633,13 +766,22 @@ def cmd_build(args):
                       goal=goal, race_date=race_date, ftp_test_date=ftp_test_date,
                       weekly_hours=weekly_hours, long_day=long_day,
                       hr_mode=hr_mode, recovery_ramp=recovery_ramp,
-                      periodization=periodization)
-    # Preserva candidatos de FTP ja registrados na meta (issue #6): o build
-    # nao deve apagar o rastro de um ftp-scan anterior.
-    existing_meta = load_plan_meta(PLAN_FILE)
-    save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date,
-              ftp_test_date=ftp_test_date,
-              ftp_candidates=existing_meta.get("ftp_candidates"))
+                      periodization=periodization, readiness=decisao,
+                      readiness_report=readiness_report)
+    dry_run = bool(getattr(args, "dry_run", False))
+    if dry_run:
+        # `--dry-run` mostra a proposta (ja adaptada) e NAO toca em disco.
+        # Publicacao e sempre um comando separado (`push`), que continua
+        # exigindo aprovacao explicita; aqui nao ha nada a publicar.
+        print(f"[dry-run] plano adaptado nao seria gravado em {PLAN_FILE.name}; "
+              "nada foi publicado.")
+    else:
+        # Preserva candidatos de FTP ja registrados na meta (issue #6): o build
+        # nao deve apagar o rastro de um ftp-scan anterior.
+        existing_meta = load_plan_meta(PLAN_FILE)
+        save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date,
+                  ftp_test_date=ftp_test_date,
+                  ftp_candidates=existing_meta.get("ftp_candidates"))
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     avail = []
     if weekly_hours:
@@ -656,6 +798,7 @@ def cmd_build(args):
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
     test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""
     print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
+    _print_readiness_decision(decisao, trace, dry_run, readiness_report)
     if ramp_label:
         print(ramp_label)
     if hr_mode:
@@ -671,6 +814,63 @@ def cmd_build(args):
     if goal == "race" and race_date:
         _print_race_tsb_projection(events, plan, metrics, race_date)
     return plan
+
+
+def _print_readiness_decision(decisao, trace, dry_run=False, report=None):
+    """Explica a decisao de prontidao que moldou o plano (issue #58 Passo A).
+
+    Explicito por tres razoes:
+
+    1. **Rastreabilidade.** O atleta ve a cobertura e os eixos realmente
+       observados, nao so um veredito. Ele precisa distinguir "prontidao ruim"
+       de "nao ha sensor".
+    2. **Legibilidade da adaptacao.** Um plano com `3x480s` onde antes havia
+       `4x480s` parece um bug sem esta linha. Aqui ela diz que foi reducao de
+       volume por prontidao, em que dia, e que os demais dias nao mudaram.
+    3. **Limite do motor.** O alerta de possivel doenca aparece como ALERTA,
+       nunca como "diagnostico", e o aviso e explicito: uma sessao leve nao e
+       garantia de adequacao para ninguem. O texto e um recurso conservador de
+       convencao, nao prescricao clinica.
+
+    Quando a leitura NAO foi aplicada, a linha diz o motivo. Sem isso, um sinal
+    ruim que nao chega a tocar em nada seria indistinguivel de "prontidao boa".
+
+    Nao altera `plan.json`: o motivo e saida de CLI, para nao mexer no formato
+    persistido.
+    """
+    verbos = {"none": "sem", "reduce": "REDUZIDO", "replace": "TROCA"}
+    print(f"Prontidao: {verbos[decisao.action.value]} | {decisao.reason}")
+    if trace.reference_day:
+        print(f"  leitura de {trace.reference_day}")
+    if trace.observations:
+        eixos = ", ".join(
+            f"{o.axis.split('_')[0]} {'ruim' if o.flagged else 'ok'}"
+            for o in trace.observations)
+        print(f"  eixos observados: {eixos} "
+              f"(cobertura {decisao.coverage:.0%} de 7; "
+              f"{len(trace.missing)} sem fonte hoje)")
+    elif trace.missing:
+        print(f"  cobertura {decisao.coverage:.0%} de 7 eixos: sem fonte "
+              "(Leitura, carga recente, percepcao e consistencia sao derivadas, "
+              "nao chegam em /wellness).")
+    if trace.stale_days is not None and trace.stale_days > 1:
+        print(f"  atencao: ultimo registro ha {trace.stale_days} dias; a "
+               "janela pode nao refletir o estado de hoje.")
+    if decisao.illness_alert:
+        print("  ALERTA: possivel doenca/recuperacao comprometida. Esto nao e "
+              "diagnostico. Treino leve nao e garantia de adequacao para ninguem; "
+              "avalia com quem te acompanha antes de treinar.")
+    if decisao.is_adaptive:
+        aplicada_em = (report or {}).get("aplicada_em") or []
+        situacao = (report or {}).get("situacao", "aplicada")
+        texto = SITUACOES_READINESS.get(situacao, situacao)
+        if situacao == "aplicada" and aplicada_em:
+            print(f"  efeito: {texto} em {', '.join(aplicada_em)}; os demais "
+                  "dias nao ganharam carga.")
+        else:
+            print(f"  efeito: nao aplicada — {texto}.")
+    if dry_run and decisao.is_adaptive:
+        print("  (dry-run: proposta acima, nada gravado)")
 
 
 def _print_race_tsb_projection(events, plan, metrics, race_date):
@@ -1164,6 +1364,16 @@ def cmd_push(args):
 
 
 def cmd_all(args):
+    # Issue #58 Passo A: `all --dry-run` precisa parar depois do build. Sem
+    # isso, `reconcile` e `push` leriam o plan.json ANTIGO (o build dry-run nao
+    # grava) e reconciliariam o calendario contra um plano que nunca foi
+    # gerado -- um relato de mudancas que nao existem.
+    if getattr(args, "dry_run", False):
+        cmd_build(args)
+        print("dry-run: encerrando apos build. Apenas o planejamento foi "
+              "simulado; a reconciliacao nao foi executada nem simulada, e "
+              "nada foi publicado ou gravado.")
+        return
     cmd_build(args)
     cmd_reconcile(args)
     cmd_push(args)
@@ -1198,8 +1408,11 @@ def main(argv=None):
     p_check.add_argument("--days", type=int, default=14,
                          help="Janela de wellness a considerar (dias)")
     p_check.add_argument("--apply", action="store_true",
-                         help="Aplica a troca sugerida (recuperacao leve) no "
-                              "plan.json; rode `push` para publicar")
+                         help="Grava a proposta de prontidao no plan.json "
+                              "(ainda nao publica); rode `push` para publicar")
+    p_check.add_argument("--dry-run", action="store_true",
+                         help="Mostra a proposta de prontidao sem gravar no "
+                              "plan.json e sem publicar")
     p_check.set_defaults(func=cmd_check)
 
     p_per = sub.add_parser(
@@ -1284,6 +1497,10 @@ def main(argv=None):
     p_build.add_argument("--no-power", action="store_true",
                          help="Prescricao sem medidor de potencia: alvos em "
                               "%%FTHR + RPE (exige FTHR no .env)")
+    p_build.add_argument("--dry-run", action="store_true",
+                         help="Mostra o plano proposto (ja adaptado pela "
+                              "prontidao) sem gravar em plan.json e sem "
+                              "publicar nada")
     p_build.set_defaults(func=cmd_build)
 
     p_rec = sub.add_parser("reconcile",
@@ -1305,6 +1522,10 @@ def main(argv=None):
                        help="Agenda o Ramp Test (FTP) e protege as 48h antes")
     p_all.add_argument("--no-power", action="store_true",
                        help="Prescricao sem medidor de potencia (%%FTHR + RPE)")
+    p_all.add_argument("--dry-run", action="store_true",
+                         help="Mostra o plano proposto (ja adaptado pela "
+                              "prontidao) sem gravar nem publicar; encerra "
+                              "depois do build")
     p_all.add_argument("--recovery", action="store_true",
                        help="Orca o plano pelos tetos da rampa de retorno a forma")
     p_all.add_argument("--ramp-pts", type=int, default=9,

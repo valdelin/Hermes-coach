@@ -150,9 +150,12 @@ Preparação: `cp .env .env.bak` e edite `.env` entre os cenários.
 - [x] **LONG_DAY inválido** → aviso no `build`, sem alteração de posição.
 - [x] **Sem as variáveis** → comportamento atual preservado.
 - [x] **build preserva o treino de hoje** ao regerar o plano. → **BUG #7**:
-      esse caminho **descarta `WEEKLY_HOURS`/`LONG_DAY`** na recursão
-      (`src/plan.py:373-376`) — scaling de disponibilidade não é aplicado
-      silenciosamente quando o plano já tem o treino de hoje.
+      esse caminho **descartava `WEEKLY_HOURS`/`LONG_DAY`** na recursão
+      (a recursão de `build_plan`, agora em `src/plan.py` — a referência
+      original por número de linha apodreceu com as inserções; use o símbolo)
+      — scaling de disponibilidade não era aplicado silenciosamente quando o
+      plano já tinha o treino de hoje. **Corrigido**: a recursão hoje repassa
+      `weekly_hours` e `long_day`.
 - [x] **GOAL=race sem `RACE_DATE`** → o `build` pergunta a data alvo (obrigatória)
       e recusa data passada/inválida.
 - [x] **GOAL=race com prova próxima** → últimos 7 dias viram **Taper (pre-prova)**.
@@ -299,8 +302,10 @@ Procurar ativamente (registrar mesmo o que for "menor"):
    CLI rejeita data inválida/passada).
 
 **Bugs encontrados na sessão:**
-- **#7** (funcional): build preserva treino de hoje → ignora
-  `WEEKLY_HOURS`/`LONG_DAY` (`plan.py:373-376`).
+- **#7** (funcional): build preserva treino de hoje → ignorava
+  `WEEKLY_HOURS`/`LONG_DAY` na recursão de `build_plan`. **Corrigido** — a
+  recursão repassa `weekly_hours` e `long_day` (a referência por linha
+  `plan.py:373-376` deste log está obsoleta; apontar pelo símbolo).
 - **#8** (baixo impacto): reconcile regrava `plan.json` sem meta
   (`training_plan.py::cmd_reconcile` → `save_plan` sem goal); vai ficar
   funcional com a #6.

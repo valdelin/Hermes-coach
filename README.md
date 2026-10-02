@@ -44,7 +44,7 @@ hermes-coach/
 │   ├── vo2_generator.py               # gerador VO2max estruturado (progressão por dimensão)
 │   ├── zone_intent.py                 # intenção e dose por família (a potência não decide a zona)
 │   └── training_plan.py               # CLI (info/model/build/adherence/recovery/summary/reconcile/push)
-├── tests/                             # 712 testes (stdlib unittest)
+├── tests/                             # 788 testes (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
 
@@ -214,10 +214,18 @@ calendario.
 
 **Plano e cargas**
 - `info` — TSB/CTL/ATL atuais no Intervals.icu.
-- `check` — **prontidão do dia** (wellness + sinais de recuperação): sugere
-  (nunca impõe) trocar o treino de hoje por recuperação Z2 curta (`--apply`
-  aplica no `plan.json`, depois `push`); detecta início de doença (RHR subindo
-  + HRV caindo) e avisa o treinador via `COACH_WEBHOOK` se configurado.
+- `check` — **prontidão do dia**: avalia a sessão de **hoje** e propõe um
+  ajuste. Usa o mesmo motor do `build`, então os dois não divergem. A leitura
+  vale **para o dia que ela descreve** — não é transferida para outra sessão.
+  Só toca a sessão se ela **ainda não começou**: se já foi realizada, é
+  preservada; se o horário planejado já passou e o Intervals não confirma a
+  realização, o estado é **desconhecido** e o comando **propõe sem aplicar**
+  (o Intervals não distingue "começou e não sincronizou" de "não começou").
+  Fases separadas: `check` só **imprime a proposta**; `check --apply` grava no
+  `plan.json` local; **só o `push` publica** no calendário. `--dry-run` não
+  grava nem publica. Detecta início de doença (RHR subindo + HRV caindo) e
+  avisa o treinador via `COACH_WEBHOOK` se configurado. Roda automaticamente no
+  fluxo diário (ver *Automação diária*).
 - `periodization` — explica os 5 modelos de periodização (polarized, pyramidal,
   undulating, linear, block) em linguagem de atleta e sugere o melhor para o
   `GOAL`/TSB atual (`--model NOME` detalha um); não altera nada.
@@ -228,8 +236,24 @@ calendario.
   (#19): ora cada semana pelos **tetos da rampa de retorno a forma** — consulta
   todo o histórico real, usa a prescrição do `recovery` (mesma rampa `--ramp-pts`
   e `--recovery-weeks`, deload a cada 4 semanas) como orçamento em vez do padrão.
-  Com `GOAL=race` dentro do horizonte, mostra a **projecao de TSB no dia da
-  prova**.
+Com `GOAL=race` dentro do horizonte, mostra a **projecao de TSB no dia da
+   prova**.
+- **Prontidão no `build`** — o `build` lê o wellness do Intervals (`restingHR`,
+  `hrv`, `sleepSecs`) e avalia HRV, RHR e sono; carga recente, fadiga
+  subjetiva, desempenho e consistência **não têm fonte nesse endpoint** e ficam
+  sem observação (cobertura 3/7). O que a avaliação faz com o plano:
+  - sinal isolado ruim → **reduz volume**, preservando o `focus` e a zona;
+  - três eixos ruins + média baixa, ou o alerta de possível doença (RHR subindo
+    2+ noites **e** HRV caindo) → troca a sessão de qualidade por uma leve;
+  - sem leitura → **nada muda**, e o CLI diz que os dados estão indisponíveis.
+  A leitura vale **para o dia que ela descreve** (o último registro de
+  wellness): não é transferida para outra sessão, e uma leitura antiga não
+  penaliza dias futuros. Reduzir hoje **não** aumenta a carga de amanhã — o
+  orçamento é julgado pela carga anterior à intervenção. O motivo, a cobertura,
+  os eixos observados e **por que a leitura foi ou não aplicada** são impressos
+  junto do plano. Ausência de dado nunca vira sinal ruim. **`--dry-run`** mostra
+  a proposta adaptada sem gravar `plan.json` nem publicar; `all --dry-run`
+  simula **apenas** o planejamento e encerra antes de reconciliar.
 - `adherence` — cumprimento semanal do plano: treinos feito/perdido/pendente e
   % de conclusão.
 - `recovery` — **retorno a forma**: varre todo o histórico real do Intervals
@@ -354,14 +378,22 @@ Testes:
 ```
 python3 -m unittest discover -s tests -v
 ```
-(712 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+(788 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
 
 ## Automacao diaria (opcional)
 
 O fluxo completo pode rodar automaticamente a meia-noite, sem depender do
 Hermes/opencode:
 - **Timer do systemd** `cycling-coach-daily.timer` dispara
-  `scripts/daily_reconcile.sh` (reconcile + push do dia).
+  `scripts/daily_reconcile.sh`, que roda **três** passos: `check --apply`
+  (prontidão do dia, grava só no `plan.json`), `reconcile` e `push` do dia.
+  A prontidão vem **antes** porque o `push` publica a sessão de hoje — é a
+  única janela em que a leitura de hoje ainda pode mudar o plano.
+  O timer roda às **05:30** (não à meia-noite): o dispositivo sincroniza o
+  wellness de madrugada, e a sessão começa às 07:30, então essa é a janela em
+  que a leitura do dia já existe e a sessão ainda pode ser tocada. Se a máquina
+  estiver dormindo, `Persistent=true` roda o catch-up ao acordar — e se já
+  passou das 07:30, o `check` não aplica.
 - O log fica em `logs/daily_reconcile.log`.
 - **Alerta de falha:** se qualquer passo falhar, o script emite uma
   notificacao no desktop (`notify-send`) e sai com codigo != 0 — assim uma
