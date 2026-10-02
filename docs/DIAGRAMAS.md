@@ -571,7 +571,7 @@ stateDiagram-v2
 
 ## Notas
 
-- Diagramas gerados a partir do código real (`src/*.py`, suíte 793 OK) — não são
+- Diagramas gerados a partir do código real (`src/*.py`, suíte 803 OK) — não são
   genéricos. Se o código mudar, atualize aqui junto.
 - Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli
   (`npx @mermaid-js/mermaid-cli -i X.mmd -o X.png -b white -s 1`, com
