@@ -23,6 +23,7 @@ from src.coach import (WorkoutParams, estimate_tss, zone_floor, zone_ceiling,
                        FOCUS_ZONE2_ENDURANCE, FOCUS_ZONE3_TEMPO,
                        FOCUS_ZONE4_LIMIAR, FOCUS_ZONE5_VO2MAX,
                        FOCUS_ZONE6_ANAEROBICA, FOCUS_ENDURANCE)
+from src.zone_intent import ENDURANCE, SWEET_SPOT, THRESHOLD
 
 
 def _Data(fixa):
@@ -104,6 +105,68 @@ class BuildPlanTest(unittest.TestCase):
         p2, tss2 = _fit_budget(p, tss, recent, budget=160, ftp=182)
         self.assertLess(estimate_tss(p2, 182), tss,
                         "carga deveria cair para caber no orcamento")
+
+
+class ZoneIntentBuildGuardrailTest(unittest.TestCase):
+    def test_focos_suportados_resolvem_pelo_focus(self):
+        expected = {
+            FOCUS_ZONE2: ENDURANCE,
+            FOCUS_ENDURANCE: ENDURANCE,
+            FOCUS_SWEETSPOT: SWEET_SPOT,
+            FOCUS_THRESHOLD: THRESHOLD,
+        }
+        for focus, profile in expected.items():
+            with self.subTest(focus=focus):
+                self.assertIs(src.plan._validate_zone_intent(
+                    focus, WorkoutParams(focus=focus)), profile)
+
+    def test_vo2max_nao_tem_perfil_e_nao_bloqueia_build(self):
+        self.assertIsNone(src.plan._validate_zone_intent(
+            FOCUS_VO2, WorkoutParams(focus=FOCUS_VO2)))
+        plan = build_plan([], 0, ftp=182, days=5,
+                          start=date(2026, 9, 14))
+        self.assertTrue(plan)
+
+    def test_build_resolve_a_intencao_de_cada_workout(self):
+        with mock.patch.object(src.plan.zone_intent, "describe",
+                               wraps=src.plan.zone_intent.describe) as describe:
+            plan = build_plan([], 0, ftp=182, days=5,
+                              start=date(2026, 9, 14))
+        self.assertEqual([call.args[0] for call in describe.call_args_list],
+                         [workout["focus"] for workout in plan])
+
+    def test_sobreposicao_usa_focus_e_nao_on_power(self):
+        self.assertIs(src.plan._validate_zone_intent(
+            FOCUS_SWEETSPOT,
+            WorkoutParams(focus=FOCUS_SWEETSPOT, on_power=0.94)), SWEET_SPOT)
+        self.assertIs(src.plan._validate_zone_intent(
+            FOCUS_THRESHOLD,
+            WorkoutParams(focus=FOCUS_THRESHOLD, on_power=0.94)), THRESHOLD)
+
+    def test_focus_e_params_focus_divergentes_falham(self):
+        with self.assertRaises(ValueError):
+            src.plan._validate_zone_intent(
+                FOCUS_SWEETSPOT, WorkoutParams(focus=FOCUS_THRESHOLD))
+
+    def test_guardrail_nao_altera_plano_nem_payload(self):
+        args = ([], 0)
+        kwargs = {"ftp": 182, "days": 5, "start": date(2026, 9, 14)}
+        with mock.patch.object(src.plan, "_validate_zone_intent",
+                               return_value=None):
+            before = build_plan(*args, **kwargs)
+        after = build_plan(*args, **kwargs)
+
+        self.assertEqual(after, before)
+        self.assertEqual([event_payload(workout, ftp=182) for workout in after],
+                         [event_payload(workout, ftp=182) for workout in before])
+        for actual, expected in zip(after, before):
+            self.assertEqual(actual["focus"], expected["focus"])
+            self.assertEqual(actual["params"]["focus"], expected["params"]["focus"])
+            self.assertEqual(actual["params"]["on_power"], expected["params"]["on_power"])
+            self.assertEqual(actual["params"]["on_sec"], expected["params"]["on_sec"])
+            self.assertEqual(actual["params"]["repeats"], expected["params"]["repeats"])
+            self.assertEqual(actual["params"]["off_sec"], expected["params"]["off_sec"])
+            self.assertEqual(actual["tss"], expected["tss"])
 
 
 class TrainingDaysTest(unittest.TestCase):

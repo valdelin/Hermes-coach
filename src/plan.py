@@ -14,9 +14,11 @@ except ImportError:
 try:
     from . import readiness as readiness_mod
     from .readiness import ReadinessAction, ReadinessDecision
+    from . import zone_intent
 except ImportError:  # pragma: no cover - execucao como script solto
     import readiness as readiness_mod
     from readiness import ReadinessAction, ReadinessDecision
+    import zone_intent
 
 # TSB abaixo disso conta como fadiga acumulada e dispara a adaptacao da sessao
 # de qualidade. Regra historica, inalterada pelo Passo A da #58 — o nome serve
@@ -835,6 +837,19 @@ def _recovery_budget(recovery_ramp, day_index, default):
     return recovery_ramp[min(day_index // 7, len(recovery_ramp) - 1)]
 
 
+def _validate_zone_intent(focus, params):
+    """Resolve a familia semantica declarada pelo foco, sem prescrever nada.
+
+    Focos fora das familias atuais (como VO2max) seguem pelo fluxo existente.
+    """
+    if params.focus != focus:
+        raise ValueError("focus e params.focus precisam declarar a mesma intencao")
+    try:
+        return zone_intent.describe(focus)
+    except KeyError:
+        return None
+
+
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
@@ -922,6 +937,9 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                 adapted = True
                 readiness_agiu = _readiness_dirige(state, day.isoformat())
                 notas.append((day.isoformat(), readiness_agiu))
+        # A intencao e derivada do foco final. O perfil nao entra no workout,
+        # preservando `focus` como a unica fonte de verdade publicada.
+        _validate_zone_intent(focus, params)
         tss = estimate_tss(params, ftp)
         if tss > cap:
             factor = max(0.4, cap / tss)
