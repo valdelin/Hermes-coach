@@ -11,6 +11,14 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.35] - 2026-10-02
+
+Camada algorítmica: gerador VO2max, intenção de zona, embasamento
+reestruturado em contrato testado e a suíte de regressão que fecha o
+ciclo. **Nenhuma mudança em `ZONE_BANDS`, `plan.json`, valores de `focus` ou
+na publicação no Intervals.icu** — os módulos novos continuam isolados do
+fluxo `build`/`push` (ver limitações).
+
 ### Adicionado
 - **Suíte de regressão científica** (`tests/scientific/`) — 222 testes em nove
   módulos, um por contrato algorítmico do embasamento: `test_training_load`
