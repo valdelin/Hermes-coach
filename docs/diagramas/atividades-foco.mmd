@@ -1,26 +1,52 @@
 %% Fonte canonica: docs/diagramas/atividades-foco.mmd (repo).
 %% Espelho em 01-Projetos/cycling-coach/atividades-foco.mmd (vault) - nao editar la.
 %% PNG exportado: atividades-foco.png. Editar no repo e copiar. Ver docs/DIAGRAMAS.md.
+%% Dois blocos, em ordem: `build` monta o plano e grava plan.json; `check --apply`
+%% entra depois e reescreve SO o plan.json; `push` publica. O `build` nao le
+%% wellness. Sem leitura no .env ou sem dia elegivel, a decisao e NONE e nada e
+%% adaptado. `all` de proposito nao chama `check` (reconciliaria contra o plano
+%% antigo).
 flowchart TD
-    A["GET /events (histórico)"] --> B["latest_metrics → TSB atual"]
-    B --> C{"PERIODIZATION no .env?"}
-    C -- "sim" --> D["PERIODIZATION_TEMPLATES[p]<br/>(polarized|pyramidal|undulating|linear|block)"]
-    C -- "não" --> E{"GOAL no .env?"}
-    E -- "não" --> F["WEEKLY_BY_TSB<br/>(padrão por TSB)"]
-    E -- "sim" --> G["GOAL_TEMPLATES[goal]<br/>(ex.: race exige RACE_DATE)"]
+    subgraph BUILD["1. build — monta o plano (não lê wellness)"]
+        direction TB
+        A["GET /events (histórico)"] --> B["latest_metrics → TSB atual"]
+        B --> C{"PERIODIZATION no .env?"}
+        C -- "sim" --> D["PERIODIZATION_TEMPLATES[p]<br/>(polarized|pyramidal|undulating|linear|block)"]
+        C -- "não" --> E{"GOAL no .env?"}
+        E -- "não" --> F["WEEKLY_BY_TSB<br/>(padrão por TSB)"]
+        E -- "sim" --> G["GOAL_TEMPLATES[goal]<br/>(ex.: race exige RACE_DATE)"]
+        D --> H["escolhe template semanal<br/>pela faixa de TSB"]
+        F --> H
+        G --> H
+        H --> I["preenche slots de TREINO<br/>(TRAINING_DAYS)"]
+        I --> J{"WEEKLY_HOURS?"}
+        J -- "sim" --> K["escala on_sec<br/>(0.5x–1.5x, min 120s)"]
+        J -- "não" --> L["sem ajuste de volume"]
+        K --> M{"LONG_DAY?"}
+        L --> M
+        M -- "sim" --> N["rotaciona ciclo → treino longo<br/>no dia preferido (ou mais próximo)"]
+        M -- "não" --> O["posição natural do foco"]
+        N --> P["_fit_budget: TSS 7d ≤ cap×7<br/>(encurta on_sec, depois on_power)"]
+        O --> P
+        P --> Q["grava plan.json<br/>(preserva treino de hoje + meta)"]
+    end
 
-    D --> H["escolhe template semanal<br/>pela faixa de TSB"]
-    F --> H
-    G --> H
-    H --> I["preenche slots de TREINO<br/>(TRAINING_DAYS)"]
-    I --> J{"WEEKLY_HOURS?"}
-    J -- "sim" --> K["escala on_sec<br/>(0.5x–1.5x, min 120s)"]
-    J -- "não" --> L["sem ajuste de volume"]
-    K --> M{"LONG_DAY?"}
-    L --> M
-    M -- "sim" --> N["rotaciona ciclo → treino longo<br/>no dia preferido (ou mais próximo)"]
-    M -- "não" --> O["posição natural do foco"]
-    N --> P["_fit_budget: TSS 7d ≤ cap×7<br/>(encurta on_sec, depois on_power)"]
-    O --> P
-    P --> Q["salva plan.json<br/>(preserva treino de hoje + meta)"]
-    Q --> R["push → POST /events/bulk?upsert=true<br/>(limpa órfãos antes)"]
+    subgraph CHECK["2. check --apply — depois do build, antes do push"]
+        direction TB
+        RD["GET /wellness (janela 7d)<br/>+ sport-settings"]
+        RD --> RA["readiness_assessment.py<br/>7 eixos · ausência = None<br/>coverage = observados / 7"]
+        RA --> RL{"level()"}
+        RL -- "GREEN" --> RN["NONE<br/>plano intacto"]
+        RL -- "YELLOW" --> RU["REDUCE"]
+        RL -- "RED" --> RP2["REDUCE<br/>(alerta de doença pode virar REPLACE)"]
+        RU --> RE["_reduce_for_readiness<br/>preserva focus, tipo e ordem dos segmentos<br/>reduz volume ANTES de intensidade<br/>nunca abaixo do piso da zona"]
+        RP2 --> RE
+        RE --> RG{"sessão elegível?<br/>(foco + dia + leitura do dia)"}
+        RG -- "não" --> RN2["nada adaptado<br/>motivo impresso no CLI"]
+        RG -- "sim" --> RW["reescreve o dia no plan.json<br/>+ nota (prontidão dirigiu?)"]
+    end
+
+    Q -.-> RD
+    RN -.-> PUB
+    RN2 -.-> PUB
+    RW --> PUB["3. push → POST /events/bulk?upsert=true<br/>(limpa órfãos antes)"]

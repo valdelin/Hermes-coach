@@ -1,6 +1,9 @@
 %% Fonte canonica: docs/diagramas/componentes.mmd (repo).
 %% Espelho em 01-Projetos/cycling-coach/componentes.mmd (vault) - nao editar la.
 %% PNG exportado: componentes.png. Editar no repo e copiar. Ver docs/DIAGRAMAS.md.
+%% Verificado por arvore de imports a partir de src/training_plan.py: build/push
+%% alcanca 15 modulos; os 10 do subgrafo "fora da publicacao" nao sao importados
+%% por plan.py nem training_plan.py (item 58 do ROADMAP, ainda aberto).
 flowchart LR
     subgraph CLI["CLI — src/training_plan.py"]
         CMD["info | ftp-check | ftp-scan | check | periodization | model | recovery<br/>build | adherence | summary | reconcile | push | all"]
@@ -14,6 +17,7 @@ flowchart LR
         AS["activity_summary.py<br/>resumo por período · pareamento"]
         REC["recovery.py<br/>PMC real ancorado + TSB real + prazo + rampa calibrada"]
         RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
+        RDA["readiness_assessment.py<br/>7 eixos · ausência = campo None<br/>coverage = eixos observados / 7"]
         PER["periodization.py<br/>explica modelos · sugere por GOAL/TSB"]
     end
 
@@ -27,12 +31,25 @@ flowchart LR
         CLIENT["IntervalsClient<br/>events · wellness · activities · streams · sport-settings<br/>(retry/backoff em falhas transitórias)"]
     end
 
+    subgraph OFF["Fora da publicação (#58) — contratos testados, não chegam ao treino"]
+        TP["training_phase.py<br/>fase do plano + estado"]
+        TD["training_decision.py<br/>decisão por completude"]
+        PROG["progression.py<br/>escada por família de estímulo"]
+        VO2["vo2_generator.py<br/>gerador VO2max estruturado"]
+        ZI["zone_intent.py<br/>intenção + dose por família"]
+        ID["intensity_distribution.py<br/>minutos por zona"]
+        CP["critical_power.py<br/>CP / W′ / POT/PMC"]
+        AP["athlete_profile.py<br/>perfil · procedência do FTP"]
+        AD["adaptation.py<br/>Adaptação · teto de carga"]
+        PR["plan_run.py<br/>prescrição de corrida (%LTHR + RPE)"]
+    end
+
     ENV[".env<br/>credenciais · FTP · agenda · GOAL · PERIODIZATION<br/>COACH_WEBHOOK (alerta doença)"]
     PLANFILE["plan.json<br/>plano + meta"]
-    SH["scripts/daily_reconcile.sh<br/>(timer systemd meia-noite)"]
+    SH["scripts/daily_reconcile.sh<br/>(timer systemd 05:30)"]
 
     INTERVALS["Intervals.icu API"]
-    APPS["Zwift / Garmin / Wahoo<br/>(atividades + .zwo)"]
+    APPS["Zwift / Garmin<br/>(atividades + .zwo)"]
     PDF["resumo.pdf<br/>(chromium headless)"]
 
     CMD --> COACH
@@ -53,9 +70,13 @@ flowchart LR
     AS --> CLIENT
     REC --> CLIENT
     RD --> CLIENT
+    RD --> RDA
     CLIENT --> INTERVALS
     INTERVALS <--> APPS
     SH --> CMD
     RP --> CH
     RP --> BR
     RP --> PDF
+
+    COACH -. "consome ZONE_BANDS" .-> ZI
+    OFF -. "cada um com trava em tests/scientific/" .- TP

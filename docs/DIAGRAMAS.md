@@ -48,7 +48,8 @@ flowchart LR
         FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
         AS["activity_summary.py<br/>resumo por período · pareamento"]
         REC["recovery.py<br/>PMC real ancorado + TSB real + prazo + rampa calibrada"]
-        RD["readiness.py<br/>prontidão: sinais wellness · REDUCE · elegibilidade · alerta doença"]
+        RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
+        RDA["readiness_assessment.py<br/>7 eixos · ausência = campo None<br/>coverage = eixos observados / 7"]
         PER["periodization.py<br/>explica modelos · sugere por GOAL/TSB"]
     end
 
@@ -62,12 +63,25 @@ flowchart LR
         CLIENT["IntervalsClient<br/>events · wellness · activities · streams · sport-settings<br/>(retry/backoff em falhas transitórias)"]
     end
 
+    subgraph OFF["Fora da publicação (#58) — contratos testados, não chegam ao treino"]
+        TP["training_phase.py<br/>fase do plano + estado"]
+        TD["training_decision.py<br/>decisão por completude"]
+        PROG["progression.py<br/>escada por família de estímulo"]
+        VO2["vo2_generator.py<br/>gerador VO2max estruturado"]
+        ZI["zone_intent.py<br/>intenção + dose por família"]
+        ID["intensity_distribution.py<br/>minutos por zona"]
+        CP["critical_power.py<br/>CP / W′ / POT/PMC"]
+        AP["athlete_profile.py<br/>perfil · procedência do FTP"]
+        AD["adaptation.py<br/>Adaptação · teto de carga"]
+        PR["plan_run.py<br/>prescrição de corrida (%LTHR + RPE)"]
+    end
+
     ENV[".env<br/>credenciais · FTP · agenda · GOAL · PERIODIZATION<br/>COACH_WEBHOOK (alerta doença)"]
     PLANFILE["plan.json<br/>plano + meta"]
     SH["scripts/daily_reconcile.sh<br/>(timer systemd 05:30)"]
 
     INTERVALS["Intervals.icu API"]
-    APPS["Zwift / Garmin / Wahoo<br/>(atividades + .zwo)"]
+    APPS["Zwift / Garmin<br/>(atividades + .zwo)"]
     PDF["resumo.pdf<br/>(chromium headless)"]
 
     CMD --> COACH
@@ -88,12 +102,16 @@ flowchart LR
     AS --> CLIENT
     REC --> CLIENT
     RD --> CLIENT
+    RD --> RDA
     CLIENT --> INTERVALS
     INTERVALS <--> APPS
     SH --> CMD
     RP --> CH
     RP --> BR
     RP --> PDF
+
+    COACH -. "consome ZONE_BANDS" .-> ZI
+    OFF -. "cada um com trava em tests/scientific/" .- TP
 ```
 
 ---
@@ -191,35 +209,21 @@ sequenceDiagram
 
 ---
 
-## 4. Diagrama de classes (entidades principais)
+## 4. Diagrama de classes (entidades com contrato verificado)
 
 ```mermaid
 classDiagram
-    class Metrics {
-        +float tsb
-        +float ctl
-        +float atl
-        +float tss
-        +float ftp
-        +str day
-    }
+    direction LR
+
     class WorkoutParams {
         +str focus
-        +int warmup_sec = 600
-        +int warmup_cadence = 90
-        +float warmup_power_low = 0.45
-        +float warmup_power_high = 0.75
         +int repeats
         +int on_sec
         +int off_sec
         +float on_power
         +float off_power
-        +int cadence = 90
-        +int cadence_rest = 85
-        +int cooldown_sec = 600
-        +int cooldown_cadence = 85
-        +float cooldown_power_low = 0.70
-        +float cooldown_power_high = 0.45
+        +int warmup_sec
+        +float on_power_pct
     }
     class PlannedWorkout {
         +str day
@@ -230,127 +234,298 @@ classDiagram
         +float tss
         +str external_id
     }
-    class IntervalsClient {
-        -str base
-        -tuple auth
-        +events(params)
-        +wellness(params)
-        +create_events(payloads, upsert)
-        +delete_events(external_ids)
-        +activity(activity_id)
-        +activity_streams(activity_id, types)
-        +sport_settings()
-        +put_sport_settings(id, payload)
+    class TrainingPlanState {
+        +str start
+        +float ftp
+        +list workouts
+        +dict meta
     }
-    class ImpulseResponseEngine {
-        +compute_metrics(tss_series)
-    }
-    class plan_build_plan {
-        +build_plan(events, tsb, ftp, days, ...)
-        +reconcile(plan, events, ftp, ...)
-        +event_payload(workout, ftp, lang, prev, fthr)
-        +orphan_external_ids(plan, events, start)
-    }
-    class FTPScan {
-        +extra_activities(events)
-        +skip_reason(activity, ftp)
-        +estimate_ride(...)
-        +best_candidate(candidates)
-        +ride_settings(settings)
-    }
-    class Recovery {
-        +fetch_full_history(client, ...)
-        +actual_daily_load(events)
-        +pmc_series(daily)
-        +pmc_series_anchored(real_by_day, start, end)
-        +state(rows, window_days)
-        +calibrated_state(st, weekly_now)
-        +weekly_volume(daily, days)
-        +estimate_return(current_ctl, current_atl, target_ctl, weekly_now, ...)
-        +ramp_schedule(target_ctl, weekly_now, ramp_pts, ...)
-    }
-    class Readiness {
-        +dict signals
-        +bool illness
+    class ReadinessEligibility {
+        +dict workout
+        +str state
+        +bool eligible
         +str reason
-        +bool has_data
-        +assess_readiness(records, days)
-        +suggest_swap(readiness, planned_today)
-        +recovery_workout(day, ftp) -> PlannedWorkout
-        +coach_alert_payload(atleta_id, readiness, today)
     }
-    class Periodization {
-        +list_models() -> list
-        +describe(model) -> str
-        +suggest_for_goal(goal, tsb) -> (top, avoid)
-        +explain_current(goal, periodization, tsb) -> str
+    class Metrics {
+        +float tsb
+        +float ctl
+        +float atl
+        +float tss
+        +float ftp
+        +str day
     }
-    class SummaryAgg {
-        +int sessions
-        +float time_s
-        +float distance_m
-        +float elevation_m
-        +float load
-        +float avg_power
-        +float np
-        +int avg_hr
-    }
-    class ReportRenderer {
-        +render_summary_html(title, start, end, agg, rows,<br/>pmc_rows, weeks, theme)
-        +write(path, html)
-        +export_pdf(path, html)
-    }
-    class ThemeKit {
-        +str DEFAULT_THEME
-        +dict THEMES
-        +dict FORM_ZONE_COLORS
+    class FtpTestSuggestion {
+        +bool due
+        +str reason
+        +str day
     }
 
-    IntervalsClient --> Metrics : retorna eventos
-    plan_build_plan --> PlannedWorkout : gera
-    plan_build_plan --> WorkoutParams : usa templates
-    ImpulseResponseEngine --> Metrics : computa local
-    FTPScan --> IntervalsClient : streams + atividades
-    Recovery --> IntervalsClient : eventos históricos
-    Readiness --> IntervalsClient : wellness (RHR/HRV/sono)
-    Readiness --> PlannedWorkout : recovery_workout (check --apply)
-    Periodization --> Metrics : TSB atual (sugestao por GOAL)
-    SummaryAgg <-- IntervalsClient : atividades pareadas
-    ReportRenderer --> ThemeKit : 22 temas (CSS vars)
-    ReportRenderer --> SummaryAgg : cards + tabela
-    ReportRenderer --> Recovery : pmc_rows (PMC 90d)
+    class ReadinessLevel {
+        <<enumeration>>
+        GREEN
+        YELLOW
+        RED
+    }
+    class ReadinessAssessment {
+        +float hrv_score
+        +float rhr_score
+        +float sleep_score
+        +float subjective_fatigue_score
+        +float recent_load_score
+        +float performance_score
+        +float consistency_score
+    }
+    class ReadinessAction {
+        <<enumeration>>
+        NONE
+        REDUCE
+        REPLACE
+    }
+    class ReadinessDecision {
+        +ReadinessAction action
+        +str reason
+        +ReadinessLevel level
+        +float coverage
+        +bool illness_alert
+        +bool composite_low
+        +tuple observations
+        +str applies_to_day
+    }
+    class Readiness {
+        +ReadinessDecision decision
+        +ReadinessObservation observation
+    }
+    class ReadinessObservation {
+        +float hrv
+        +float rhr
+        +float sleep
+        +str read_at
+    }
+
+    class ImpulseResponseEngine {
+        +compute()
+        +ctl_atl()
+    }
+    class TrainingLoadComponents {
+        +float ctl
+        +float atl
+        +float tsb
+    }
+
+    class IntervalsClient {
+        +get_events()
+        +get_wellness()
+        +get_activity()
+        +get_streams()
+        +create_events()
+        +get_sport_settings()
+    }
+    class IntervalsApiError {
+        +int status
+        +str detail
+    }
+    class RideFtpEstimate {
+        +float ftp
+        +float ci
+        +str method
+    }
+
+    class StimulusFamily {
+        <<enumeration>>
+        sweet_spot
+        threshold
+        vo2max
+        endurance
+        anaerobic
+    }
+    class ProgressionStep {
+        +int repeats
+        +int work_sec
+        +float intensity
+        +int recovery_sec
+    }
+    class CompletionScore {
+        +float adherence
+        +float intensity_ok
+        +float total
+    }
+    class VO2Family {
+        <<enumeration>>
+        long_intervals
+        short_intervals
+        variable_intervals
+    }
+    class ProgressionLever {
+        <<enumeration>>
+        interval_duration
+        repetitions
+        total_work_time
+        intensity
+    }
+    class VO2Workout {
+        +VO2Family family
+        +int interval_duration
+        +int repetitions
+        +tuple work_power_range
+        +int recovery_duration
+        +int total_work_time
+        +int progression_step
+        +ProgressionLever lever
+    }
+
+    class AdaptationState {
+        +float aerobic_base
+        +float threshold
+        +float vo2max
+        +float muscular_endurance
+        +float anaerobic
+        +float neuromuscular
+    }
+    class CriticalPowerProfile {
+        +float critical_power
+        +float w_prime
+        +CPProtocol protocol
+        +CPConfidence confidence
+        +tuple test_dates
+    }
+    class AthletePhysiologicalProfile {
+        +int ftp
+        +FtpSource ftp_source
+        +float ftp_confidence
+    }
+    class FtpSource {
+        <<enumeration>>
+        user
+        ftp20
+        ftp60
+        ramp
+        cp_estimate
+        performance_estimate
+    }
+    class TrainingPhase {
+        <<enumeration>>
+        base
+        build
+        specific
+        peak
+        recovery
+        test
+    }
+    class PhaseState {
+        +TrainingPhase phase
+        +int week
+    }
+    class TrainingDecision {
+        +str goal
+        +str phase
+        +str primary_adaptation
+        +str workout_family
+        +int progression_step
+        +int planned_duration
+    }
+    class IntensityDistributionModel {
+        +float z1_minutes
+        +float z2_minutes
+        +float z3_minutes
+        +float z4_minutes
+        +float z5_minutes
+    }
+    class FamilyProfile {
+        +str family
+        +tuple band
+        +ZoneLever lever
+    }
+    class ZoneLever {
+        <<enumeration>>
+        duration
+        total_volume
+        repetitions
+        recovery
+    }
+
+    PlannedWorkout --> WorkoutParams : params (dict, contrato persistido)
+    TrainingPlanState --> PlannedWorkout : workouts
+    TrainingPlanState --> ReadinessEligibility : elegibilidade por dia
+    Metrics --> TrainingLoadComponents : TSB/CTL/ATL
+    ImpulseResponseEngine ..> TrainingLoadComponents : produz
+    IntervalsClient ..> IntervalsApiError : levanta
+
+    Readiness --> ReadinessDecision : decision
+    Readiness --> ReadinessObservation : observation
+    ReadinessDecision --> ReadinessAction : action
+    ReadinessDecision --> ReadinessLevel : level
+    ReadinessDecision ..> ReadinessEligibility : is_adaptive + applies_to_day
+    ReadinessDecision --> WorkoutParams : REDUCE preserva focus
+    PlannedWorkout --> ReadinessAssessment : 7 eixos lidos do wellness
+
+    ProgressionStep --> StimulusFamily : pertence a
+    CompletionScore ..> ProgressionStep : avaliado contra
+    VO2Workout --> VO2Family : family
+    VO2Workout --> ProgressionLever : lever
+    VO2Workout ..> WorkoutParams : 4x4 / 5x3 / 3x5
+
+    TrainingDecision --> TrainingPhase : phase
+    TrainingPhase --> PhaseState : state
+    TrainingDecision --> FamilyProfile : workout_family
+    FamilyProfile --> ZoneLever : lever
+    TrainingDecision ..> ProgressionStep : progression_step
+    TrainingDecision ..> AthletePhysiologicalProfile : FTP
+    AdaptationState ..> TrainingDecision : adaptações
+    CriticalPowerProfile ..> TrainingDecision : CP/W' (fora da publicação)
+    IntensityDistributionModel ..> TrainingDecision : minutos por zona
 ```
 
 ---
 
-## 5. Diagrama de atividades — decisão de foco e geração do treino
+## 5. Diagrama de atividades — build, check --apply e push
 
 Fluxo do `build`: do histórico ao plano publicado.
 
 ```mermaid
 flowchart TD
-    A["GET /events (histórico)"] --> B["latest_metrics → TSB atual"]
-    B --> C{"PERIODIZATION no .env?"}
-    C -- "sim" --> D["PERIODIZATION_TEMPLATES[p]<br/>(polarized|pyramidal|undulating|linear|block)"]
-    C -- "não" --> E{"GOAL no .env?"}
-    E -- "não" --> F["WEEKLY_BY_TSB<br/>(padrão por TSB)"]
-    E -- "sim" --> G["GOAL_TEMPLATES[goal]<br/>(ex.: race exige RACE_DATE)"]
+    subgraph BUILD["1. build — monta o plano (não lê wellness)"]
+        direction TB
+        A["GET /events (histórico)"] --> B["latest_metrics → TSB atual"]
+        B --> C{"PERIODIZATION no .env?"}
+        C -- "sim" --> D["PERIODIZATION_TEMPLATES[p]<br/>(polarized|pyramidal|undulating|linear|block)"]
+        C -- "não" --> E{"GOAL no .env?"}
+        E -- "não" --> F["WEEKLY_BY_TSB<br/>(padrão por TSB)"]
+        E -- "sim" --> G["GOAL_TEMPLATES[goal]<br/>(ex.: race exige RACE_DATE)"]
+        D --> H["escolhe template semanal<br/>pela faixa de TSB"]
+        F --> H
+        G --> H
+        H --> I["preenche slots de TREINO<br/>(TRAINING_DAYS)"]
+        I --> J{"WEEKLY_HOURS?"}
+        J -- "sim" --> K["escala on_sec<br/>(0.5x–1.5x, min 120s)"]
+        J -- "não" --> L["sem ajuste de volume"]
+        K --> M{"LONG_DAY?"}
+        L --> M
+        M -- "sim" --> N["rotaciona ciclo → treino longo<br/>no dia preferido (ou mais próximo)"]
+        M -- "não" --> O["posição natural do foco"]
+        N --> P["_fit_budget: TSS 7d ≤ cap×7<br/>(encurta on_sec, depois on_power)"]
+        O --> P
+        P --> Q["grava plan.json<br/>(preserva treino de hoje + meta)"]
+    end
 
-    D --> H["escolhe template semanal<br/>pela faixa de TSB"]
-    F --> H
-    G --> H
-    H --> I["preenche slots de TREINO<br/>(TRAINING_DAYS)"]
-    I --> J{"WEEKLY_HOURS?"}
-    J -- "sim" --> K["escala on_sec<br/>(0.5x–1.5x, min 120s)"]
-    J -- "não" --> L["sem ajuste de volume"]
-    K --> M{"LONG_DAY?"}
-    L --> M
-    M -- "sim" --> N["rotaciona ciclo → treino longo<br/>no dia preferido (ou mais próximo)"]
-    M -- "não" --> O["posição natural do foco"]
-    N --> P["_fit_budget: TSS 7d ≤ cap×7<br/>(encurta on_sec, depois on_power)"]
-    O --> P
-    P --> Q["salva plan.json<br/>(preserva treino de hoje + meta)"]
-    Q --> R["push → POST /events/bulk?upsert=true<br/>(limpa órfãos antes)"]
+    subgraph CHECK["2. check --apply — depois do build, antes do push"]
+        direction TB
+        RD["GET /wellness (janela 7d)<br/>+ sport-settings"]
+        RD --> RA["readiness_assessment.py<br/>7 eixos · ausência = None<br/>coverage = observados / 7"]
+        RA --> RL{"level()"}
+        RL -- "GREEN" --> RN["NONE<br/>plano intacto"]
+        RL -- "YELLOW" --> RU["REDUCE"]
+        RL -- "RED" --> RP2["REDUCE<br/>(alerta de doença pode virar REPLACE)"]
+        RU --> RE["_reduce_for_readiness<br/>preserva focus, tipo e ordem dos segmentos<br/>reduz volume ANTES de intensidade<br/>nunca abaixo do piso da zona"]
+        RP2 --> RE
+        RE --> RG{"sessão elegível?<br/>(foco + dia + leitura do dia)"}
+        RG -- "não" --> RN2["nada adaptado<br/>motivo impresso no CLI"]
+        RG -- "sim" --> RW["reescreve o dia no plan.json<br/>+ nota (prontidão dirigiu?)"]
+    end
+
+    Q -.-> RD
+    RN -.-> PUB
+    RN2 -.-> PUB
+    RW --> PUB["3. push → POST /events/bulk?upsert=true<br/>(limpa órfãos antes)"]
 ```
 
 ---
@@ -364,23 +539,15 @@ stateDiagram-v2
     Planejado --> Feito : atividade pareada (paired_activity_id)
     Planejado --> Perdido : passa do dia + sem atividade
 
-    %% Ciclo de execucao da sessao de hoje (session_execution_state).
-    %% "Em andamento" NAO e um estado que o Intervals confirme: so ha
-    %% realizacao via paired_activity_id. Ausencia de prova deixa o estado
-    %% desconhecido, para nao reescrever sessao em andamento.
     Planejado --> NaoIniciado : horario planejado ainda nao passou
     Planejado --> EstadoDesconhecido : horario passou (START_TIME 07:30)<br/>e o Intervals nao confirma realizacao
     NaoIniciado --> Concluida : atividade pareada
     EstadoDesconhecido --> Concluida : realizacao confirmada depois
 
-    %% Intervencao de prontidao: REDUCE, nao troca de foco.
-    %% Preserva o foco e a zona declarada; reduz dose (volume/duracao).
     Planejado --> Reduzido : check --apply, REDUCE<br/>foco e zona preservados, dose reduzida
     NaoIniciado --> Reduzido : check --apply, REDUCE
     Reduzido --> Concluida : treino executado
 
-    %% REDUCE nunca troca por recuperacao; so REPLACE com ReadinessDecision
-    %% valido e TSB sem veto. Recuperacao curta entra como REPLACE explicito.
     Reduzido --> Trocado : REPLACE (readiness + sem TSB forcado)
 
     Perdido --> Ajustado : reconcile absorve pelo orçamento<br/>eleva Z2/SweetSpot até o teto<br/>sem trocar por recuperação
@@ -404,9 +571,20 @@ stateDiagram-v2
 
 ## Notas
 
-- Diagramas gerados a partir do código real (`src/*.py`, v0.0.29, 374 testes OK) —
-  não são genéricos. Se o código mudar, atualize aqui junto.
-- Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli.
+- Diagramas gerados a partir do código real (`src/*.py`, suíte 793 OK) — não são
+  genéricos. Se o código mudar, atualize aqui junto.
+- Fontes em `docs/diagramas/*.mmd`; os `.png` são regenerados com mermaid-cli
+  (`npx @mermaid-js/mermaid-cli -i X.mmd -o X.png -b white -s 1`, com
+  `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium`). Os blocos `mermaid` deste
+  arquivo são gerados a partir dos `.mmd`, então o índice não diverge do fonte:
+  edite o `.mmd`, regenere o PNG e sincronize o bloco.
+- **O diagrama de classes é curado, não completo.** Entram só as entidades com
+  contrato verificado por teste ou que vivem em formato persistido/externo
+  (`plan.json`, payload do Intervals, `.env`). `src/` tem ~47 dataclasses; o
+  critério está no cabeçalho de `classes.mmd`. **O diagrama de componentes marca
+  os 10 módulos fora da publicação** (`OFF`), que `build`/`push` não importam —
+  item 58 do `ROADMAP`, ainda aberto. Um diagrama que mostra só o que funciona
+  é propaganda, não arquitetura.
 - O `.zwo` **não é gerado localmente** (o Intervals monta no app a partir do
   texto de `description`).
 - `plan.json` guarda a meta (goal, race_date, ftp_test_date, ftp_candidates)
