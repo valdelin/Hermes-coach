@@ -4,10 +4,15 @@ Os formatos 4x4, 5x3 e 3x5 são **templates de prescrição configuráveis**, n�
 protocolos universais. A faixa de intensidade é um intervalo ajustável
 (inicial 106–120% FTP) e nunca um valor fixo de 115%.
 
-A progressão é organized por dimensão: cada degrau de uma escada altera
+A progressão é organizada por dimensão: cada degrau de uma escada altera
 **uma** variável (duração do intervalo, repetições, tempo total ou intensidade).
 É por isso que as escadas existem separadas — subir duração e repetições no
 mesmo degrau é erro de prescrição, não progressão.
+
+Limite conhecido deste módulo: com `DEFAULT_INTENSITY_RANGE` o lever
+`INTENSITY` é **inoperante**, porque a faixa padrão já encosta no teto de Z5
+(1,20) e o degrau de +2% é truncado. O lever só age sobre faixa prescrita mais
+estreita que o teto. Ver `docs/EMBASAMENTO-CIENTIFICO.md` §12.
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -37,9 +42,12 @@ BASELINE_INTERVAL = {
     VO2Family.VARIABLE_INTERVALS: 3 * 60,
 }
 
-# Templates "clássicos": mudam a forma do bloco inteiro. Subir de um degrau
-# para o seguinte aqui altera repetições E duração — por isso existe à parte
-# das escadas por dimensão, que são o caminho preferido.
+# Templates "clássicos": mudam a forma do bloco inteiro. Nem toda transição
+# altera repetições E duração — `variable_intervals` é escada só de
+# repetições (2x3 -> 3x3 -> 4x3), e a primeira transição de `short_intervals`
+# (5x1 -> 10x1) só sobe repetições. Por isso existe à parte das escadas por
+# dimensão, que são o caminho preferido. Verificado em
+# `tests/scientific/test_vo2.py::test_templates_de_intervalos_curtos_e_variaveis_mudam_uma_dimensao`.
 MIXED_TEMPLATES = {
     VO2Family.LONG_INTERVALS: ((4, 4 * 60), (5, 3 * 60), (3, 5 * 60)),
     VO2Family.SHORT_INTERVALS: ((5, 60), (10, 60), (6, 2 * 60)),
@@ -96,7 +104,8 @@ def _ladder(family, lever):
 # O teto e ZONE_BANDS[FOCUS_ZONE5_VO2MAX][1]: subir acima disso seria gerar
 # Z6 (121-150%) com uma prescricao rotulada como VO2max. A faixa padrao ja
 # encosta no teto, entao este lever so tem folga quando a faixa prescrita for
-# mais estreita que a banda.
+# mais estreita que a banda. Com `DEFAULT_INTENSITY_RANGE` nao ha folga e o
+# lever nao produz efeito algum.
 Z5_CEILING = 1.20
 INTENSITY_STEP = 0.02
 

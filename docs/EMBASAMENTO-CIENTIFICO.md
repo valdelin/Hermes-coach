@@ -17,7 +17,7 @@
 > `ZoneIntegrityTest` compara `ZONE_BANDS` com os valores da tabela e falha a
 > suíte se divergirem (v0.0.30).
 
-**Data:** 25/09/2026 · atualizado 01/10/2026 (P2-04)
+**Data:** 25/09/2026 · atualizado 02/10/2026 (P3-02)
 **Projeto:** Hermes Coach
 **Mapeamento:** Fisiologia do Exercício aplicada ao Algoritmo de Treino
 
@@ -124,6 +124,23 @@ dos testes de taxa constante distribuídos em vários dias (PMID 32899777).
 `estimate_cp()` e `estimate_w_prime()` ajustam $P = CP + W'/t$ por mínimos
 quadrados e devolvem `None` com menos de dois esforços válidos — **nunca um valor
 inventado**. `work_above_cp()` limita o esforço acima de CP pelo W′ disponível.
+
+**Limite conhecido do estimador.** O ajuste é OLS de $P$ contra $1/t$, e isso
+tem duas consequências que o texto precisa declarar:
+
+- O intercepto de uma OLS na coordenada transformada **não é o estimador não
+  enviesado de CP**. O estimador compatível para o intercepto de um modelo
+  $y = a + b/t$ pondera cada ponto por $1/t^2$. O código não pondera.
+- O peso por ponto é desigual: um esforço de 120 s entra com $1/t$ dez vezes
+  maior que um de 1200 s e domina o ajuste. Um esforço muito longo é quase a
+  própria observação do assíntoto e quase não o determina.
+
+Não há ponderação por duração nem filtro de outlier no ajuste. Um único ponto
+ruidoso desloca a leitura de CP. Travas em
+`test_critical_power.py::test_um_esforco_muito_curto_ou_muito_longo_muda_cp` e
+`::test_ruido_no_esforco_desvia_a_estimativa`. Consequência prática: o CP
+estimado é honesto dentro da faixa de durações realmente medida, e extrapolar
+para o assíntoto com poucos pontos é chute.
 
 **HEURÍSTICA DO SISTEMA.** O ritmo padrão de reconstituição de W′ (0,1 W/s) é
 convenção do Hermes, configurável por atleta, **não constante fisiológica
@@ -363,18 +380,52 @@ comportamento estável e configurável.
 com `rationale` e `confidence`. A confiança é **heurística**: reflete
 concordância entre sinais, não probabilidade estatisticamente calibrada.
 
+**Limite conhecido: `decay()` só limita por baixo.** O fator é
+`max(0, 1 − days × daily_rate)`, sem teto superior. Com `days` negativo — data
+de treino no futuro, erro de import — ou com `daily_rate` negativo, o fator
+passa de 1 e a adaptação **cresce acima do estado anterior**, o que contraria o
+nome da função. O clamp inferior existe; o superior não. Registrado em
+`test_adaptation.py::test_taxa_negativa_amplifica_por_falta_de_teto_superior`.
+
 ## 11. Progression Engine
 
 **MODELO COMPUTACIONAL.** `CompletionScore` e a progressão por família de
-estímulo ficam em `src/progression.py`. O ponto central do motor: **cada degrau
-altera uma dimensão por vez**. Subir repetições e duração no mesmo degrau é erro
-de prescrição, não progressão.
+estímulo ficam em `src/progression.py`. A regra de prescrição que o motor
+segue é: **um degrau deve mexer em uma dimensão por vez**. Subir repetições e
+duração no mesmo degrau confunde volume com estrutura e dificulta atribuir
+falha a uma causa.
 
-No gerador VO2max isso é explícito — escadas separadas para duração do
+**Essa regra é uma aspiração, não o estado do código.** As escadas de
+`src/progression.py` (`SEQUENCES`) mudam **repetições e duração ao mesmo
+tempo** em quatro das treze transições entre degraus:
+
+| Família | Transição | O que muda |
+| --- | --- | --- |
+| Sweet Spot | 3 × 12 min → 2 × 15 min | repetições e duração |
+| Limiar | 3 × 12 min → 2 × 15 min | repetições e duração |
+| VO2max | 5 × 3 min → 4 × 4 min | repetições e duração |
+| Anaeróbico | 8 × 1 min → 6 × 2 min | repetições e duração |
+
+As outras nove mudam uma dimensão só. As quatro transições listadas mudam a
+**forma do bloco**, não o volume total — o par 3x12→2x15 preserva 36 min de
+trabalho e o par 5x3→4x4 preserva 15 min. A progressão de intensidade nunca
+varia dentro de `SEQUENCES`: é fixa em 0,90 para toda família e todo degrau.
+Isso é coerente com a seção 4, que põe a intensidade sob controle de
+`ZONE_BANDS` e não da escada, mas significa que a escada **não** é um caminho
+para subir potência.
+
+`tests/scientific/test_progression.py::test_sequencia_por_familia_muda_uma_dimensao_por_degrau`
+trava as quatro exceções nominalmente. Alterar qualquer degrau de `SEQUENCES`
+exige atualizar essa lista — a troca passa a ser uma decisão explícita em vez
+de efeito colateral de um ajuste de volume.
+
+No gerador VO2max a regra **é** respeitada: escadas separadas para duração do
 intervalo, repetições, tempo total e intensidade, expostas por
-`progression_ledger()` para verificação. No caso das famílias de Z2, Sweet Spot
-e Limiar, as alavancas são de **dose**: Z2 e Sweet Spot progridem em duração e
-volume; Limiar em duração, repetições e recuperação (seção 4).
+`progression_ledger()` para verificação, e
+`test_vo2.py::test_ladder_altera_apenas_uma_dimensao_por_degrau` fecha a
+invariante. No caso das famílias de Z2, Sweet Spot e Limiar, as alavancas são
+de **dose**: Z2 e Sweet Spot progridem em duração e volume; Limiar em duração,
+repetições e recuperação (seção 4).
 
 **HEURÍSTICA DO SISTEMA.** Granularidade de degrau, saltos de volume e os
 limiares que disparam avanço, estagnação ou recuo são do sistema. A
@@ -411,16 +462,43 @@ bloco por `interval_duration`, `repetitions`, `work_power_range`,
 intervalos ≥2 min. A faixa padrão de 106–120% FTP é a banda Z5 declarada, e
 `Z5_CEILING` impede que o degrau de intensidade atravesse para Z6.
 
+**Limite conhecido: o lever de intensidade é inoperante por padrão.** A faixa
+padrão `DEFAULT_INTENSITY_RANGE` já tem 1,20 como teto, e `generate()` faz
+`min(Z5_CEILING, high + 0,02 × degrau)`. Como `Z5_CEILING` é 1,20, **todo
+degrau produz a mesma faixa** com a configuração padrão. O lever só age quando
+a faixa prescrita é mais estreita que a banda Z5, e aí o teto sobe +2% por
+degrau até 1,20. Subir intensidade por degrau de escada, portanto, não é o
+caminho disponível na configuração padrão: a intensidade é controlada pela
+faixa prescrita, não pela escada. Registrado em
+`test_vo2.py::test_lever_intensity_e_inoperante_na_faixa_padrao`.
+
+**Os templates não seguem a regra de dimensão única.** `MIXED_TEMPLATES` muda
+a forma do bloco inteiro, mas nem toda transição muda duas dimensões:
+
+| Família | Transição | Dimensões que mudam |
+| --- | --- | --- |
+| `LONG_INTERVALS` | 4x4 → 5x3 → 3x5 | duas em ambas |
+| `SHORT_INTERVALS` | 5x1 → 10x1 | só repetições |
+| `SHORT_INTERVALS` | 10x1 → 6x2 | duas |
+| `VARIABLE_INTERVALS` | 2x3 → 3x3 → 4x3 | só repetições |
+
+`VARIABLE_INTERVALS` é, no efeito, uma escada de repetições com duração fixa —
+despite o nome da família sugerir variabilidade de duração. Nenhum template é
+alcançável pelo `ProgressionLever`: eles sãoغرupados à parte e o motor não os
+integra às escadas por dimensão.
+
 **HEURÍSTICA DO SISTEMA.** Os templates 4x4, 5x3 e 3x5 são **formatos de
 prescrição configuráveis**, não protocolos universais nem recomendações de
 eficácia — a network meta-analysis não encontrou superioridade entre estruturas.
 115% do FTP **não** é valor universal. O degrau de intensidade (+2% por degrau)
 e a direção dessa progressão são convenções: a NMA posicionou duração
 decrescente e intensidade variável acima das demais, mas de forma exploratória e
-não significativa. `recovery_power` (0,40) e `recovery_ratio` (0,5) são
-convenções — a recuperação ativa vs. passiva não afetou o tempo perto de
-V̇O₂max (PMID 42237396). A faixa de trabalho acumulado (600–2400 s) em
-`evaluate()` também é heurística: os templates ficam sempre dentro dela.
+não significativa. E, como registrado acima, o degrau não se manifesta com a
+faixa padrão — a truncagem no teto de Z5 o anula. `recovery_power` (0,40) e
+`recovery_ratio` (0,5) são convenções — a recuperação ativa vs. passiva não
+afetou o tempo perto de V̇O₂max (PMID 42237396). A faixa de trabalho acumulado
+(600–2400 s) em `evaluate()` também é heurística: os templates ficam sempre
+dentro dela.
 
 ## 13. Recovery / Deload
 
@@ -489,6 +567,28 @@ fizesse.
    masculino; a revisão de FTP20 (15 estudos) e a de HRV (8 estudos) são
    explicitamente pequenas. A generalização para outros orçamentos e estilos de
    pedal não está estabelecida.
+
+**Limites de implementação conhecidos.** Estes quatro não são deficiências da
+literatura: são comportamentos do código que a documentação anterior descrevia
+de forma mais forte do que o código entrega. Estão declarados aqui e em seção
+própria, e cada um tem trava de teste.
+
+9. **As escadas de `progression.py` violam a regra de dimensão única em quatro
+   transições** (seção 11). A regra é a intenção de prescrição; o código a segue
+   em nove de treze transições e a quebra nas quatro que trocam a **forma** do
+   bloco preservando o volume total. Consequência: a escada não é um caminho
+   para subir potência — a intensidade é fixa em 0,90.
+10. **O lever `INTENSITY` de VO2max é inoperante na configuração padrão**
+    (seção 12). `DEFAULT_INTENSITY_RANGE` já encosta no teto de Z5, então o
+    truncagem em `Z5_CEILING` zera o efeito de todos os degraus. Subir
+    intensidade por escada só funciona com faixa prescrita mais estreita.
+11. **`AdaptationState.decay()` não tem teto superior** (seção 10). Com `days` ou
+    `daily_rate` negativo, a adaptação cresce acima do estado anterior, contra o
+    nome da função.
+12. **`estimate_cp()` enviesa o intercepto** (seção 3). OLS de $P$ contra $1/t$
+    não é o estimador compatível para o intercepto de $P = CP + W'/t$, não
+    pondera por duração e não filtra outlier. O CP é honesto dentro da faixa de
+    durações medida; extrapolar para o assíntoto com poucos pontos é chute.
 
 ## 15. Referências
 

@@ -1,5 +1,9 @@
 import unittest
+from contextlib import contextmanager
 from datetime import date, timedelta
+from unittest import mock
+
+import src.plan
 
 from src.plan import (build_plan, event_payload, reconcile, templates,
                        weekly_template, phase_weekly_template, training_plan_state,
@@ -10,6 +14,8 @@ from src.plan import (build_plan, event_payload, reconcile, templates,
                       weekly_budget, rpe_for_focus, adherence_report, FOCUS_VO2,
                       avg_load, DEFAULT_TRAINING_DAYS,
                       REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2,
+                      ABSORB_FOCUSES, ABSORB_SKIP_FOCUSES, _absorbable_tss,
+                      _is_active_recovery,
                       _tsb_race_verdict)
 from src.coach import (WorkoutParams, estimate_tss, zone_floor, zone_ceiling,
                        zone_band, focus_zone, ZONE_BANDS, FOCUS_ZONE,
@@ -17,6 +23,16 @@ from src.coach import (WorkoutParams, estimate_tss, zone_floor, zone_ceiling,
                        FOCUS_ZONE2_ENDURANCE, FOCUS_ZONE3_TEMPO,
                        FOCUS_ZONE4_LIMIAR, FOCUS_ZONE5_VO2MAX,
                        FOCUS_ZONE6_ANAEROBICA, FOCUS_ENDURANCE)
+
+
+def _Data(fixa):
+    """`date` com `today()` fixado, para cenários que não seguem o calendário.
+
+    `src.plan` importa `date` por nome, então o patch substitui o atributo do
+    módulo — e precisa cobrir build e reconcile juntos.
+    """
+    return type("DataFixa", (date,),
+                {"today": classmethod(lambda cls: fixa)})
 
 
 class BuildPlanTest(unittest.TestCase):
@@ -163,32 +179,106 @@ class TrainingDaysTest(unittest.TestCase):
 
 
 class ReconcileTest(unittest.TestCase):
+    """Regras de absorvência de falta, com calendário congelado.
+
+    Estes testes montam o cenário a partir de `date.today()`, então sem
+    congelar a data a forma do plano muda com o dia da semana e a premissa
+    "a falta foi absorvível" passa a depender do calendário. Já aconteceu:
+    em 02/10/2026 (sexta) o último dia de treino passado passou a ser Limiar,
+    que por regra **não** é absorvível, e o teste falhou por premissa — não por
+    regressão. `DATA_FIXA` e a escolha explícita da falta absorvível existem
+    para que a data não possa mais decidir o resultado.
+    """
+
+    DATA_FIXA = date(2026, 10, 1)  # quinta-feira: o cenário original
+
+    @contextmanager
+    def _cenario(self, foco_da_falta):
+        """Cenário de falta única, com a data congelada durante todo o uso.
+
+        O patch precisa cobrir **build e reconcile**: os dois leem
+        `date.today()`, e um plano montado sob uma data e reconciliado sob
+        outra produz faltas fantasma. Por isso o helper é context manager e
+        entrega o cenário pronto, para o `reconcile` rodar dentro dele.
+
+        O dia perdido é escolhido **pelo foco**, não pela posição: é a única
+        forma de a premissa do teste não depender de qual dia da semana o
+        calendário caiu.
+        """
+        with mock.patch.object(src.plan, "date", _Data(self.DATA_FIXA)):
+            hist = [{"external_id": f"hist{i}",
+                     "paired_activity_id": f"h{i}",
+                     "start_date_local": (self.DATA_FIXA - timedelta(days=40 - i)
+                                          ).isoformat() + "T07:00:00",
+                     "icu_training_load": 45.0} for i in range(15)]
+            plano = build_plan(hist, 2, ftp=182, days=12,
+                               start=self.DATA_FIXA - timedelta(days=7))
+            passados = [w for w in plano
+                        if w["day"] < self.DATA_FIXA.isoformat()]
+            if foco_da_falta is None:
+                candidatos = [w for w in passados if _absorbable_tss([w]) == 0]
+            else:
+                candidatos = [w for w in passados
+                              if w["focus"] == foco_da_falta]
+            self.assertTrue(candidatos,
+                            f"o cenário precisa de um dia {foco_da_falta!r} "
+                            f"entre {[w['focus'] for w in passados]}")
+            perdido = candidatos[-1]
+            # A premissa é explícita aqui, e não implícita no calendário: o dia
+            # escolhido é absorvível ou não, conforme o teste pede.
+            self.assertEqual(_absorbable_tss([perdido]) > 0,
+                             foco_da_falta is not None)
+            feito_ids = {w["external_id"] for w in passados
+                         if w["external_id"] != perdido["external_id"]}
+            events = hist + [{"external_id": w["external_id"],
+                              "paired_activity_id": f"i{i}",
+                              "start_date_local": w["day"] + "T07:00:00",
+                              "icu_training_load": w["tss"]}
+                             for i, w in enumerate(
+                                 [w for w in passados
+                                  if w["external_id"] in feito_ids])]
+            budget = weekly_budget(avg_load(events))
+            antes = {w["external_id"]: w["tss"] for w in plano}
+            yield plano, events, budget, antes
+
+    def test_treino_perdido_de_zona_forte_nao_e_absorvido(self):
+        """LIMIAR/VO2 perdidos não se substituem com mais volume.
+
+        Este é o guardrail que impede a redistribuição: um treino de alta
+        intensidade não é "reposto" com volume de base, porque o estímulo
+        adaptativo não é substituível. A falta fica registrada e o build
+        seguinte reprioriza conforme o TSB real.
+        """
+        with self._cenario(None) as (plano, events, _budget, _antes):
+            _plano, missed, info = reconcile(plano, events, ftp=182)
+        self.assertEqual(len(missed), 1)
+        self.assertEqual(info["missed_tss"],
+                         sum(float(w["tss"]) for w in missed))
+        self.assertEqual(info["absorbable_tss"], 0.0)
+        self.assertEqual(info["absorbed_tss"], 0.0)
+        self.assertIn(missed[0]["focus"], ABSORB_SKIP_FOCUSES)
+
     def test_treino_perdido_e_absorvido_pelo_orcamento_nao_vira_recuperacao(self):
         # REGRA (Fase 2): treino perdido NAO insere "Recuperacao" e NAO reduz
         # -5% o proximo Limiar. A carga e redistribuida nos treinos Z2/Sweet
         # Spot posteriores que tem folga dentro do teto semanal (weekly_budget).
         # O plano e construido com os MESMOS eventos que o reconcile vera, para
         # que build e reconcile derivem o mesmo teto (avg_load coerente).
-        from datetime import date as _d
-        hist = [{"external_id": f"hist{i}", "paired_activity_id": f"h{i}",
-                 "start_date_local": (_d.today() - timedelta(days=40 - i)).isoformat()
-                 + "T07:00:00", "icu_training_load": 45.0}
-                for i in range(15)]
-        plan = build_plan(hist, 2, ftp=182, days=12,
-                          start=date.today() - timedelta(days=7))
-        past = [w for w in plan if w["day"] < date.today().isoformat()]
-        # o reconcile ve: o historico + os dias do plano já feitos, exceto o
-        # ultimo dia de treino passado (uma falta isolada, caso tipico).
-        events = hist + [{"external_id": w["external_id"],
-                          "paired_activity_id": f"i{i}",
-                          "start_date_local": w["day"] + "T07:00:00",
-                          "icu_training_load": w["tss"]}
-                         for i, w in enumerate(past[:-1])]
-        budget = weekly_budget(avg_load(events))
-        antes = {w["external_id"]: w["tss"] for w in plan}
-        plan, missed, info = reconcile(plan, events, ftp=182)
+        with self._cenario(FOCUS_SWEETSPOT) as (plano, events, budget, antes):
+            # `reconcile` devolve plano novo: a absorvência acontece numa copia,
+            # entao a comparacao de carga precisa usar o plano devolvido.
+            ajustado, missed, info = reconcile(plano, events, ftp=182)
+            ganhos = [w for w in ajustado
+                      if w["external_id"] in antes
+                      and w["tss"] > antes[w["external_id"]]]
+            janelas = {w["day"]: sum(
+                x["tss"] for x in ajustado
+                if 0 <= (date.fromisoformat(w["day"])
+                         - date.fromisoformat(x["day"])).days < 7)
+                for w in ajustado}
+            plano = ajustado
         self.assertEqual(len(missed), 1)
-        nomes = [w["name"] for w in plan]
+        nomes = [w["name"] for w in plano]
         self.assertFalse(any("Recuperacao (plano ajustado)" in n for n in nomes),
                          "treino perdido nao deve virar recuperacao")
         self.assertEqual(info["missed_tss"],
@@ -196,16 +286,11 @@ class ReconcileTest(unittest.TestCase):
         self.assertGreater(info["absorbed_tss"], 0,
                            "a falta deveria ser redistribuida no orcamento")
         # algum treino ganhou carga (a falta foi redistribuida)
-        ganhos = [w for w in plan
-                  if w["external_id"] in antes and w["tss"] > antes[w["external_id"]]]
         self.assertTrue(ganhos, "nenhum treino absorveu a carga perdida")
         # ...mas nunca estourando o teto semanal
-        for w in plan:
-            day = date.fromisoformat(w["day"])
-            janela = sum(x["tss"] for x in plan
-                         if 0 <= (day - date.fromisoformat(x["day"])).days < 7)
+        for dia, janela in janelas.items():
             self.assertLessEqual(janela, budget + 1,
-                                 f"absorcao estourou o teto em {w['day']}")
+                                 f"absorcao estourou o teto em {dia}")
 
     def test_active_recovery_perdido_nao_e_compensado(self):
         # Active recovery (Z2 ~0.60) tem por PROPOSITO nao gerar carga.

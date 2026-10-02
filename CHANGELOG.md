@@ -38,27 +38,31 @@ própria — foram agrupadas na tag/release v0.0.7.
   memória.
 
 ### Correções
-- **Nenhuma alteração em `src/` neste P3** — os 222 testes novos passaram sem
-  exigir mudança de comportamento. Quatro divergências entre documentação e
-  código foram registradas como testes vivos, para que corrigi-las seja uma
-  decisão explícita e não um efeito colateral de uma suíte nova:
-  - `SEQUENCES` em `src/progression.py` viola a invariante "uma dimensão por
+- **Nenhuma mudança de comportamento em `src/` no P3.** As 222 travas novas e a
+  correção documental abaixo passaram sem exigir alteração de motor. As quatro
+  divergências entre documentação e código expostas pela suíte científica foram
+  corrigidas **na documentação**, porque em todos os casos o código é coerente
+  com a intenção e era o texto que superdeclava:
+  - `SEQUENCES` em `src/progression.py` quebra a invariante "uma dimensão por
     degrau" da §11 em quatro transições (3x12→2x15 min, 5x3→4x4 min, 8x1→6x2
-    min, e a de Sweet Spot/Limiar equivalente). O código está coerente com a
-    intenção; **a frase da §11 está errada** e precisa ser corrigida.
-  - A docstring de `src/vo2_generator.py` afirma que `MIXED_TEMPLATES` mudam
-    repetições **e** duração em todo degrau. Isso vale para `long_intervals` e
-    para a segunda transição de `short_intervals`, mas não para a primeira
-    transição de `short_intervals` nem para `variable_intervals`, que é escada
-    só de repetições. O lever `INTENSITY` também é **inoperante com
-    `DEFAULT_INTENSITY_RANGE`**, porque a faixa padrão já encosta no teto de Z5
-    (1,20) — só age sobre faixa prescrita mais estreita.
-  - `AdaptationState.decay()` só limita por baixo (`max(0, ...)`): com `days` ou
-    `daily_rate` negativo o fator passa de 1 e a adaptação **cresce** acima do
-    estado anterior, contrariando o nome da função.
-  - `estimate_cp` usa OLS de P contra 1/t, que enviesa o intercepto e dá peso
-    dez vezes maior a um esforço de 120 s que a um de 1200 s. O estimador não
-    é ponderado por duração e não filtra outlier.
+    min, e o par de Sweet Spot/Limiar). A §11 agora traz a tabela das exceções,
+    diz que elas trocam a **forma** do bloco preservando o volume total, e
+    registra que a escada não é caminho para subir potência (intensidade fixa em
+    0,90).
+  - A §12 agora tem tabela de quais transições de `MIXED_TEMPLATES` mudam duas
+    dimensões e quais mudam uma — `variable_intervals` é escada só de
+    repetições — e declara que o lever `INTENSITY` é **inoperante** com
+    `DEFAULT_INTENSITY_RANGE`, porque a faixa padrão encosta no teto de Z5 e a
+    truncagem em `Z5_CEILING` zera o efeito de todo degrau.
+  - A §10 declara que `decay()` só limita por baixo: com `days` ou `daily_rate`
+    negativo a adaptação cresce acima do estado anterior.
+  - A §3 declara que `estimate_cp()` usa OLS de P contra 1/t, que enviesa o
+    intercepto, pesa um esforço de 120 s dez vezes mais que um de 1200 s, não
+    pondera por duração e não filtra outlier.
+- **Quatro limites novos na §14 (Limitações)** — as três primeiras ressalvas do
+  conjunto acima, mais o bias do estimador de CP, enumerados como "limites de
+  implementação conhecidos", distintos das limitações de literatura, cada um
+  apontando para a trava que o fixa.
 - **PMID 34469178 não existe**; o correto é **34489178** (Düking et al., 2021).
   Um teste agora rejeita PMIDs fora do limite estrutural.
 - **Prontidão não prediz desempenho** (seção nova): treino guiado por HRV teve
