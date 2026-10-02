@@ -1,16 +1,43 @@
+%% Fonte canonica: docs/diagramas/estados.mmd (repo).
+%% Espelho em 01-Projetos/cycling-coach/estados.mmd (vault) - nao editar la.
+%% Editar no repo e copiar. Ver docs/DIAGRAMAS.md.
 stateDiagram-v2
     [*] --> Planejado : build + push (external_id hermes-plan-*)
+
     Planejado --> Feito : atividade pareada (paired_activity_id)
     Planejado --> Perdido : passa do dia + sem atividade
-    Planejado --> Trocado : check --apply (prontidão abaixo)<br/>recuperação Z2 curta no lugar
+
+    %% Ciclo de execucao da sessao de hoje (session_execution_state).
+    %% "Em andamento" NAO e um estado que o Intervals confirme: so ha
+    %% realizacao via paired_activity_id. Ausencia de prova deixa o estado
+    %% desconhecido, para nao reescrever sessao em andamento.
+    Planejado --> NaoIniciado : horario planejado ainda nao passou
+    Planejado --> EstadoDesconhecido : horario passou (START_TIME 07:30)<br/>e o Intervals nao confirma realizacao
+    NaoIniciado --> Concluida : atividade pareada
+    EstadoDesconhecido --> Concluida : realizacao confirmada depois
+
+    %% Intervencao de prontidao: REDUCE, nao troca de foco.
+    %% Preserva o foco e a zona declarada; reduz dose (volume/duracao).
+    Planejado --> Reduzido : check --apply, REDUCE<br/>foco e zona preservados, dose reduzida
+    NaoIniciado --> Reduzido : check --apply, REDUCE
+    Reduzido --> Concluida : treino executado
+
+    %% REDUCE nunca troca por recuperacao; so REPLACE com ReadinessDecision
+    %% valido e TSB sem veto. Recuperacao curta entra como REPLACE explicito.
+    Reduzido --> Trocado : REPLACE (readiness + sem TSB forcado)
+
     Perdido --> Ajustado : reconcile absorve pelo orçamento<br/>eleva Z2/SweetSpot até o teto<br/>sem trocar por recuperação
     Perdido --> Debito : falta de alta intensidade<br/>(Limiar/VO2) não se substitui<br/>com volume
     Debito --> Ajustado : build reprioriza intensidade<br/>pelo TSB real
+
     Planejado --> Extra : atividade fora do plano (não-hermes)
     Extra --> Leve : carga ok → plano mantido
     Extra --> Pesado : carga ≥ cap diário (7d)
     Pesado --> Ajustado : recuperação + limiar
+
     Ajustado --> Feito : treino executado
-    Trocado --> Feito : recuperação executada
+    Trocado --> Feito : treino executado
+
     Perdido --> [*] : fim da janela do plano
     Feito --> [*]
+    Concluida --> [*]

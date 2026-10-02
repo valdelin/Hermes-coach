@@ -1,5 +1,9 @@
 # Roteiro de Testes — Hermes Coach
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/ROTEIRO-TESTES.md` **no repo** (o mesmo arquivo do vault é
+> cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+
 - **Preparado em:** 2026-09-20 (após a v0.0.12)
 - **Execução prevista:** 2026-09-22 (terça-feira)
 - **Objetivo:** validar o fluxo completo (CLI, agente, calendário do

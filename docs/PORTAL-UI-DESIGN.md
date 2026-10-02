@@ -3,10 +3,13 @@
 > Status: **rascunho aprovado em 22/09/2026** (Trilha B — mapa de telas);
 > **decisões de UX (aprovação, reconcile, sem chat, dashboard essencial) em
 > 26/09/2026** — ver "Decisões fixadas" e "Decisões pendentes (roadmap)".
-> Sem código implementado ainda; `docs/PORTAL-UI-DESIGN.md` é a fonte do
-> desenho; o vault espelha. Nada aqui altera o fluxo atual (CLI + timer +
+> Sem código implementado ainda. Nada aqui altera o fluxo atual (CLI + timer +
 > container) — o portal entra como camada nova (`web/`), motor via
 > `AthleteContext` (Fase 0 do plano).
+
+> [!info] Dono deste documento
+> Fonte canônica: `docs/PORTAL-UI-DESIGN.md` **no repo** (o mesmo arquivo do vault
+> é cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
 
 ## Objetivo
 

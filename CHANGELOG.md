@@ -123,9 +123,34 @@ exigindo `push` e aprovação explícita.
 
 ### Limitações conhecidas
 
+- **As quatro trocas de `SEQUENCES` mudam o trabalho total** (issue #59).
+  Sweet Spot e Limiar perdem 6 min (36 → 30, −16,7%); VO2max ganha 1 min
+  (+6,7%); Anaeróbico ganha 4 min (+50%). A §11 do embasamento afirmava que as
+  quatro "preservavam o volume total" — não preservam, e a aritmética foi
+  corrigida. `SEQUENCES` **não** foi alterado: as quatro trocas seguem como
+  estão, agora com o delta real documentado e o valor absoluto travado em teste
+  (`test_delta_de_trabalho_total_das_excecoes`). Escolher degraus novos é decisão
+  de prescrição, não correção de software.
+- **A contagem de "uma dimensão por degrau" não conta o estímulo**
+  (issue #59). `recovery_sec` é função de `work_sec`, então a razão
+  trabalho:recuperação muda em todo degrau de duração mesmo com `recovery_sec`
+  constante (Anaeróbico 0,50 → 1,00; Sweet Spot 4,00 → 5,00; VO2max
+  1,50 → 2,00). A invariante conta quatro campos declarados e ignora a razão.
+  Registrar isso como quinta dimensão reprovaria também as nove transições
+  corretas, por isso fica documentado em vez de virado assertion.
 - Sem fuso horário suportado no projeto: a "data local do atleta" é a data
   local da máquina. Criar suporte a fuso seria refatorar `date.today()` no
   projeto inteiro.
+- **O lever `INTENSITY` do gerador VO2max não tinha efeito com a faixa padrão**
+  (issue #59) e devolvia três degraus idênticos em silêncio enquanto `next_step`
+  avançava como se houvesse progressão. `DEFAULT_INTENSITY_RANGE` é igual à banda
+  Z5 `(1,06; 1,20)`, então o teto `Z5_CEILING` truncava todo degrau. Agora
+  `generate()` levanta `ValueError` quando a faixa não tem folga abaixo do teto,
+  com mensagem que aponta as duas saídas (faixa com folga, ou outro lever). **A
+  faixa padrão não foi abaixada** para ativar o lever: a prescrição determina a
+  abstração de software. Subir acima do teto geraria Z6 rotulada como VO2max.
+  `progression_ledger()` passou a aceitar `intensity_range`, porque a escada é
+  construída a partir da faixa.
 - **Timer movido de 00:00 para 05:30.** A 00:00 o dispositivo quase nunca tinha
   sincronizado a leitura do dia, então a etapa estava no fluxo mas raramente
   tinha dado para agir. Em `updated` de `/wellness`, as chegadas locais foram

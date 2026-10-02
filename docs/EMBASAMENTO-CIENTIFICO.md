@@ -16,6 +16,13 @@
 > Alterar a tabela exige alterar **os dois lados** — o teste
 > `ZoneIntegrityTest` compara `ZONE_BANDS` com os valores da tabela e falha a
 > suíte se divergirem (v0.0.30).
+>
+> **Regra de dono (02/10/2026):** a **tabela científica** e as referências são
+> do vault; o **contrato algorítmico** (o que o código faz e por quê, mais os
+> limites de implementação) é deste arquivo, no repo. Para todo outro documento
+> duplicado entre os dois lados o padrão se inverte — repo canônico, vault
+> espelho — e o doc diz isso no topo. Exceção única e explícita: esta tabela
+> Z1–Z7, mantida pelos dois lados por causa do `ZoneIntegrityTest`.
 
 **Data:** 25/09/2026 · atualizado 02/10/2026 (P3-02)
 **Projeto:** Hermes Coach
@@ -510,25 +517,57 @@ falha a uma causa.
 `src/progression.py` (`SEQUENCES`) mudam **repetições e duração ao mesmo
 tempo** em quatro das treze transições entre degraus:
 
-| Família | Transição | O que muda |
-| --- | --- | --- |
-| Sweet Spot | 3 × 12 min → 2 × 15 min | repetições e duração |
-| Limiar | 3 × 12 min → 2 × 15 min | repetições e duração |
-| VO2max | 5 × 3 min → 4 × 4 min | repetições e duração |
-| Anaeróbico | 8 × 1 min → 6 × 2 min | repetições e duração |
+| Família | Transição | O que muda | Trabalho total |
+| --- | --- | --- | --- |
+| Sweet Spot | 3 × 12 min → 2 × 15 min | repetições e duração | 36 → 30 min (**−16,7%**) |
+| Limiar | 3 × 12 min → 2 × 15 min | repetições e duração | 36 → 30 min (**−16,7%**) |
+| VO2max | 5 × 3 min → 4 × 4 min | repetições e duração | 15 → 16 min (**+6,7%**) |
+| Anaeróbico | 8 × 1 min → 6 × 2 min | repetições e duração | 8 → 12 min (**+50%**) |
 
-As outras nove mudam uma dimensão só. As quatro transições listadas mudam a
-**forma do bloco**, não o volume total — o par 3x12→2x15 preserva 36 min de
-trabalho e o par 5x3→4x4 preserva 15 min. A progressão de intensidade nunca
-varia dentro de `SEQUENCES`: é fixa em 0,90 para toda família e todo degrau.
-Isso é coerente com a seção 4, que põe a intensidade sob controle de
-`ZONE_BANDS` e não da escada, mas significa que a escada **não** é um caminho
-para subir potência.
+As outras nove mudam uma dimensão só.
+
+**Correção (02/10/2026, issue #59).** Este texto antes afirmava que as quatro
+transições mudavam "a forma do bloco, **não** o volume total", e citava
+"3×12→2×15 preserva 36 min" e "5×3→4×4 preserva 15 min". **A aritmética não
+confereva:** nenhuma das quatro preserva o volume total, e elas não vão na mesma
+direção — duas reduzem, duas aumentam. O par 3×12→2×15 vai de 36 para 30 min.
+A afirmação foi removida e a tabela acima passa a mostrar o delta real, para que
+não se leia "troca de forma" como "volume constante".
+
+O que a troca de forma faz é mudar **quantidade de intervalos e comprimento de
+cada um** mantendo o esforço total próximo. Que isso seja uma progressão
+desejável é uma **decisão de engenharia do Hermes**, não um achado da literatura:
+nenhum dos estudos citados na seção 12 compara 3×12 com 2×15. A redução de 16,7%
+em Sweet Spot e Limiar em particular é uma escolha de prescrição do sistema, e
+está registrada como tal.
 
 `tests/scientific/test_progression.py::test_sequencia_por_familia_muda_uma_dimensao_por_degrau`
-trava as quatro exceções nominalmente. Alterar qualquer degrau de `SEQUENCES`
-exige atualizar essa lista — a troca passa a ser uma decisão explícita em vez
-de efeito colateral de um ajuste de volume.
+trava as quatro exceções nominalmente, e
+`test_delta_de_trabalho_total_das_excecoes` trava os valores absolutos de
+trabalho por degrau de cada família. Alterar qualquer degrau de `SEQUENCES`
+exige atualizar as duas listas — a troca passa a ser uma decisão explícita em
+vez de efeito colateral de um ajuste de volume.
+
+**Limite conhecido: a contagem de dimensões não conta o estímulo.** A regra de
+"uma dimensão por vez" olha quatro campos — `repeats`, `work_sec`,
+`recovery_sec`, `intensity`. Mas `recovery_sec` é **função** de `work_sec`
+(180 s a partir de 8 min de bloco, 120 s abaixo disso), de modo que a razão
+trabalho:recuperação muda em **todo** degrau de duração, mesmo quando o valor
+de `recovery_sec` não muda:
+
+| Família | Razão antes | Razão depois |
+| --- | --- | --- |
+| Anaeróbico (8×1 → 6×2) | 60:120 = 0,50 | 120:120 = **1,00** |
+| Sweet Spot (3×12 → 2×15) | 720:180 = 4,00 | 900:180 = **5,00** |
+| VO2max (5×3 → 4×4) | 180:120 = 1,50 | 240:120 = **2,00** |
+
+Ou seja: a invariante é satisfeita no sentido dos campos declarados e violada no
+sentido do estímulo. Tratar a razão como uma quinta dimensão reprovaria também as
+nove transições "corretas", por isso ela fica **documentada** e não vira
+assertion. Como a recuperação modula a resposta da sessão (PMID 31146621), isso
+importa: a razão não é um detalhe de planilha. Registrado em
+`test_recuperacao_escala_com_a_duracao_do_bloco` e no relatório da razão por
+degrau.
 
 No gerador VO2max a regra **é** respeitada: escadas separadas para duração do
 intervalo, repetições, tempo total e intensidade, expostas por
@@ -541,6 +580,73 @@ repetições e recuperação (seção 4).
 **HEURÍSTICA DO SISTEMA.** Granularidade de degrau, saltos de volume e os
 limiares que disparam avanço, estagnação ou recuo são do sistema. A
 `CompletionScore` não é uma medida de quanto o atleta de fato executou.
+
+### 11.1 Progressão multidimensional
+
+O isolates HIIT as um jogo de uma variável por vez, e a literatura **não** trata
+intensidade, duração do esforço, recuperação e número de repetições como
+independentes. É o que separa o que se sabe do que o Hermes escolheu.
+
+#### Evidência científica
+
+**EVIDÊNCIA CIENTÍFICA — HIIT tem múltiplas variáveis manipuláveis.** A revisão
+de Buchheit & Laursen lista intensidade e duração do esforço, intensidade e
+duração da recuperação, número de repetições e número de séries como variáveis
+de prescrição (PMID 23539308). Consequência direta: `work_sec` ↑ sozinho não
+demonstra que o estímulo progrediu, e `intensity` ↑ sozinho também não.
+
+**EVIDÊNCIA CIENTÍFICA — intensidade e duração interagem.** Seiler e colaboradores
+compararam combinações de intensidade e duração total em ciclistas; o efeito não
+se decompõe em "mais intensidade" ou "mais duração" separadamente (PMID 21812820,
+*Scandinavian Journal of Medicine & Science in Sports* — **não** MSSE).
+
+**EVIDÊNCIA CIENTÍFICA — a recuperação modula a resposta.** A duração da
+recuperação entre intervalos modifica a resposta da sessão e a capacidade de
+sustentar trabalho subsequente (PMID 31146621). Por isso `recovery` entra na
+auditoria junto com `work_sec`, `repeats` e `intensity`.
+
+**EVIDÊNCIA CIENTÍFICA — tempo acumulado, não intensidade instantânea.** Para
+sessões VO2 o alvo é tempo acumulado sob elevada demanda aeróbia, e intervalos
+mais longos podem permitir mais tempo perto do V̇O₂max em desenhos específicos
+(seção 12; PMID 42237396). Isso **não** autoriza concluir que todo intervalo VO2
+deve ficar mais longo.
+
+**EVIDÊNCIA CIENTÍFICA — nenhum formato é universalmente superior.** A network
+meta-analysis de Held e colaboradores não encontrou superioridade entre estruturas
+(PMID 42482078). A heterogeneidade dos protocolos é razão suficiente para não
+transformar uma observação específica em regra do Hermes.
+
+**EVIDÊNCIA CIENTÍFICA — carecem de base.** Nenhum dos estudos acima compara
+3 × 12 min com 2 × 15 min, 5 × 3 com 4 × 4 ou 8 × 1 com 6 × 2. As quatro
+transições de `SEQUENCES` e os degraus do gerador VO2max **não são**
+replicações de resultado publicado.
+
+#### Decisões de engenharia do Hermes
+
+As decisões a seguir **não** decorrem dos estudos acima. São escolhas do sistema,
+adotadas porque tornam a progressão interpretável, testável, previsível e
+auditável — e porque uma transição que mexe em duas dimensões de uma vez impede
+atribuir falha a uma causa.
+
+- **Uma dimensão por degrau**, quando aplicável. É a regra que origina as
+  escadas separadas do gerador VO2max (`_ladder`) e a lista de exceções de
+  `SEQUENCES`. Onde não é respeitada, a exceção está nomeada e travada.
+- **Avoidance de transições contraditórias** entre dimensões — sem subir
+  duração enquanto reduz repetições, exceto nas quatro exceções declaradas.
+- **`repeats × work_sec` como sanity check**, não como métrica de estímulo. Serve
+  para localizar transições suspeitas; não é dose fisiológica.
+- **Intensidade fora da escada de `progression.py`**, fixa em 0,90 e sob controle
+  de `ZONE_BANDS`. É por isso que a escada não é caminho para subir potência.
+- **`INTENSITY` no gerador VO2max**: faixa prescrita tem teto em
+  `ZONE_BANDS['vo2max']`, e falta de folga é erro, não degrau válido — hoje
+  `generate()` levanta `ValueError`. Não se baixa a faixa padrão para ativar o
+  lever: a prescrição determina a abstração, não o contrário.
+
+**Fora do escopo do Hermes:** qual família progride por qual dimensão, e se
+2 × 15 min serve melhor como prescrição que 3 × 12 min. Não se compara: a literatura
+não traz as duas formas, e nenhum estudo citado escolhe entre elas. Onde a
+resposta depende de julgamento técnico, o sistema pede validação com treinador
+(`ROTEIRO-TREINADOR`).
 
 ## 12. VO2max
 
@@ -686,17 +792,31 @@ própria, e cada um tem trava de teste.
 
 9. **As escadas de `progression.py` violam a regra de dimensão única em quatro
    transições** (seção 11). A regra é a intenção de prescrição; o código a segue
-   em nove de treze transições e a quebra nas quatro que trocam a **forma** do
-   bloco preservando o volume total. Consequência: a escada não é um caminho
-   para subir potência — a intensidade é fixa em 0,90.
-10. **O lever `INTENSITY` de VO2max é inoperante na configuração padrão**
-    (seção 12). `DEFAULT_INTENSITY_RANGE` já encosta no teto de Z5, então o
-    truncagem em `Z5_CEILING` zera o efeito de todos os degraus. Subir
-    intensidade por escada só funciona com faixa prescrita mais estreita.
-11. **`AdaptationState.decay()` não tem teto superior** (seção 10). Com `days` ou
+   em nove de treze transições e a quebra nas quatro restantes, que trocam
+   repetições **e** duração no mesmo degrau. **O trabalho total não se mantém:**
+   −16,7% em Sweet Spot e Limiar, +6,7% em VO2max e +50% em Anaeróbico. A versão
+   anterior deste texto dizia que as quatro "preservavam o volume total"; a
+   aritmética não confirmava e foi corrigida em 02/10/2026. Consequência: a
+   escada não é um caminho para subir potência — a intensidade é fixa em 0,90.
+   A regra em si é **heurística de engenharia**, não regra fisiológica.
+10. **A contagem de "uma dimensão por vez" não conta o estímulo.** `recovery_sec`
+    é função de `work_sec`, então a razão trabalho:recuperação muda em todo
+    degrau de duração mesmo com `recovery_sec` constante (Anaeróbico 0,50 → 1,00;
+    Sweet Spot 4,00 → 5,00; VO2max 1,50 → 2,00). A invariante conta quatro campos
+    declarados e ignora a razão, por isso passa onde o estímulo mudou.
+11. **O lever `INTENSITY` de VO2max não tem efeito com a faixa padrão** (seção
+    12). `DEFAULT_INTENSITY_RANGE` é igual à banda Z5 `(1,06; 1,20)`, então o teto
+    `Z5_CEILING` trunca todo degrau e a escada devolvia três treinos idênticos
+    enquanto `next_step()` avançava como se houvesse progressão. **Resolvido em
+    02/10/2026:** `generate()` agora levanta `ValueError` quando não há folga
+    abaixo do teto, em vez de devolver degrau mudo. O lever só age com faixa
+    prescrita mais estreita — e continua correto assim, porque subir acima do teto
+    geraria Z6 rotulada como VO2max. Regressão:
+    `test_vo2_generator.py::test_intensidade_sem_folga_falha_explicitamente`.
+12. **`AdaptationState.decay()` não tem teto superior** (seção 10). Com `days` ou
     `daily_rate` negativo, a adaptação cresce acima do estado anterior, contra o
     nome da função.
-12. **`estimate_cp()` enviesa o intercepto** (seção 3). OLS de $P$ contra $1/t$
+13. **`estimate_cp()` enviesa o intercepto** (seção 3). OLS de $P$ contra $1/t$
     não é o estimador compatível para o intercepto de $P = CP + W'/t$, não
     pondera por duração e não filtra outlier. O CP é honesto dentro da faixa de
     durações medida; extrapolar para o assíntoto com poucos pontos é chute.
@@ -732,10 +852,19 @@ documento foram conferidos contra o abstract.
     *EVIDÊNCIA. Efeito médio em parâmetros submáximos; efeito pequeno e não significativo em desempenho e V̇O₂*pico*.*
 16. **Granero-Gallegos, A., González-Quílez, A., et al. (2020).** *HRV-Based Training for Improving VO₂max in Endurance Athletes. A Systematic Review with Meta-Analysis.* International Journal of Environmental Research and Public Health, 17(21), 7999. PMID 33143175 — <https://doi.org/10.3390/ijerph17217999>
     *EVIDÊNCIA. Efeito pequeno e positivo no desempenho, condicionado a nível e sexo do atleta.*
-17. **Schoenmakers, B., et al. (2026).** *Time spent at or near V̇O₂max during high-intensity interval training — a systematic review and meta-analysis.* BMC Sports Science, Medicine and Rehabilitation, 2026. PMID 42237396 — <https://doi.org/10.1186/s13102-026-01766-x>
+17. **Schoenmakers, P., et al. (2026).** *Time spent at or near V̇O₂max during high-intensity interval training — a systematic review and meta-analysis.* BMC Sports Science, Medicine and Rehabilitation, 2026. PMID 42237396 — <https://doi.org/10.1186/s13102-026-01766-x>
     *EVIDÊNCIA. Intervalos ≥2 min > curtos/moderados; intensidade variável > ritmo par (SMD 0,80); recuperação ativa vs. passiva sem efeito.*
-18. **Held, M., et al. (2026).** *Comparison of high-intensity interval training protocol designs on accumulated time ≥90% V̇O₂max: a network meta-analysis.* BMC Sports Science, Medicine and Rehabilitation, 2026. PMID 42482078 — <https://doi.org/10.1186/s13102-026-01891-7>
+18. **Held, S., et al. (2026).** *Comparison of high-intensity interval training protocol designs on accumulated time ≥90% V̇O₂max: a network meta-analysis.* BMC Sports Science, Medicine and Rehabilitation, 2026. PMID 42482078 — <https://doi.org/10.1186/s13102-026-01891-7>
     *EVIDÊNCIA. Nenhuma estrutura superior; todas as comparações não significativas, I² = 69,2%; rankings exploratórios.*
+
+19. **Buchheit, M., & Laursen, P. B. (2013).** *High-intensity interval training, solutions to the programming puzzle: Part I: cardiopulmonary emphasis.* Sports Medicine, 43(5), 313–338. PMID 23539308 — <https://doi.org/10.1007/s40279-013-0029-x>
+    *EVIDÊNCIA. Múltiplas variáveis manipuláveis na prescrição de HIIT: intensidade e duração do esforço, intensidade e duração da recuperação, número de repetições e número de séries. Sustenta que nenhuma delas progride de forma isolada.*
+20. **Seiler, S., Jøranson, K., Olesen, B. V., et al. (2013).** *Adaptations to aerobic interval training: interactive effects of exercise intensity and total work duration.* Scandinavian Journal of Medicine & Science in Sports, 23(2), e53–e63. PMID 21812820 — <https://doi.org/10.1111/j.1600-0838.2011.01351.x>
+    *EVIDÊNCIA. Efeitos interativos de intensidade e duração total em ciclistas. Sustenta "intensidade × duração interagem"; não sustenta a leitura de que uma das duas, isolada, seja superior. Nota de origem: a revista é Scandinav J Med Sci Sports, não MSSE.*
+21. **Schoenmakers, P. P. J. M., Hettinga, F. J., & Reed, K. E. (2019).** *The Moderating Role of Recovery Durations in High-Intensity Interval-Training Protocols.* International Journal of Sports Physiology and Performance, 14(7), 994–1002. PMID 31146621 — <https://doi.org/10.1123/ijspp.2018-0876>
+    *EVIDÊNCIA. A duração da recuperação modera a resposta da sessão e a capacidade de sustentar trabalho subsequente. Sustenta avaliar `recovery` junto de `work_sec`, `repeats` e `intensity` — base do limite sobre a razão trabalho:recuperação (§11).*
+22. **Rosenblat, M. A., Lin, E., da Costa, B. R., et al. (2021).** *Programming Interval Training to Optimize Time-Trial Performance: A Systematic Review and Meta-Analysis.* Sports Medicine, 51(8), 1857–1880. PMID 33826121 — <https://doi.org/10.1007/s40279-021-01457-2>
+    *EVIDÊNCIA. Programação de intervalos para desempenho em contrarrelógio. Cited como contexto de Relationship entre duração do intervalo, dose e desempenho — não como regra determinística do algoritmo.*
 
 ### Referências que sustentam a tabela Z1–Z7
 

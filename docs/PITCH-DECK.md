@@ -1,5 +1,9 @@
 # Pitch Deck — Hermes Coach
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/PITCH-DECK.md` **no repo** (o mesmo arquivo do vault é
+> cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+
 **Rascunho para apresentação a investidor** (anjo/seed). Conteúdo baseado nos
 docs reais do repo: `docs/ROADMAP.md`, `docs/ARQUITETURA.md`, ADR-003 (vault),
 benchmarks de mercado (22/09–23/09) e avaliação comercial #12.

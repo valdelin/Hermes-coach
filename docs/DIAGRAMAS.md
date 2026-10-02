@@ -1,8 +1,14 @@
 # Diagramas UML — Hermes Coach
 
-Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.29).
+Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.35).
 Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
 fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
+
+**Fonte canônica: este diretório no repo.** Os `.mmd` e `.png` são espelhados
+em `01-Projetos/cycling-coach/` no vault do Obsidian para leitura; quando os dois
+divergirem, o repo vence. Editar aqui e copiar — nunca editar os dois lados.
+Os blocos `mermaid` deste `.md` são embutidos, não gerados: se um `.mmd` mudar,
+atualizar o bloco correspondente aqui também.
 
 Legenda rápida dos módulos:
 
@@ -15,14 +21,15 @@ Legenda rápida dos módulos:
 | `src/intervals_client.py` | Cliente da API do Intervals.icu (events, wellness, activities, streams, sport-settings) com retry/backoff |
 | `src/ftp_scan.py` / `ftp_estimation.py` | Análise de treinos fora do plano → proposta de FTP (20min × 0,95) |
 | `src/recovery.py` | Retorno a forma: PMC real ancorado (EWMA 42/7) + TSB real + prazo + rampa calibrada com deload (`estimate_return`/`ramp_schedule`/`calibrated_state`) |
-| `src/readiness.py` | Prontidão do dia (`check`): sinais de wellness (RHR/HRV/sono) → sugestão de troca por recuperação + alerta de início de doença (+ `COACH_WEBHOOK`) |
+| `src/readiness.py` | Prontidão do dia (`check`): sinais de wellness (RHR/HRV/sono) → proposta **REDUCE** (foco e zona preservados, dose reduzida), elegibilidade por estado da sessão, idempotência e alerta de início de doença (+ `COACH_WEBHOOK`) |
+| `src/readiness_assessment.py` | Avaliação de prontidão do Passo A (`ReadinessAssessment`/`ReadinessLevel`). **Integração parcial**: chega ao fluxo por `check --apply`, não por `build` |
 | `src/periodization.py` | Explicação dos 5 modelos de periodização (`periodization`): o que significam para o atleta + sugestão por GOAL/TSB (top/evitar) |
 | `src/activity_summary.py` | Resumo dos treinos feitos por dia/semana/mês (`summary`) |
 | `src/charts.py` | Gráficos em texto: PMC trailing 90d + carga semanal (TSS/ISO) |
 | `src/report.py` | Relatório com gráficos SVG: HTML direto / PDF via chromium headless (`--export`) |
 | `src/brand.py` | Identidade: 22 temas (Omarchy quattro) + tokens de cor por tema |
 | `plan.json` | Estado local do plano (treinos + meta: goal, race_date, ftp_candidates) |
-| `scripts/daily_reconcile.sh` | Timer systemd: reconcile + push à meia-noite |
+| `scripts/daily_reconcile.sh` | Timer systemd às **05:30**: `check --apply` (grava o plano, não publica) → `reconcile --show` → `push --start hoje` |
 
 ---
 
@@ -41,7 +48,7 @@ flowchart LR
         FTPS["ftp_scan.py + ftp_estimation.py<br/>proposta de FTP"]
         AS["activity_summary.py<br/>resumo por período · pareamento"]
         REC["recovery.py<br/>PMC real ancorado + TSB real + prazo + rampa calibrada"]
-        RD["readiness.py<br/>prontidão: sinais wellness · sugestão de troca · alerta doença"]
+        RD["readiness.py<br/>prontidão: sinais wellness · REDUCE · elegibilidade · alerta doença"]
         PER["periodization.py<br/>explica modelos · sugere por GOAL/TSB"]
     end
 
@@ -57,7 +64,7 @@ flowchart LR
 
     ENV[".env<br/>credenciais · FTP · agenda · GOAL · PERIODIZATION<br/>COACH_WEBHOOK (alerta doença)"]
     PLANFILE["plan.json<br/>plano + meta"]
-    SH["scripts/daily_reconcile.sh<br/>(timer systemd meia-noite)"]
+    SH["scripts/daily_reconcile.sh<br/>(timer systemd 05:30)"]
 
     INTERVALS["Intervals.icu API"]
     APPS["Zwift / Garmin / Wahoo<br/>(atividades + .zwo)"]
@@ -91,22 +98,32 @@ flowchart LR
 
 ---
 
-## 2. Sequência — fluxo diário automático (timer de meia-noite)
+## 2. Sequência — fluxo diário automático (timer de 05:30)
 
 ```mermaid
 sequenceDiagram
-    participant T as systemd timer<br/>cycling-coach-daily
+    participant T as systemd timer<br/>cycling-coach-daily<br/>(05:30)
     participant S as daily_reconcile.sh
     participant C as CLI<br/>training_plan.py
     participant I as Intervals.icu API
     participant P as plan.json
 
-    T->>S: meia-noite (daily)
+    T->>S: 05:30 (timer persistente)
+    Note over T: 00:00 foi trocado por 05:30:<br/>o dispositivo quase nunca<br/>sincronizava a leitura antes<br/>da meia-noite
+    S->>C: check --apply
+    C->>I: GET /wellness (leitura do dia)
+    I-->>C: RHR/HRV/sono
+    C->>P: le plano de hoje
+    C->>C: readiness_eligibility()<br/>concluida -> preservada<br/>estado desconhecido -> propoe, nao aplica
+    C->>P: grava REDUCE no plan.json (nao publica)
+    alt sem leitura do dia
+        C-->>S: avisa: sem dado, segue para o reconcile
+    end
     S->>C: reconcile --show
     C->>I: GET /events (janela)
     I-->>C: eventos + métricas
     C->>P: carrega plano atual
-    C->>C: detecta perdidos/extras<br/>perdido → absorve no orçamento<br/>extra pesado → recuperação
+    C->>C: detecta perdidos/extras<br/>recuperação + limiar -5%
     C->>P: salva plano ajustado
     C-->>S: OK / erro
     alt erro no reconcile
@@ -122,6 +139,7 @@ sequenceDiagram
         C-->>S: calendário atualizado
         S-->>T: sucesso
     end
+    Note over C,I: check --apply nunca publica.<br/>So o push toca o calendário.
 ```
 
 ---
@@ -342,20 +360,44 @@ flowchart TD
 ```mermaid
 stateDiagram-v2
     [*] --> Planejado : build + push (external_id hermes-plan-*)
+
     Planejado --> Feito : atividade pareada (paired_activity_id)
     Planejado --> Perdido : passa do dia + sem atividade
-    Planejado --> Trocado : check --apply (prontidão abaixo)<br/>recuperação Z2 curta no lugar
+
+    %% Ciclo de execucao da sessao de hoje (session_execution_state).
+    %% "Em andamento" NAO e um estado que o Intervals confirme: so ha
+    %% realizacao via paired_activity_id. Ausencia de prova deixa o estado
+    %% desconhecido, para nao reescrever sessao em andamento.
+    Planejado --> NaoIniciado : horario planejado ainda nao passou
+    Planejado --> EstadoDesconhecido : horario passou (START_TIME 07:30)<br/>e o Intervals nao confirma realizacao
+    NaoIniciado --> Concluida : atividade pareada
+    EstadoDesconhecido --> Concluida : realizacao confirmada depois
+
+    %% Intervencao de prontidao: REDUCE, nao troca de foco.
+    %% Preserva o foco e a zona declarada; reduz dose (volume/duracao).
+    Planejado --> Reduzido : check --apply, REDUCE<br/>foco e zona preservados, dose reduzida
+    NaoIniciado --> Reduzido : check --apply, REDUCE
+    Reduzido --> Concluida : treino executado
+
+    %% REDUCE nunca troca por recuperacao; so REPLACE com ReadinessDecision
+    %% valido e TSB sem veto. Recuperacao curta entra como REPLACE explicito.
+    Reduzido --> Trocado : REPLACE (readiness + sem TSB forcado)
+
     Perdido --> Ajustado : reconcile absorve pelo orçamento<br/>eleva Z2/SweetSpot até o teto<br/>sem trocar por recuperação
     Perdido --> Debito : falta de alta intensidade<br/>(Limiar/VO2) não se substitui<br/>com volume
     Debito --> Ajustado : build reprioriza intensidade<br/>pelo TSB real
+
     Planejado --> Extra : atividade fora do plano (não-hermes)
     Extra --> Leve : carga ok → plano mantido
     Extra --> Pesado : carga ≥ cap diário (7d)
     Pesado --> Ajustado : recuperação + limiar
+
     Ajustado --> Feito : treino executado
-    Trocado --> Feito : recuperação executada
+    Trocado --> Feito : treino executado
+
     Perdido --> [*] : fim da janela do plano
     Feito --> [*]
+    Concluida --> [*]
 ```
 
 ---

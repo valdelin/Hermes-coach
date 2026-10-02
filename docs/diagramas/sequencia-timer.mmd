@@ -1,11 +1,24 @@
+%% Fonte canonica: docs/diagramas/sequencia-timer.mmd (repo).
+%% Espelho em 01-Projetos/cycling-coach/sequencia-timer.mmd (vault).
+%% Editar no repo e copiar. Ver docs/DIAGRAMAS.md.
 sequenceDiagram
-    participant T as systemd timer<br/>cycling-coach-daily
+    participant T as systemd timer<br/>cycling-coach-daily<br/>(05:30)
     participant S as daily_reconcile.sh
     participant C as CLI<br/>training_plan.py
     participant I as Intervals.icu API
     participant P as plan.json
 
-    T->>S: meia-noite (daily)
+    T->>S: 05:30 (timer persistente)
+    Note over T: 00:00 foi trocado por 05:30:<br/>o dispositivo quase nunca<br/>sincronizava a leitura antes<br/>da meia-noite
+    S->>C: check --apply
+    C->>I: GET /wellness (leitura do dia)
+    I-->>C: RHR/HRV/sono
+    C->>P: le plano de hoje
+    C->>C: readiness_eligibility()<br/>concluida -> preservada<br/>estado desconhecido -> propoe, nao aplica
+    C->>P: grava REDUCE no plan.json (nao publica)
+    alt sem leitura do dia
+        C-->>S: avisa: sem dado, segue para o reconcile
+    end
     S->>C: reconcile --show
     C->>I: GET /events (janela)
     I-->>C: eventos + métricas
@@ -26,3 +39,4 @@ sequenceDiagram
         C-->>S: calendário atualizado
         S-->>T: sucesso
     end
+    Note over C,I: check --apply nunca publica.<br/>So o push toca o calendário.

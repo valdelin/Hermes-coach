@@ -117,6 +117,59 @@ class EscadaDeProgressaoTest(unittest.TestCase):
                             for i in range(len(self.engine.sequences[family]))}
             self.assertEqual(len(intensidades), 1, family)
 
+    def test_delta_de_trabalho_total_das_excecoes(self):
+        """Trava o trabalho absoluto por degrau, e o delta nas quatro trocas.
+
+        A lista de exceções acima diz *quais* transições mudam duas dimensões;
+        esta trava *quanto* trabalho cada uma troca. Sem ela, ajustar um degrau
+        de `SEQUENCES` mudaria a prescrição sem que nada indicasse. Os valores
+        foram corrigidos em 02/10/2026 (issue #59): a §11 afirmava que as quatro
+        trocas preservavam o volume total, e não preservam.
+        """
+        esperado = {
+            StimulusFamily.SWEET_SPOT: (1440, 1800, 2160, 1800, 2700),
+            StimulusFamily.THRESHOLD: (1440, 1800, 2160, 1800, 2700),
+            StimulusFamily.VO2MAX: (720, 900, 960, 1200),
+            StimulusFamily.ENDURANCE: (3600, 4500, 5400),
+            StimulusFamily.ANAEROBIC: (360, 480, 720),
+        }
+        for family, valores in esperado.items():
+            passos = [self.engine.step(family, i)
+                      for i in range(len(self.engine.sequences[family]))]
+            obtido = tuple(s.repeats * s.work_sec for s in passos)
+            self.assertEqual(obtido, valores, family)
+
+        # As duas trocas que hoje *reduzem* trabalho: e o caso que a documentacao
+        # anterior negava. Preservado como decisao registrada, nao como invariante.
+        for family in (StimulusFamily.SWEET_SPOT, StimulusFamily.THRESHOLD):
+            passos = [self.engine.step(family, i) for i in range(4)]
+            self.assertEqual(passos[3].repeats, 2, family)
+            self.assertEqual(passos[3].work_sec, 900, family)
+            self.assertLess(passos[3].repeats * passos[3].work_sec,
+                            passos[2].repeats * passos[2].work_sec, family)
+
+    def test_razao_trabalho_por_recuperacao_muda_em_todo_degrau_de_duracao(self):
+        """`recovery_sec` e funcao de `work_sec`: a invariante conta campos, nao
+        estimulo. Documentado na §11; aqui fica registrado, nao travado.
+
+        Se a recuperacao virasse uma dimensao independente, esta razao ficaria
+        constante e o teste passaria a exigir o contrario. Tratar a razao como
+        quinta dimensao reprovaria tambem as nove transicoes "corretas".
+        """
+        for family in FAMILIAS:
+            passos = [self.engine.step(family, i)
+                      for i in range(len(self.engine.sequences[family]))]
+            for anterior, atual in zip(passos, passos[1:]):
+                mudou_duracao = anterior.work_sec != atual.work_sec
+                mudou_recuperacao = anterior.recovery_sec != atual.recovery_sec
+                if mudou_duracao and not mudou_recuperacao:
+                    razao_antes = anterior.work_sec / anterior.recovery_sec
+                    razao_depois = atual.work_sec / atual.recovery_sec
+                    self.assertNotAlmostEqual(razao_antes, razao_depois,
+                                              msg=f"{family.value}: a razao "
+                                                  "work:recovery mudou em "
+                                                  "silencio")
+
     def test_sequencia_por_familia_muda_uma_dimensao_por_degrau(self):
         """Invariante do §11, com as excecoes reais do codigo.
 
