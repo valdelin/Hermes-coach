@@ -71,6 +71,14 @@ fluxo `build`/`push` (ver limitações).
   conjunto acima, mais o bias do estimador de CP, enumerados como "limites de
   implementação conhecidos", distintos das limitações de literatura, cada um
   apontando para a trava que o fixa.
+- **Correção de registro (02/10).** O commit de sincronização do ROADMAP e do
+  KNOWN_ISSUES afirmou que as tags `v0.0.32`, `v0.0.33` e `v0.0.34` não
+  existiam e as criou localmente. **Isso era falso:** as três já existiam no
+  remoto, apontando para os mesmos commits, e o push foi rejeitado com
+  "already exists". O erro foi concluir a partir de `git tag` local, cujo clone
+  não tinha as tags remotas. Nenhum conteúdo de release foi afetado — as tags
+  criadas apontavam para os commits corretos —, mas o registro fica corrigido
+  aqui e a verificação correta é `git ls-remote --tags origin`, não `git tag`.
 - **PMID 34469178 não existe**; o correto é **34489178** (Düking et al., 2021).
   Um teste agora rejeita PMIDs fora do limite estrutural.
 - **Prontidão não prediz desempenho** (seção nova): treino guiado por HRV teve
