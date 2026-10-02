@@ -9,10 +9,15 @@ A progressão é organizada por dimensão: cada degrau de uma escada altera
 É por isso que as escadas existem separadas — subir duração e repetições no
 mesmo degrau é erro de prescrição, não progressão.
 
-Limite conhecido deste módulo: com `DEFAULT_INTENSITY_RANGE` o lever
-`INTENSITY` é **inoperante**, porque a faixa padrão já encosta no teto de Z5
-(1,20) e o degrau de +2% é truncado. O lever só age sobre faixa prescrita mais
-estreita que o teto. Ver `docs/EMBASAMENTO-CIENTIFICO.md` §12.
+Faixa de intensidade: a padrão é igual à banda Z5 `(1,06; 1,20)`, ou seja, a
+mais larga que ainda é VO2max. Com ela **não há folga para o lever `INTENSITY`**:
+o teto trunca todo degrau e a escada devolvia três treinos idênticos enquanto o
+chamador acreditava ter progredido. Por isso `generate()` agora **levanta
+`ValueError`** nessa situação em vez de devolver degrau mudo — o lever só age
+sobre faixa prescrita mais estreita que o teto, e continua correto assim, porque
+subir acima dele geraria Z6 rotulada como VO2max. A faixa padrão **não** foi
+abaixada para ativar o lever: a prescrição determina a abstração de software, não
+o contrário. Ver `docs/EMBASAMENTO-CIENTIFICO.md` §11.1 e §12.
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -121,6 +126,17 @@ def generate(family, lever=ProgressionLever.TOTAL_WORK_TIME, progression_step=0,
     repetitions, duration = steps[step]
     if lever is ProgressionLever.INTENSITY:
         low, high = intensity_range
+        # Sem folga abaixo do teto o degrau nao mudaria nada: a escada devolveria
+        # N vezes o mesmo treino. Falhar alto mantem a API honesta - o chamador
+        # escolhe faixa com folga, nao recebe uma progressao ficticia.
+        if high >= Z5_CEILING:
+            raise ValueError(
+                f"lever INTENSITY sem folga: teto da faixa "
+                f"({high}) >= teto de Z5 ({Z5_CEILING}). A faixa padrao "
+                f"({DEFAULT_INTENSITY_RANGE}) e a propria banda Z5, entao todo "
+                f"degrau seria truncado e a escada devolveria o mesmo treino. "
+                f"Use uma faixa com teto abaixo de {Z5_CEILING} (ex.: "
+                f"(1.06, 1.12)) ou outro lever.")
         intensity_range = (low, round(min(Z5_CEILING, high + INTENSITY_STEP * step), 4))
     return VO2Workout(family, duration, repetitions, tuple(intensity_range),
                       _recovery_for(duration), recovery_power,
@@ -147,9 +163,15 @@ def next_step(family, lever, progression_step=0):
     return min(progression_step + 1, depth - 1)
 
 
-def progression_ledger(family, lever=ProgressionLever.TOTAL_WORK_TIME):
-    """Escada completa de um lever; degraus consecutivos mudam uma dimensão só."""
-    return [(step, generate(family, lever, step))
+def progression_ledger(family, lever=ProgressionLever.TOTAL_WORK_TIME,
+                       intensity_range=DEFAULT_INTENSITY_RANGE):
+    """Escada completa de um lever; degraus consecutivos mudam uma dimensão só.
+
+    O lever `INTENSITY` precisa de uma `intensity_range` com folga abaixo do
+    teto de Z5; com a faixa padrão `generate()` levanta `ValueError` a cada
+    degrau, e a exceção sobe daqui.
+    """
+    return [(step, generate(family, lever, step, intensity_range))
             for step in range(len(_ladder(family, lever)))]
 
 

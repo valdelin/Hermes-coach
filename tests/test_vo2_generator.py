@@ -64,17 +64,56 @@ class VO2GeneratorTest(unittest.TestCase):
         self.assertEqual([s.work_power_range for s in steps],
                          [(1.06, 1.16), (1.06, 1.18), (1.06, 1.20)])
 
-    def test_intensidade_nao_atravessa_o_teto_de_z5(self):
+    def test_intensidade_com_folga_nunca_atravessa_o_teto_de_z5(self):
+        # Com folga abaixo do teto, o degrau sobe mas nunca gera Z6 rotulada
+        # como VO2max.
         for step in range(3):
             for family in (self.LONG, self.SHORT, self.VAR):
-                workout = generate(family, ProgressionLever.INTENSITY, step)
+                workout = generate(family, ProgressionLever.INTENSITY, step,
+                                   (1.06, 1.16))
                 self.assertLessEqual(workout.work_power_range[1], Z5_CEILING)
         self.assertEqual(DEFAULT_INTENSITY_RANGE[1], Z5_CEILING)
 
-    def test_faixa_padrao_sem_folga_nao_sobe(self):
-        steps = [generate(self.LONG, ProgressionLever.INTENSITY, i).work_power_range
-                 for i in range(3)]
-        self.assertEqual(set(steps), {DEFAULT_INTENSITY_RANGE})
+    def test_intensidade_sem_folga_falha_explicitamente(self):
+        # A faixa padrao e a propria banda Z5: todo degrau seria truncado e a
+        # escada devolveria tres treinos identicos. Antes da #59 isso passava em
+        # silencio e next_step() avançava como se houvesse progressao. Agora a
+        # API falha alto, em vez de simular um degrau que nao existe.
+        for step in range(3):
+            for family in (self.LONG, self.SHORT, self.VAR):
+                with self.assertRaises(ValueError) as ctx:
+                    generate(family, ProgressionLever.INTENSITY, step)
+                mensagem = str(ctx.exception)
+                self.assertIn("sem folga", mensagem)
+                self.assertIn(str(Z5_CEILING), mensagem)
+
+    def test_a_falha_aponta_a_forma_de_resolver(self):
+        # A excecao precisa dizer o que fazer: faixa com folga, ou outro lever.
+        with self.assertRaises(ValueError) as ctx:
+            generate(self.LONG, ProgressionLever.INTENSITY, 0)
+        mensagem = str(ctx.exception)
+        self.assertIn("1.06, 1.12", mensagem)
+        self.assertIn("outro lever", mensagem)
+
+    def test_ledger_do_lever_intensidade_com_folga_muda_uma_dimensao(self):
+        # A invariante de "uma dimensao por degrau" continua valendo no ledger
+        # quando existe folga: so a faixa sobe. A escada e construida a partir da
+        # faixa entao ela tem de ser passada explicitamente, como em generate().
+        workouts = [generate(self.LONG, ProgressionLever.INTENSITY, i,
+                             (1.06, 1.16))
+                    for i in range(3)]
+        for anterior, atual in zip(workouts, workouts[1:]):
+            self.assertEqual(anterior.repetitions, atual.repetitions)
+            self.assertEqual(anterior.interval_duration, atual.interval_duration)
+            self.assertNotEqual(anterior.work_power_range,
+                                atual.work_power_range)
+
+    def test_teto_exatamente_no_limite_ja_falha(self):
+        # Nao e "estou um pouco acima do teto": e "nao ha folga nenhuma". Faixa
+        # exatamente no teto precisa falhar igual, sem caso especial.
+        with self.assertRaises(ValueError):
+            generate(self.LONG, ProgressionLever.INTENSITY, 0,
+                     (1.06, Z5_CEILING))
 
     def test_faixa_padrao_e_a_banda_z5_declarada(self):
         self.assertEqual(DEFAULT_INTENSITY_RANGE,
@@ -86,7 +125,11 @@ class VO2GeneratorTest(unittest.TestCase):
         self.assertEqual(next_step(self.LONG, ProgressionLever.TOTAL_WORK_TIME, 9), 2)
 
     def test_ledger_muda_uma_dimensao_por_degrau(self):
+        # O lever INTENSITY so tem degraus distintos com folga; com a faixa
+        # padrao ele nao produz escada valida (ver o teste da falha explicita).
         for lever in ProgressionLever:
+            if lever is ProgressionLever.INTENSITY:
+                continue
             workouts = [workout for _, workout in
                         progression_ledger(self.LONG, lever)]
             for previous, current in zip(workouts, workouts[1:]):

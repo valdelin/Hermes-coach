@@ -126,36 +126,45 @@ class GeracaoDeTreinoTest(unittest.TestCase):
         self.assertLess(base.work_power_range[1], passo1.work_power_range[1])
         self.assertLess(passo1.work_power_range[1], passo2.work_power_range[1])
 
-    def test_lever_intensity_e_inoperante_na_faixa_padrao(self):
-        """Limitação real do módulo: o lever padrão não faz nada.
+    def test_lever_intensity_e_invalido_na_faixa_padrao(self):
+        """O lever padrão é inválido, e isso é erro explícito (issue #59).
 
-        `DEFAULT_INTENSITY_RANGE` já tem 1,20 como teto, e `generate` faz
-        `min(Z5_CEILING, high + step*degrau)`. Ou seja, com a faixa padrão todo
-        degrau produz a mesma faixa. O lever só age sobre faixa prescrita
-        mais estreita. Registrado para que a docstring do módulo não sugira
-        progressão de intensidade onde não há.
+        `DEFAULT_INTENSITY_RANGE` já tem 1,20 como teto, e `generate` fazia
+        `min(Z5_CEILING, high + step*degrau)`: com a faixa padrão todo degrau
+        produzia a mesma faixa, e `next_step` avançava como se houvesse
+        progressão. Antes este teste *assegurava* esse comportamento mudo; agora
+        `generate` levanta `ValueError`, porque devolver três degraus idênticos
+        como se fossem uma escada é pior do que recusar a prescrição.
         """
+        for degrau in range(3):
+            with self.assertRaises(ValueError, msg=degrau):
+                generate(VO2Family.LONG_INTERVALS,
+                         lever=ProgressionLever.INTENSITY,
+                         progression_step=degrau)
+
+        # Com folga abaixo do teto o lever age, e só a faixa se move.
         for degrau in range(3):
             t = generate(VO2Family.LONG_INTERVALS,
                          lever=ProgressionLever.INTENSITY,
-                         progression_step=degrau)
-            self.assertEqual(t.work_power_range,
-                             DEFAULT_INTENSITY_RANGE, degrau)
+                         progression_step=degrau,
+                         intensity_range=(1.06, 1.12))
+            self.assertAlmostEqual(t.work_power_range[1], 1.12 + 0.02 * degrau,
+                                   places=4, msg=degrau)
 
     def test_o_teto_de_intensidade_nao_ultrapassa_z5_ceiling(self):
-        # A faixa padrão começa em (1.06, 1.20) no teto. Com poucos degraus da
-        # escada de intensidade, ela sobe aos poucos, mas nunca passa de Z5_CEILING.
+        # Com folga, muitos degraus de escada continuam presos ao teto de Z5:
+        # o degrau nao vira Z6 rotulada como VO2max.
         t = generate(VO2Family.LONG_INTERVALS,
                      lever=ProgressionLever.INTENSITY,
                      progression_step=100,
-                     intensity_range=DEFAULT_INTENSITY_RANGE)
+                     intensity_range=(1.06, 1.16))
         self.assertLessEqual(t.work_power_range[1], Z5_CEILING)
-        # Quando a faixa de entrada já é o teto, ela não sobe.
-        t_topo = generate(VO2Family.SHORT_INTERVALS,
-                          lever=ProgressionLever.INTENSITY,
-                          progression_step=5,
-                          intensity_range=(1.20, 1.20))
-        self.assertLessEqual(t_topo.work_power_range[1], Z5_CEILING)
+        # Faixa de entrada exatamente no teto não é escada válida.
+        with self.assertRaises(ValueError):
+            generate(VO2Family.SHORT_INTERVALS,
+                     lever=ProgressionLever.INTENSITY,
+                     progression_step=5,
+                     intensity_range=(1.20, 1.20))
 
     def test_intensidade_nunca_cai_abaixo_do_faixa_informada(self):
         # O ajuste só aumenta o teto, nunca rebaixa o piso nem o teto da faixa
