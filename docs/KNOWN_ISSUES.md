@@ -4,6 +4,15 @@ Lista de bugs conhecidos e pendências técnicas registradas, com rastreio no
 GitHub. Formato: cada issue tem status, impacto, mitigação atual e direção de
 solução.
 
+**Status do arquivo:** sincronizado em 02/10/2026 (v0.0.34). Os itens #3, #5 e
+#6 estavam marcados "aguardando commit/release" desde 22/09, mas foram entregues
+em v0.0.15 — status corrigido. O único item ainda **aberto** é o #1
+(fantasmas do Intervals, bug da plataforma, prioridade baixa e aceita).
+
+Pendências de escopo que não são bug estão em `docs/ROADMAP.md` (#58 integração
+dos módulos de P0–P3 ao `build`/`push`, #59 quatro limites de implementação) e
+em `docs/EMBASAMENTO-CIENTIFICO.md` §14.
+
 ---
 
 ## #1 — Intervals cria atividade MANUAL "fantasma" a partir do evento planejado
@@ -133,8 +142,8 @@ Etapa de **limpeza de fantasmas** no fluxo `reconcile`/`push` (ou no
 ## Build — preservar o treino de hoje descarta WEEKLY_HOURS/LONG_DAY
 
 **GitHub:** valdelin/Hermes-coach#7
-**Status:** **corrigido** (implementado 2026-09-22, aguardando commit/release) ·
-**Severidade:** funcional (configuração ignorada silenciosamente)
+**Status:** **corrigido e publicado** (implementado 2026-09-22, entregue em
+v0.0.15) · **Severidade:** funcional (configuração ignorada silenciosamente)
 · **Encontrado em:** 2026-09-22 (roteiro de testes, S5)
 
 ### Sintoma
@@ -209,8 +218,8 @@ trata qualquer dia ausente do plano como órfão por design.
 ## `reconcile` grava `plan.json` sem a meta (goal/race_date/ftp_test_date)
 
 **GitHub:** valdelin/Hermes-coach#8
-**Status:** **corrigido** (implementado 2026-09-22, aguardando commit/release) ·
-**Severidade:** baixa hoje (auditável; baixo impacto) —
+**Status:** **corrigido e publicado** (implementado 2026-09-22, entregue em
+v0.0.15) · **Severidade:** baixa hoje (auditável; baixo impacto) —
 **vai ficar funcional com a #6** (`ftp_candidates` vive na meta) · **Encontrado em:** 2026-09-22 (roteiro de testes, S2/S6)
 
 ### Sintoma
@@ -257,7 +266,7 @@ reconcile → meta `{'goal': 'ftp-builder', 'race_date': None,
 ## #6 — FTP sugerido a partir de treinos fora do plano
 
 **GitHub:** [valdelin/Hermes-coach#6](https://github.com/valdelin/Hermes-coach/issues/6)
-**Status:** **implementado** (2026-09-22, aguardando commit/release) ·
+**Status:** **implementado e publicado** (2026-09-22, entregue em v0.0.15) ·
 **Severidade:** feature (estimativa assistida de FTP)
 
 ### Descrição

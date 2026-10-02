@@ -72,6 +72,13 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 | 50 | decisão | **TrainingDecisionEngine** — compõe objetivo, fase, adaptação, carga, readiness, progressão, dose e segurança em decisão com `rationale` e `confidence`. | — (sessão 01/10 — P1-04) | **implementado (v0.0.34)** | 0 ✅ |
 | 51 | decisão | **ReadinessAssessment multimodal** — HRV vs baseline, RHR tendencial, sono, fadiga, carga, performance e consistência; cor = adequação ao treino; sinal isolado não cancela sessão. | — (sessão 01/10 — P1-05) | **implementado (v0.0.34)** | 0 ✅ |
 | 52 | dominio | **Critical Power / W′** — `CriticalPowerProfile` + ajuste `P = CP + W′/t` apenas com dados suficientes; CP/W′ complementam o FTP e não o substituem. | — (sessão 01/10 — P2-01) | **implementado (v0.0.34)** | 0 ✅ |
+| 53 | feature | **Gerador estruturado VO2max** — `VO2Workout` com `interval_duration`, `repetitions`, `work_power_range`, `recovery_duration`, `recovery_power`, `total_work_time`, `progression_step` e `lever`, em três famílias; escadas por dimensão via `progression_ledger()`; `Z5_CEILING` impede o degrau de intensidade de atravessar para Z6. **Nenhuma estrutura de protocolo é superior** (NMA de 19 publicações, 240 atletas, todas as comparações não significativas) — os templates são formatos configuráveis, não recomendações de eficácia. | — (sessão 02/10 — P2-02) | **implementado (v0.0.34)** | 0 ✅ |
+| 54 | feature | **Intenção e dose por família** (`src/zone_intent.py`) — `FamilyProfile` para `ENDURANCE`/`SWEET_SPOT`/`THRESHOLD` com `intent`, `dose`, `dose_shape`, `levers`, `not_claim` e `criterion`. **Sobreposição explícita**: `sweetspot` (84–97%) e `threshold` (91–105%) se cruzam em 91–97% FTP; `classify()` levanta `AmbiguousIntensity` nessa faixa em vez de escolher pelo número. Bandas vêm de `ZONE_BANDS` e não são redefinidas. | — (sessão 02/10 — P2-03) | **implementado (v0.0.34)** | 0 ✅ |
+| 55 | docs | **Embasamento científico reestruturado** — 15 seções classificadas (`EMBASAMENTO CIENTÍFICA` / `HEURÍSTICA DO SISTEMA` / `MODELO COMPUTACIONAL`), índice, sem superlativo sem base comparativa; 5 autores e 2 PMIDs conferidos contra o abstract no NCBI (Düking corrigido: **34489178**, não 34469178); seção 14 de limitações; contrato testado por 19 testes documentais. | — (sessão 02/10 — P2-04) | **implementado (v0.0.34)** | 0 ✅ |
+| 56 | teste | **Suíte de regressão científica** (`tests/scientific/`) — 222 testes em nove módulos, um por contrato algorítmico: training load (22), periodização (20), progressão (22), readiness (19), adaptação (20), FTP (34), CP/W′ (35), VO2max (24) e distribuição de intensidade (26). Cada docstring declara se a asserção é evidência, heurística ou modelo. Expôs quatro divergências doc↔código, registradas em #57. | — (sessão 02/10 — P3-01) | **implementado (não publicado)** | 0 ✅ |
+| 57 | docs | **Correção de quatro divergências doc↔código** expostas por #56 — §11 (as quatro transições de `SEQUENCES` que quebram a regra de dimensão única, e a escada não ser caminho para subir potência), §12 (`MIXED_TEMPLATES` não muda duas dimensões em todo degrau; lever `INTENSITY` inerte na faixa padrão), §10 (`decay()` sem teto superior), §3 (OLS enviesado no `estimate_cp`). Nenhuma mudança de comportamento: em todos os casos o código é coerente com a intenção e era o texto que superdeclava. Quatro entradas novas em §14 + trava de teste date-dependent em `test_plan.ReconcileTest`. | — (sessão 02/10 — P3-02) | **implementado (não publicado)** | 0 ✅ |
+| 58 | decisão | **Os 10 módulos de P0–P3 não afetam a publicação** — `training_phase`, `progression`, `intensity_distribution`, `athlete_profile`, `adaptation`, `training_decision`, `readiness_assessment`, `critical_power`, `vo2_generator` e `zone_intent` não participam de `build`/`push`, não alteram `plan.json` nem os valores de `focus`. São contratos testados, ainda não integrados. **Enquanto isso não for decidido, o trabalho P0–P3 é computação correta que não chega ao treino.** Integração é decisão de escopo: `plan.json` é contrato persistido e os valores de `focus` são publicados no Intervals. | — (sessão 02/10 — rastreio de §14 lim. 6) | **aberto — decisão de escopo** | 0 |
+| 59 | decisão | **Quatro limites de implementação abertos** — todos documentados em §14 com trava de teste, nenhum corrigido: (a) `SEQUENCES` × regra de dimensão única (§11) — corrigir as sequências ou emendar a regra? (b) lever `INTENSITY` inerte na faixa padrão (§12) — estreitar a faixa, baixar `Z5_CEILING` ou aceitar? (c) `decay()` sem teto superior (§10) — `min(1, ...)` no fator? (d) `estimate_cp` enviesado (§3) — regressão ponderada por 1/t²? Cada um muda comportamento de prescrição, então é decisão explícita e não efeito colateral de suíte. | — (sessão 02/10 — rastreio de §14 lim. 9–12) | **aberto — decisão de escopo** | 0 |
 
 ## Fases
 
@@ -86,6 +93,20 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
   exibe `Wellness:` (RHR atual/média 7d, sono, passos, HRV quando existir);
   HRV Status overnight não suportado pelo FR935 (Elevate Gen 3+) — decisão
   documentada; Oura/WHOOP/novo relógio fica no backlog.
+- **Duas decisões abertas da linha algorítmica (itens #58 e #59).** Ambas
+  acontecem aqui porque não são features: são escolhas de escopo sobre
+  trabalho já feito.
+  - **#58 — integrar os 10 módulos de P0–P3 ao `build`/`push`?** Eles são
+    contratos testados e não afetam a publicação. Enquanto a resposta for não,
+    o ganho de P0–P3 para o atleta é zero, e isso deve estar explícito.
+    Integrar um de cada vez, começando pelo de maior efeito sobre o plano
+    (`training_phase` ou `zone_intent`), porque `plan.json` é contrato
+    persistido e os valores de `focus` são publicados no Intervals.
+  - **#59 — corrigir os quatro limites de implementação de §14?** Todos mudam
+    comportamento de prescrição, então nenhum deve entrar como efeito colateral.
+    Recomenda-se decidir por ordem de impacto no plano: (a) regra de dimensão
+    única e (b) lever de intensidade inerte afetam prescrição de verdade;
+    (c) teto de `decay()` e (d) estimador de CP são robustez de modelo.
 
 ### Fase 1 — Comunicação (issue #2) & Arquitetura SaaS Core
 - Resumo do treino (foco + TSB + TSS previsto/real + avisos do reconcile) via
