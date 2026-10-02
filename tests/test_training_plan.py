@@ -9,9 +9,11 @@ from pathlib import Path
 from unittest import mock
 
 from src import training_plan as tp
+from src import plan as src_plan
 from src import recovery as src_recovery
-from src.plan import (build_plan, load_plan, load_plan_meta, save_plan,
-                      DEFAULT_FTP, DEFAULT_TRAINING_DAYS)
+from src.plan import (avg_load, build_plan, load_plan, load_plan_meta, reconcile,
+                      save_plan, weekly_budget, DEFAULT_FTP,
+                      DEFAULT_TRAINING_DAYS)
 
 
 class _FakeClient:
@@ -63,8 +65,12 @@ class _NoopReconcile:
     """Substituto puro de src.plan.reconcile (nao altera o plano)."""
 
     def __call__(self, plan, events, ftp=DEFAULT_FTP,
-                 training_days=DEFAULT_TRAINING_DAYS, budget=None):
-        return plan, [], {"absorbed_tss": 0.0, "missed_tss": 0.0, "absorbable_tss": 0.0}
+                 training_days=DEFAULT_TRAINING_DAYS, budget=None,
+                 absorbed_ids=None):
+        return plan, [], {"absorbed_tss": 0.0, "missed_tss": 0.0,
+                          "absorbable_tss": 0.0,
+                          "already_absorbed_tss": 0.0,
+                          "absorbed_ids": list(absorbed_ids or ())}
 
 
 class ReconcileMetaTest(unittest.TestCase):
@@ -92,8 +98,9 @@ class ReconcileMetaTest(unittest.TestCase):
                     orig_plan_file, orig_client, orig_reconcile)
 
             self.assertEqual(load_plan_meta(str(path)),
-                             {"goal": "ftp-builder", "race_date": None,
-                              "ftp_test_date": "2026-10-22", "ftp_candidates": {}})
+                              {"goal": "ftp-builder", "race_date": None,
+                               "ftp_test_date": "2026-10-22", "ftp_candidates": {},
+                               "absorbed_ids": []})
 
     def test_reconcile_formato_antigo_sem_meta_continua_lista_pura(self):
         plan = build_plan([], 0, ftp=182, days=2, start=date(2026, 9, 14))
@@ -112,8 +119,121 @@ class ReconcileMetaTest(unittest.TestCase):
                 tp.PLAN_FILE, tp.get_client, tp.reconcile = (
                     orig_plan_file, orig_client, orig_reconcile)
             self.assertEqual(load_plan_meta(str(path)),
-                             {"goal": None, "race_date": None,
-                              "ftp_test_date": None, "ftp_candidates": {}})
+                              {"goal": None, "race_date": None,
+                               "ftp_test_date": None, "ftp_candidates": {},
+                               "absorbed_ids": []})
+
+    def test_reconcile_nao_reabsorve_falta_apos_salvar_e_recarregar(self):
+        """#40: execucoes independentes nao podem compensar a mesma falta duas vezes."""
+        fixed_today = date(2026, 10, 1)
+
+        class FixedDate(date):
+            @classmethod
+            def today(cls):
+                return fixed_today
+
+        with mock.patch.object(src_plan, "date", FixedDate), \
+                mock.patch.object(tp, "date", FixedDate):
+            history = [{"external_id": f"history-{index}",
+                        "paired_activity_id": f"activity-{index}",
+                        "start_date_local": (fixed_today - timedelta(days=40 - index)
+                                             ).isoformat() + "T07:00:00",
+                        "icu_training_load": 45.0}
+                       for index in range(15)]
+            plan = build_plan(history, 2, ftp=182, days=12,
+                              start=fixed_today - timedelta(days=7))
+            past = [workout for workout in plan
+                    if workout["day"] < fixed_today.isoformat()]
+            missed = next(workout for workout in reversed(past)
+                          if workout["focus"] == "sweetspot")
+            events = history + [
+                {"external_id": workout["external_id"],
+                 "paired_activity_id": f"done-{index}",
+                 "start_date_local": workout["day"] + "T07:00:00",
+                 "icu_training_load": workout["tss"]}
+                for index, workout in enumerate(past)
+                if workout["external_id"] != missed["external_id"]
+            ]
+
+            class Client:
+                def events(self, **_params):
+                    return events
+
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "plan.json"
+                save_plan(plan, str(path), goal="ftp-builder", race_date=None)
+                original = (tp.PLAN_FILE, tp.get_client, tp.get_ftp,
+                            tp.get_training_days)
+                try:
+                    tp.PLAN_FILE = path
+                    tp.get_client = lambda: Client()
+                    tp.get_ftp = lambda: 182
+                    tp.get_training_days = lambda: (0, 1, 2, 3, 4)
+                    args = types.SimpleNamespace(days=45, show=False)
+                    tp.cmd_reconcile(args)
+                    first_run = {workout["external_id"]: workout["tss"]
+                                 for workout in load_plan(path)}
+                    first_meta = load_plan_meta(path)
+
+                    # Nova execucao le o arquivo que a primeira acabou de gravar.
+                    tp.cmd_reconcile(args)
+                    second_run = {workout["external_id"]: workout["tss"]
+                                  for workout in load_plan(path)}
+                    second_meta = load_plan_meta(path)
+                finally:
+                    (tp.PLAN_FILE, tp.get_client, tp.get_ftp,
+                     tp.get_training_days) = original
+
+        self.assertEqual(first_run, second_run)
+        self.assertEqual(first_meta["absorbed_ids"], [missed["external_id"]])
+        self.assertEqual(second_meta["absorbed_ids"], first_meta["absorbed_ids"])
+
+    def test_ids_absorvidos_permitem_nova_falta_sem_repetir_a_antiga(self):
+        """#40: A ja absorvido e B novo sao tratados uma unica vez cada."""
+        fixed_today = date(2026, 10, 1)
+
+        class FixedDate(date):
+            @classmethod
+            def today(cls):
+                return fixed_today
+
+        with mock.patch.object(src_plan, "date", FixedDate):
+            history = [{"external_id": f"history-{index}",
+                        "paired_activity_id": f"activity-{index}",
+                        "start_date_local": (fixed_today - timedelta(days=40 - index)
+                                             ).isoformat() + "T07:00:00",
+                        "icu_training_load": 45.0}
+                       for index in range(15)]
+            plan = build_plan(history, 2, ftp=182, days=12,
+                              start=fixed_today - timedelta(days=7))
+            missed = [workout for workout in plan
+                      if (workout["day"] < fixed_today.isoformat()
+                          and workout["focus"] == "sweetspot")]
+            self.assertEqual(len(missed), 2)
+            events = history + [
+                {"external_id": workout["external_id"],
+                 "paired_activity_id": f"done-{index}",
+                 "start_date_local": workout["day"] + "T07:00:00",
+                 "icu_training_load": workout["tss"]}
+                for index, workout in enumerate(plan)
+                if (workout["day"] < fixed_today.isoformat()
+                    and workout["external_id"] not in
+                    {missed[0]["external_id"], missed[1]["external_id"]})
+            ]
+            budget = weekly_budget(avg_load(events))
+            _first_plan, _, first_info = reconcile(
+                plan, events, ftp=182, budget=budget)
+            _mixed_plan, _, mixed_info = reconcile(
+                plan, events, ftp=182, budget=budget,
+                absorbed_ids=[missed[0]["external_id"]])
+
+        self.assertGreater(first_info["absorbed_tss"], 0)
+        self.assertEqual(set(first_info["absorbed_ids"]),
+                         {missed[0]["external_id"], missed[1]["external_id"]})
+        self.assertEqual(mixed_info["absorbable_tss"], missed[1]["tss"])
+        self.assertGreater(mixed_info["absorbed_tss"], 0)
+        self.assertEqual(set(mixed_info["absorbed_ids"]),
+                         {missed[0]["external_id"], missed[1]["external_id"]})
 
 
 def _scan_fixture():
@@ -196,7 +316,8 @@ class BuildPreservesFtpCandidatesTest(unittest.TestCase):
                       ftp_test_date=None,
                       ftp_candidates={"i1": {"activity_id": "i1",
                                              "proposed_ftp": 190,
-                                             "applied": False}})
+                                             "applied": False}},
+                      absorbed_ids=["hermes-plan-2026-09-01"])
             tp.get_client = lambda: _FakeClient()
             tp.get_ftp = lambda: 182
             tp.get_goal = lambda: "ftp-builder"
@@ -209,6 +330,7 @@ class BuildPreservesFtpCandidatesTest(unittest.TestCase):
             tp.cmd_build(args)
             meta = load_plan_meta(str(path))
             self.assertEqual(meta["ftp_candidates"]["i1"]["proposed_ftp"], 190)
+            self.assertEqual(meta["absorbed_ids"], ["hermes-plan-2026-09-01"])
         finally:
             _restore_scan(orig)
             tmp.cleanup()

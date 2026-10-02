@@ -1649,7 +1649,7 @@ def _zone(frac):
 
 
 def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS,
-              budget=None):
+              budget=None, absorbed_ids=None):
     """Reconcilia o plano com o historico real.
 
     `budget` e o teto semanal de TSS. Deve ser calculado pelo caller com a MESMA
@@ -1661,9 +1661,11 @@ def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS
     hr_mode = any(w.get("hr_mode") for w in plan)
     done_ids, extras = _done_and_extra(events)
     reduced_ids = set()
-    absorbed_ids = set()
+    absorbed_ids = set(absorbed_ids or ())
     missed = [w for w in plan
               if w["day"] < today.isoformat() and w["external_id"] not in done_ids]
+    already_absorbed = [w for w in missed
+                        if w["external_id"] in absorbed_ids]
     absorbed_tss = 0.0
     absorbable = 0.0
     if missed:
@@ -1676,10 +1678,19 @@ def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS
         # (_absorbable_tss): active recovery nao se compensa; alta intensidade
         # (Limiar/VO2) nao se substitui com mais volume - fica para o build
         # seguinte repriorizar conforme o TSB real.
-        absorbable = _absorbable_tss(missed)
+        new_missed = [w for w in missed
+                      if w["external_id"] not in absorbed_ids]
+        absorbable = _absorbable_tss(new_missed)
         plan, absorbed_tss = _absorb_missed_into_budget(
-            plan, absorbable, ftp, events, training_days, absorbed_ids,
-            budget=budget)
+            plan, absorbable, ftp, events, training_days, budget=budget)
+        if absorbed_tss > 0:
+            # A identidade persistida e a do treino PERDIDO, nao a do treino
+            # que recebeu volume. Assim a mesma falta nao pode ser compensada
+            # outra vez por outro receptor numa nova execucao do reconcile.
+            absorbed_ids.update(
+                w["external_id"] for w in new_missed
+                if _absorbable_tss([w]) > 0
+            )
     plan = _adjust_for_extra_workouts(plan, extras, ftp, training_days,
                                       cap=daily_tss_cap(avg_load(events)),
                                       reduced_ids=reduced_ids)
@@ -1691,7 +1702,9 @@ def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS
             w["hr_mode"] = True
     info = {"absorbed_tss": absorbed_tss, "missed_tss":
             sum(float(w["tss"]) for w in missed) if missed else 0.0,
-            "absorbable_tss": absorbable}
+            "absorbable_tss": absorbable,
+            "already_absorbed_tss": _absorbable_tss(already_absorbed),
+            "absorbed_ids": sorted(absorbed_ids)}
     return plan, missed, info
 
 
@@ -1902,14 +1915,13 @@ def _absorbable_tss(missed):
 
 
 def _absorb_missed_into_budget(plan, missed_tss, ftp, events, training_days,
-                               absorbed_ids=None, budget=None):
+                               budget=None):
     """Eleva a duracao (on_sec) dos treinos Z2/SweetSpot posteriores para
     reabsorver `missed_tss`, sem estourar o teto semanal (weekly_budget).
 
     Devolve (plan, ganho_tss), sendo ganho_tss a parcela da falta
     efetivamente redistribuida. Sem folga no teto, devolve o plano intacto.
     """
-    absorbed_ids = absorbed_ids if absorbed_ids is not None else set()
     if missed_tss <= 0:
         return plan, 0.0
     # O teto deve vir do mesmo calculo do build_plan (mesma janela de eventos e
@@ -1919,7 +1931,6 @@ def _absorb_missed_into_budget(plan, missed_tss, ftp, events, training_days,
     budget = (budget if budget is not None
               else weekly_budget(avg_load(events), training_days))
     plan = [dict(w) for w in plan]
-    by_id = {w["external_id"]: w for w in plan}
     dias = [date.fromisoformat(x["day"]) for x in plan]
     # Se o plano JA esta acima do teto que o reconcile calculou, nao absorve:
     # isso significa que o plano veio de um build com um teto diferente (o
@@ -1934,9 +1945,8 @@ def _absorb_missed_into_budget(plan, missed_tss, ftp, events, training_days,
     gained = 0.0
     remaining = missed_tss
     for w in sorted((w for w in plan
-                     if w["focus"] in ABSORB_FOCUSES
-                     and w["external_id"] not in absorbed_ids
-                     and not _is_active_recovery(w)),
+                      if w["focus"] in ABSORB_FOCUSES
+                      and not _is_active_recovery(w)),
                     key=lambda x: x["day"]):
         if remaining <= 0:
             break
@@ -1978,8 +1988,6 @@ def _absorb_missed_into_budget(plan, missed_tss, ftp, events, training_days,
         w["params"] = cand
         w["tss"] = cand_tss
         w["planned_duration"] = duration
-        absorbed_ids.add(w["external_id"])
-        by_id[w["external_id"]] = w
         gained += ganho
         remaining -= ganho
     return plan, gained
@@ -2016,16 +2024,17 @@ def manual_duplicate_ids(plan, events, start=None):
 
 
 def save_plan(plan, path="plan.json", goal=None, race_date=None,
-              ftp_test_date=None, ftp_candidates=None):
+              ftp_test_date=None, ftp_candidates=None, absorbed_ids=None):
     """Salva o plano. Com GOAL configurado, guarda a meta junto
     (plan.json passa a ser {'goal', 'race_date', 'ftp_test_date',
-    'ftp_candidates', 'workouts'}); sem GOAL, mantem o formato antigo (lista
-    pura) para compatibilidade."""
+    'ftp_candidates', 'absorbed_ids', 'workouts'}); sem meta nem estado de
+    reconciliacao, mantem o formato antigo (lista pura) para compatibilidade."""
     data = plan
-    if goal is not None:
+    if goal is not None or absorbed_ids:
         data = {"goal": goal, "race_date": race_date,
                 "ftp_test_date": ftp_test_date,
                 "ftp_candidates": ftp_candidates or {},
+                "absorbed_ids": sorted(set(absorbed_ids or ())),
                 "workouts": plan}
     out = pathlib.Path(path)
     with open(out, "w", encoding="utf-8") as fh:
@@ -2044,17 +2053,17 @@ def load_plan(path="plan.json"):
 
 
 def load_plan_meta(path="plan.json"):
-    """Meta (goal, race_date, ftp_test_date, ftp_candidates) salva junto com o
-    plano, ou default (tudo None/{} ) quando ausente."""
+    """Meta salva junto com o plano, ou defaults seguros quando ausente."""
     try:
         with open(pathlib.Path(path), "r", encoding="utf-8") as fh:
             data = json.load(fh)
     except (FileNotFoundError, json.JSONDecodeError):
         return {"goal": None, "race_date": None, "ftp_test_date": None,
-                "ftp_candidates": {}}
+                "ftp_candidates": {}, "absorbed_ids": []}
     if isinstance(data, dict) and "workouts" in data:
         return {"goal": data.get("goal"), "race_date": data.get("race_date"),
                 "ftp_test_date": data.get("ftp_test_date"),
-                "ftp_candidates": data.get("ftp_candidates") or {}}
+                "ftp_candidates": data.get("ftp_candidates") or {},
+                "absorbed_ids": data.get("absorbed_ids") or []}
     return {"goal": None, "race_date": None, "ftp_test_date": None,
-            "ftp_candidates": {}}
+            "ftp_candidates": {}, "absorbed_ids": []}

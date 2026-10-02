@@ -172,8 +172,9 @@ class PlanMetaTest(unittest.TestCase):
             self.assertEqual(load_plan(path), plan,
                              "load_plan deve continuar devolvendo a lista")
             self.assertEqual(load_plan_meta(path),
-                             {"goal": "ftp-builder", "race_date": None,
-                              "ftp_test_date": None, "ftp_candidates": {}})
+                              {"goal": "ftp-builder", "race_date": None,
+                               "ftp_test_date": None, "ftp_candidates": {},
+                               "absorbed_ids": []})
 
     def test_save_load_com_teste_ftp(self):
         plan = self._sample_plan()
@@ -182,8 +183,9 @@ class PlanMetaTest(unittest.TestCase):
             save_plan(plan, path, goal="ftp-builder", race_date=None,
                       ftp_test_date="2026-10-22")
             self.assertEqual(load_plan_meta(path),
-                             {"goal": "ftp-builder", "race_date": None,
-                              "ftp_test_date": "2026-10-22", "ftp_candidates": {}})
+                              {"goal": "ftp-builder", "race_date": None,
+                               "ftp_test_date": "2026-10-22", "ftp_candidates": {},
+                               "absorbed_ids": []})
 
     def test_save_load_formato_antigo(self):
         plan = self._sample_plan()
@@ -192,15 +194,17 @@ class PlanMetaTest(unittest.TestCase):
             save_plan(plan, path)  # sem GOAL -> lista pura
             self.assertEqual(load_plan(path), plan)
             self.assertEqual(load_plan_meta(path),
-                             {"goal": None, "race_date": None,
-                              "ftp_test_date": None, "ftp_candidates": {}})
+                              {"goal": None, "race_date": None,
+                               "ftp_test_date": None, "ftp_candidates": {},
+                               "absorbed_ids": []})
 
     def test_load_meta_arquivo_inexistente(self):
         with tempfile.TemporaryDirectory() as t:
             path = str(Path(t) / "nada.json")
             self.assertEqual(load_plan_meta(path),
-                             {"goal": None, "race_date": None,
-                              "ftp_test_date": None, "ftp_candidates": {}})
+                              {"goal": None, "race_date": None,
+                               "ftp_test_date": None, "ftp_candidates": {},
+                               "absorbed_ids": []})
 
 
 class PromptRaceDateTest(unittest.TestCase):

@@ -213,7 +213,8 @@ def _record_ftp_candidates(new_candidates):
     for c in new_candidates:
         merged[c["activity_id"]] = c
     save_plan(plan, PLAN_FILE, goal=meta["goal"], race_date=meta["race_date"],
-              ftp_test_date=meta["ftp_test_date"], ftp_candidates=merged)
+              ftp_test_date=meta["ftp_test_date"], ftp_candidates=merged,
+              absorbed_ids=meta["absorbed_ids"])
     return merged
 
 
@@ -542,7 +543,8 @@ def cmd_check(args):
     novo_plano = [com if w["day"] == today.isoformat() else w for w in plan]
     save_plan(novo_plano, PLAN_FILE, goal=meta["goal"],
               race_date=meta["race_date"], ftp_test_date=meta["ftp_test_date"],
-              ftp_candidates=meta.get("ftp_candidates"))
+              ftp_candidates=meta.get("ftp_candidates"),
+              absorbed_ids=meta["absorbed_ids"])
     print(f"Aplicado no {PLAN_FILE.name}: sessao de hoje ajustada por "
           f"{autor}. O plano NAO foi publicado no calendario.")
     print("Rode `push` para publicar. A proposta so vai ao calendario por "
@@ -776,12 +778,13 @@ def cmd_build(args):
         print(f"[dry-run] plano adaptado nao seria gravado em {PLAN_FILE.name}; "
               "nada foi publicado.")
     else:
-        # Preserva candidatos de FTP ja registrados na meta (issue #6): o build
-        # nao deve apagar o rastro de um ftp-scan anterior.
+        # Preserva estado registrado na meta: build nao apaga candidatos de FTP
+        # nem marcas de faltas ja absorvidas.
         existing_meta = load_plan_meta(PLAN_FILE)
         save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date,
                   ftp_test_date=ftp_test_date,
-                  ftp_candidates=existing_meta.get("ftp_candidates"))
+                  ftp_candidates=existing_meta.get("ftp_candidates"),
+                  absorbed_ids=existing_meta["absorbed_ids"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     avail = []
     if weekly_hours:
@@ -1170,10 +1173,12 @@ def cmd_reconcile(args):
             newest=newest.isoformat())
     budget = weekly_budget(avg_load(budget_events), training_days, scale)
     plan, missed, info = reconcile(plan, events, ftp=ftp,
-                                   training_days=training_days, budget=budget)
+                                   training_days=training_days, budget=budget,
+                                   absorbed_ids=meta["absorbed_ids"])
     save_plan(plan, PLAN_FILE, goal=meta["goal"], race_date=meta["race_date"],
               ftp_test_date=meta["ftp_test_date"],
-              ftp_candidates=meta["ftp_candidates"])
+              ftp_candidates=meta["ftp_candidates"],
+              absorbed_ids=info["absorbed_ids"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
@@ -1185,6 +1190,8 @@ def cmd_reconcile(args):
             print(f"Plano ajustado: carga redistribuida dentro do orcamento "
                   f"semanal (+{absorbed:.0f} de {absorbable:.0f} TSS absorviveis, "
                   f"{pct:.0f}%).")
+        elif info["already_absorbed_tss"] > 0:
+            print("Plano mantido: a falta ja foi absorvida em execucao anterior.")
         elif absorbable <= 0:
             print("Plano mantido: falta nao absorvivel por volume "
                   "(active recovery ou alta intensidade); o TSB real "
@@ -1192,8 +1199,9 @@ def cmd_reconcile(args):
         else:
             print("Plano mantido: a falta excede a folga do orcamento "
                   "semanal; absorvida pelo proprio TSB no proximo build.")
-        if lost - absorbable > 0.5:
-            print(f"  ({lost - absorbable:.0f} TSS de alta intensidade nao se "
+        not_replaceable = (lost - absorbable - info["already_absorbed_tss"])
+        if not_replaceable > 0.5:
+            print(f"  ({not_replaceable:.0f} TSS de alta intensidade nao se "
                   f"substitui com mais volume; ficam para o proximo build.)")
     else:
         print("Nenhum treino perdido; plano mantido.")
