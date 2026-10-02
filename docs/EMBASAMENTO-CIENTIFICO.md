@@ -566,8 +566,8 @@ sentido do estímulo. Tratar a razão como uma quinta dimensão reprovaria tamb�
 nove transições "corretas", por isso ela fica **documentada** e não vira
 assertion. Como a recuperação modula a resposta da sessão (PMID 31146621), isso
 importa: a razão não é um detalhe de planilha. Registrado em
-`test_recuperacao_escala_com_a_duracao_do_bloco` e no relatório da razão por
-degrau.
+`test_progression.py::test_razao_trabalho_por_recuperacao_muda_em_todo_degrau_de_duracao`,
+que falha se `recovery_sec` deixar de acompanhar `work_sec`.
 
 No gerador VO2max a regra **é** respeitada: escadas separadas para duração do
 intervalo, repetições, tempo total e intensidade, expostas por
@@ -583,9 +583,10 @@ limiares que disparam avanço, estagnação ou recuo são do sistema. A
 
 ### 11.1 Progressão multidimensional
 
-O isolates HIIT as um jogo de uma variável por vez, e a literatura **não** trata
-intensidade, duração do esforço, recuperação e número de repetições como
-independentes. É o que separa o que se sabe do que o Hermes escolheu.
+O HIIT é tratado pela literatura como um jogo de mais de uma variável por vez, e
+ela **não** trata intensidade, duração do esforço, recuperação e número de
+repetições como independentes. É o que separa o que se sabe do que o Hermes
+escolheu.
 
 #### Evidência científica
 
@@ -679,15 +680,26 @@ bloco por `interval_duration`, `repetitions`, `work_power_range`,
 intervalos ≥2 min. A faixa padrão de 106–120% FTP é a banda Z5 declarada, e
 `Z5_CEILING` impede que o degrau de intensidade atravesse para Z6.
 
-**Limite conhecido: o lever de intensidade é inoperante por padrão.** A faixa
-padrão `DEFAULT_INTENSITY_RANGE` já tem 1,20 como teto, e `generate()` faz
-`min(Z5_CEILING, high + 0,02 × degrau)`. Como `Z5_CEILING` é 1,20, **todo
-degrau produz a mesma faixa** com a configuração padrão. O lever só age quando
-a faixa prescrita é mais estreita que a banda Z5, e aí o teto sobe +2% por
-degrau até 1,20. Subir intensidade por degrau de escada, portanto, não é o
-caminho disponível na configuração padrão: a intensidade é controlada pela
-faixa prescrita, não pela escada. Registrado em
-`test_vo2.py::test_lever_intensity_e_inoperante_na_faixa_padrao`.
+**Limite conhecido: o lever de intensidade é inválido com a faixa padrão.** A
+faixa padrão `DEFAULT_INTENSITY_RANGE` já tem 1,20 como teto, e `generate()` faz
+`min(Z5_CEILING, high + 0,02 × degrau)`. Como `Z5_CEILING` é 1,20, **todo degrau
+produziria a mesma faixa** com a configuração padrão: três degraus idênticos
+enquanto `next_step()` avançava como se houvesse progressão. O lever só age
+quando a faixa prescrita é mais estreita que a banda Z5, e aí o teto sobe +2%
+por degrau até 1,20. Subir intensidade por degrau de escada, portanto, não é o
+caminho disponível na configuração padrão: a intensidade é controlada pela faixa
+prescrita, não pela escada.
+
+**Resolvido em 02/10/2026 (issue #59): a faixa padrão não foi abaixada, o
+comportamento mudo deixou de existir.** `generate()` agora levanta `ValueError`
+quando `intensity_range[1] >= Z5_CEILING`, com as duas saídas na mensagem (faixa
+com folga, ou outro lever); `progression_ledger()` recebe `intensity_range`
+porque a escada é construída a partir da faixa. Recusar a prescrição é
+preferível a devolver degrau mudo, porque o chamador não distingue um platô real
+de um no-op.
+Subir acima do teto continuaria errado: geraria Z6 rotulada como VO2max.
+Regressão: `test_vo2.py::test_lever_intensity_e_invalido_na_faixa_padrao` e
+`test_vo2_generator.py::test_intensidade_sem_folga_falha_explicitamente`.
 
 **Os templates não seguem a regra de dimensão única.** `MIXED_TEMPLATES` muda
 a forma do bloco inteiro, mas nem toda transição muda duas dimensões:
