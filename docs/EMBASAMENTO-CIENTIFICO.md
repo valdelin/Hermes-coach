@@ -159,6 +159,45 @@ universal**. Idem para qualquer limiar de W′ do código.
 a MLSS, LT ou RCP. Uso previsto: esforços acima do limiar, Z6, HIIT e análise
 power-duration.
 
+### 3.1 Validade e confiabilidade das estimativas de CP e W′
+
+**[EVIDÊNCIA CIENTÍFICA]** O modelo potência-duração exige que os esforços
+observados sustentem a relação que se quer estimar. Protocolos publicados usam
+múltiplos esforços e diferentes durações, mas não oferecem um único threshold
+universal de quantidade, amplitude de duração, R² ou RMSE que possa classificar
+todo atleta e protocolo (PMID 32899777; PMID 20195180; PMID 30387374;
+PMID 34708276). Logo, ajuste estatístico e qualidade dos dados não são a mesma
+coisa: um R² alto, em especial com dois pontos, não demonstra por si só uma
+estimativa fisiologicamente robusta.
+
+**[EVIDÊNCIA CIENTÍFICA]** CP e W′ têm incertezas distintas; W′ tende a ser
+mais variável entre protocolos e repetições. FTP e CP podem se associar numa
+população, mas não são intercambiáveis no indivíduo (PMID 33551839; PMID
+34304689). A reconstituição de W′/W′bal acrescenta hipóteses próprias e não
+decorre automaticamente de uma estimativa de CP/W′ válida.
+
+**[ENGENHARIA HERMES]** A Fase 2 registra metadados objetivos dos esforços
+aceitos pelo modelo (`n_efforts`, duração mínima, máxima e amplitude) e métricas
+de ajuste no espaço $x=1/t$, $y=P$ (`fit_r2`, `fit_rmse` em watts). Isso não
+cria `power_duration_coverage`, `fit_condition_warn` ou score composto: ainda
+não há critério defensável para transformar esses conceitos em thresholds
+automáticos.
+
+**[ENGENHARIA HERMES]** Hard Validation (reta solucionável), Data Quality
+(descrição dos dados), Fit Quality (resíduos do modelo) e Confidence
+(interpretação informativa) permanecem separados. Nesta fase, todo perfil válido
+recebe `LOW` para CP e W′, inclusive três ou mais esforços; dois pontos distintos
+também recebem `LOW`, mesmo quando $R^2=1$ e RMSE=0. `MEDIUM` e `HIGH` são
+estados representáveis, mas não são derivados sem uma política futura
+defensável. Os campos `cp_confidence` e `w_prime_confidence` são separados para
+permitir incertezas distintas, sem inferir uma diferença artificial agora.
+
+**[ENGENHARIA HERMES]** FTP continua baseline universal e CP/W′ continuam
+opcionais e exclusivamente informativos. Não há `eligible_for_enhancement`,
+fallback `cp = ftp`, consumidor prescritivo, nem alteração de zonas, TSS,
+VO2, INTENSITY, work_sec, repeats ou recovery. W′bal e sua reconstituição
+continuam heurísticas independentes desta policy.
+
 ## 4. Zonas
 
 **MODELO COMPUTACIONAL (invariante verificável).** A tabela Z1–Z7 do documento
@@ -876,7 +915,16 @@ documento foram conferidos contra o abstract.
 21. **Schoenmakers, P. P. J. M., Hettinga, F. J., & Reed, K. E. (2019).** *The Moderating Role of Recovery Durations in High-Intensity Interval-Training Protocols.* International Journal of Sports Physiology and Performance, 14(7), 994–1002. PMID 31146621 — <https://doi.org/10.1123/ijspp.2018-0876>
     *EVIDÊNCIA. A duração da recuperação modera a resposta da sessão e a capacidade de sustentar trabalho subsequente. Sustenta avaliar `recovery` junto de `work_sec`, `repeats` e `intensity` — base do limite sobre a razão trabalho:recuperação (§11).*
 22. **Rosenblat, M. A., Lin, E., da Costa, B. R., et al. (2021).** *Programming Interval Training to Optimize Time-Trial Performance: A Systematic Review and Meta-Analysis.* Sports Medicine, 51(8), 1857–1880. PMID 33826121 — <https://doi.org/10.1007/s40279-021-01457-2>
-    *EVIDÊNCIA. Programação de intervalos para desempenho em contrarrelógio. Cited como contexto de Relationship entre duração do intervalo, dose e desempenho — não como regra determinística do algoritmo.*
+   *EVIDÊNCIA. Programação de intervalos para desempenho em contrarrelógio. Cited como contexto de Relationship entre duração do intervalo, dose e desempenho — não como regra determinística do algoritmo.*
+
+23. **Jones, A. M., Vanhatalo, A., Burnley, M., Morton, R. H., & Poole, D. C. (2010).** *Critical power: implications for determination of V̇O₂max and exercise tolerance.* Medicine & Science in Sports & Exercise, 42(10), 1876–1890. PMID 20195180 — <https://doi.org/10.1249/MSS.0b013e3181d9cf7f>
+   *EVIDÊNCIA. Revisão dos fundamentos do modelo CP/W′: CP como assíntoto e W′ como componente finito associado à tolerância acima de CP.*
+24. **Morgan, P. T., Black, M. I., Bailey, S. J., Jones, A. M., & Vanhatalo, A. (2019).** *Road cycle TT performance: Relationship to the power-duration model and association with FTP.* Journal of Sports Sciences, 37(8), 902–910. PMID 30387374 — <https://doi.org/10.1080/02640414.2018.1535772>
+   *EVIDÊNCIA. CP/W′ obtidos de esforços de TT predizem desempenho; os limites de concordância entre CP e FTP foram amplos demais para tratá-los como intercambiáveis.*
+25. **Karsten, B., Petrigna, L., Klose, A., Bianco, A., Townsend, N., & Triska, C. (2021).** *Relationship Between the Critical Power Test and a 20-min Functional Threshold Power Test in Cycling.* Frontiers in Physiology, 11, 613151. PMID 33551839 — <https://doi.org/10.3389/fphys.2020.613151>
+   *EVIDÊNCIA. Correlação forte não torna CP e FTP intercambiáveis no indivíduo; os limites de concordância foram amplos.*
+26. **Leo, P., Spragg, J., Podlogar, T., Lawley, J. S., & Mujika, I. (2022).** *Power profiling and the power-duration relationship in cycling: a narrative review.* European Journal of Applied Physiology, 122(2), 301–316. PMID 34708276 — <https://doi.org/10.1007/s00421-021-04833-y>
+   *EVIDÊNCIA. Revisão sobre perfil potência-duração; recomenda testes de campo estruturados e alerta contra inferência a partir de esforço único.*
 
 ### Referências que sustentam a tabela Z1–Z7
 

@@ -23,7 +23,7 @@ import dataclasses
 import unittest
 
 from src.critical_power import (CPConfidence, CPProtocol, CriticalPowerProfile,
-                                estimate_cp, estimate_w_prime,
+                                estimate_cp, estimate_cp_profile, estimate_w_prime,
                                 w_prime_balance, w_prime_reconstitution,
                                 work_above_cp)
 
@@ -276,6 +276,39 @@ class PerfilTest(unittest.TestCase):
                          {"ramp", "step", "multi_broken", "field_estimate"})
         self.assertEqual({c.value for c in CPConfidence},
                          {"low", "medium", "high"})
+
+
+class QualidadeEConfiancaTest(unittest.TestCase):
+    PONTOS = tuple((t, 250 + 300 / t) for t in (120, 300, 1200))
+
+    def test_fit_quality_nao_substitui_data_quality(self):
+        profile = estimate_cp_profile(self.PONTOS)
+        self.assertEqual(profile.n_efforts, 3)
+        self.assertEqual(profile.min_duration_sec, 120)
+        self.assertEqual(profile.max_duration_sec, 1200)
+        self.assertAlmostEqual(profile.fit_r2, 1.0)
+        self.assertEqual(profile.cp_confidence, CPConfidence.LOW)
+
+    def test_r2_perfeito_com_dois_pontos_nao_e_high(self):
+        profile = estimate_cp_profile(self.PONTOS[:2])
+        self.assertAlmostEqual(profile.fit_r2, 1.0)
+        self.assertNotEqual(profile.cp_confidence, CPConfidence.HIGH)
+        self.assertNotEqual(profile.w_prime_confidence, CPConfidence.HIGH)
+
+    def test_confidences_separadas_nao_forcam_equivalencia(self):
+        profile = CriticalPowerProfile(
+            critical_power=250,
+            w_prime=300,
+            cp_confidence=CPConfidence.HIGH,
+            w_prime_confidence=CPConfidence.MEDIUM,
+        )
+        self.assertNotEqual(profile.cp_confidence, profile.w_prime_confidence)
+
+    def test_perfil_invalido_nao_publica_confianca(self):
+        profile = estimate_cp_profile(((300, 300.0),))
+        self.assertFalse(profile.known)
+        self.assertIsNone(profile.cp_confidence)
+        self.assertIsNone(profile.w_prime_confidence)
 
 
 if __name__ == "__main__":

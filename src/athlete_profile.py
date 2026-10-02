@@ -2,6 +2,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from .critical_power import CPConfidence, CPProtocol
+
 
 class FtpSource(str, Enum):
     USER = "user"
@@ -34,3 +36,16 @@ class AthletePhysiologicalProfile:
     training_days: tuple[int, ...] = ()
     training_age: float | None = None
     preferred_long_day: int | None = None
+    cp_protocol: CPProtocol | None = None
+    cp_source: str | None = None
+    cp_model: str | None = None
+    cp_n_efforts: int | None = None
+    cp_min_duration_sec: float | None = None
+    cp_max_duration_sec: float | None = None
+    cp_duration_span_sec: float | None = None
+    cp_fit_r2: float | None = None
+    cp_fit_rmse: float | None = None
+    cp_confidence: CPConfidence | None = None
+    w_prime_confidence: CPConfidence | None = None
+    cp_test_dates: tuple[str, ...] = ()
+    cp_last_updated: str | None = None
