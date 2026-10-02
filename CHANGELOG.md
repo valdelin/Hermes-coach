@@ -1,5 +1,9 @@
 # Changelog
 
+> [!info] Dono deste documento
+> Fonte canônica: `CHANGELOG.md` **no repo** (o mesmo arquivo do vault é cópia).
+> Quando divergirem, o repo vence. Editar no repo e copiar.
+
 Todas as mudanças relevantes do **Hermes Coach**. O formato segue
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e o versionamento,
 [SemVer](https://semver.org/lang/pt-BR/).
@@ -168,9 +172,9 @@ na publicação no Intervals.icu** — os módulos novos continuam isolados do
 fluxo `build`/`push` (ver limitações).
 
 ### Adicionado
-- **Suíte de regressão científica** (`tests/scientific/`) — 222 testes em nove
+- **Suíte de regressão científica** (`tests/scientific/`) — 224 testes em nove
   módulos, um por contrato algorítmico do embasamento: `test_training_load`
-  (22), `test_periodization` (20), `test_progression` (22), `test_readiness`
+  (22), `test_periodization` (20), `test_progression` (24), `test_readiness`
   (19), `test_adaptation` (20), `test_ftp` (34), `test_critical_power` (35),
   `test_vo2` (24) e `test_intensity_distribution` (26). Cada teste registra
   em docstring se é **evidência**, **heurística do sistema** ou
