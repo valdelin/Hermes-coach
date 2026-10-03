@@ -134,15 +134,11 @@ dos testes de taxa constante distribuídos em vários dias (PMID 32899777).
 quadrados e devolvem `None` com menos de dois esforços válidos — **nunca um valor
 inventado**. `work_above_cp()` limita o esforço acima de CP pelo W′ disponível.
 
-**Limite conhecido do estimador.** O ajuste é OLS de $P$ contra $1/t$, e isso
-tem duas consequências que o texto precisa declarar:
-
-- O intercepto de uma OLS na coordenada transformada **não é o estimador não
-  enviesado de CP**. O estimador compatível para o intercepto de um modelo
-  $y = a + b/t$ pondera cada ponto por $1/t^2$. O código não pondera.
-- O peso por ponto é desigual: um esforço de 120 s entra com $1/t$ dez vezes
-  maior que um de 1200 s e domina o ajuste. Um esforço muito longo é quase a
-  própria observação do assíntoto e quase não o determina.
+**Limite conhecido do estimador.** O ajuste é OLS de $P$ contra $1/t$, sem
+ponderação por duração nem filtro de outlier. Durações curtas têm maior
+alavancagem no espaço transformado, e a faixa de durações observada influencia
+o intercepto. Não há evidência suficiente no Hermes para declarar WLS, regressão
+robusta ou outro modelo universalmente superior.
 
 Não há ponderação por duração nem filtro de outlier no ajuste. Um único ponto
 ruidoso desloca a leitura de CP. Travas em
@@ -156,8 +152,9 @@ convenção do Hermes, configurável por atleta, **não constante fisiológica
 universal**. Idem para qualquer limiar de W′ do código.
 
 **CP e W′ são complementares ao FTP:** não o substituem e não são equivalentes
-a MLSS, LT ou RCP. Uso previsto: esforços acima do limiar, Z6, HIIT e análise
-power-duration.
+a MLSS, LT ou RCP. O uso atual é analítico e informativo: estimativa,
+proveniência, metadados, métricas de ajuste e estudo da relação potência-duração.
+Não há plano atual para uso prescritivo em esforços acima do limiar, Z6 ou HIIT.
 
 ### 3.1 Validade e confiabilidade das estimativas de CP e W′
 
@@ -192,11 +189,15 @@ estados representáveis, mas não são derivados sem uma política futura
 defensável. Os campos `cp_confidence` e `w_prime_confidence` são separados para
 permitir incertezas distintas, sem inferir uma diferença artificial agora.
 
-**[ENGENHARIA HERMES]** FTP continua baseline universal e CP/W′ continuam
-opcionais e exclusivamente informativos. Não há `eligible_for_enhancement`,
-fallback `cp = ftp`, consumidor prescritivo, nem alteração de zonas, TSS,
-VO2, INTENSITY, work_sec, repeats ou recovery. W′bal e sua reconstituição
-continuam heurísticas independentes desta policy.
+**[ENGENHARIA HERMES]** FTP continua baseline operacional universal para zonas,
+`WorkoutParams`, potência-alvo, prescrição e publicação. CP/W′ continuam
+opcionais, analíticos e exclusivamente informativos. Não há
+`eligible_for_enhancement`, `eligible_for_prescription`, ativação automática,
+fallback `cp = ftp`, consumidor prescritivo, nem alteração de zonas, TSS, VO2,
+INTENSITY, work_sec, repeats ou recovery. W′bal e sua reconstituição são
+heurísticos/experimentais; não há decisão de usá-los como restrição, gate ou
+fonte de prescrição. A Fase 2 está concluída por si só; Fase 3 não tem roadmap
+ativo e uso produtivo não é planejado no momento.
 
 ## 4. Zonas
 
@@ -909,7 +910,8 @@ payload. A auditoria #60 encerra as decisões, não implementações:
   decisão deve separar validação de entrada (`days >= 0`, `daily_rate >= 0`) de
   eventual normalização de estado em `0..1`; não define função fisiológica.
 - CP/W' OLS: manter informativo; uso prescritivo não está autorizado. CP/W'
-  Fase 2 permanece complementar ao FTP, e a Fase 3 está não iniciada/adiada.
+  Fase 2 permanece complementar ao FTP; Fase 3 não tem roadmap ativo e não é
+  planejada no momento.
 - `intensity=0.90`: manter isolado como placeholder declarado; não substituir o
   valor nem integrar `ProgressionEngine` nesta decisão.
 

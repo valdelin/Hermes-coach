@@ -27,8 +27,8 @@ agente, para novos leitores do código e para o pitch/produto.
 | bpm | beats per minute | Unidade de FC; alvo em `hr_target_bpm` (FTHR × %). | no motor |
 | TRIMP | TRaining IMPulse | Carga estimada por FC (alternativa ao TSS). Referência, não implementada. | contexto |
 | NP | Normalized Power | Potência normalizada (média ponderada de intensidade). Do WKO/GC. | contexto |
-| CP | Critical Power | Potência crítica — assíntota da curva potência×duração; par (CP, **W'**) modela a capacidade anaeróbia. Candidata a métrica futura (ex.: limiar mais fino que o FTP fixo). | contexto |
-| W′ / W'bal | Anaerobic Work Capacity / balance | Trabalho anaeróbio disponível acima do CP; `W'bal` de Skiba estima o saldo durante/ao fim do treino. Usada pelo GC/WKO. | contexto |
+| CP | Critical Power | Potência crítica — assíntota da curva potência×duração; par (CP, **W'**) é referência analítica opcional. Não substitui FTP nem tem uso prescritivo planejado. | contexto |
+| W′ / W'bal | Anaerobic Work Capacity / balance | Trabalho acima de CP e saldo estimado por modelos de reconstituição. `W'bal` é heurístico/experimental, sem uso produtivo ou ativação planejada. | contexto |
 | VO2 (VO₂max) | maximal oxygen uptake | Capacidade aeróbia máxima; nomeia a zona/foco de treino `FOCUS_VO2`. | no motor |
 | Z1–Z5 | Power/HR zones | Faixas de intensidade (Z2 = endurance, Z3 = sweet spot, Z4 = limiar, Z5 = VO2). | no motor |
 | HR | Heart Rate | Frequência cardíaca. `HRV` = variabilidade da FC (wellness, Garmin). | no motor |

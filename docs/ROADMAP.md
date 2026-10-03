@@ -33,7 +33,7 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 | 11 | produto | **Catálogo de eventos estilo Pillar** (200+ provas) — onboarding por prova-alvo (distância/perfil) | — (benchmark 22/09) | **possível — validar c/ treinador** | 3 |
 | 12 | produto | **App comercial de ciclismo indoor** (posicionamento + preços — benchmark 22/09): consolidar #7/#8/#11 em produto com assinatura (tiers solo/coach), notificações (#2), catálogo de eventos e retenção | — (benchmark 22/09; ADR-003) | **possível — validar c/ treinador** (ROTEIRO-TREINADOR seções 3-4) | 3 |
 | 13 | produto | **Assistentes de IA no padrão Tredict** — análise do histórico e criação de planos via LLM (MCP server / apps ChatGPT/Claude) como interface do motor; o nosso é determinístico/auditável (diferencial de confiança), o deles é LLM aberto | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 3 |
-| 14 | decisão | **W′/CP — não implementar agora**: análise Tredict (post mai/2026) mostra modelo de critical power instável e pouco acionável para endurance; CP/W′ ficam como **contexto/candidata** (ver `docs/GLOSSARIO.md`) | — (benchmark Tredict 23/09) | **possível — validar c/ treinador** | 2 |
+| 14 | decisão | **W′/CP — referência analítica opcional.** A análise Tredict (mai/2026) reforça a baixa acionabilidade de W′-balance para endurance. CP/W′ permanecem disponíveis para estudo e contexto, sem roadmap de integração prescritiva. | — (benchmark 23/09; reposicionamento 03/10) | **sem roadmap ativo** | — |
 | 15 | feature | **Wellness objetivo no alerta de sobrecarga** — dados coletados das plataformas via Intervals (Google Fit: peso, RC em repouso, sono, SpO2, tensão arterial, hidratação, kCal, gordura corporal; Garmin: + pontuação/qualidade do sono, VO2max, HRV rMSSD, passos) complementando o alerta `TSB ≤ −10` do Expected PMC. **Não é RPE/"como se sentiu"** (RPE continua âncora do modo FC — ver `docs/GLOSSARIO.md`); S2S (23/09): métricas de recuperação detectam overreaching | — (Science to Sport 23/09) | **possível — validar c/ treinador** | 1 |
 | 16 | feature | **TSB-alvo pessoal de prova** — aprender o TSB ótimo de corrida correlacionando os melhores dias de forma com o TSB do dia (S2S: ótimo varia, `−5..+5` a `+10..+20` por atleta); usar para ajustar o taper do `GOAL=race`. **Semente implementada (v0.0.20)** no `GOAL=race`: o `build` projeta o TSB no dia da prova (Expected PMC) e compara com a faixa `−10..+20` (`_tsb_race_verdict`: cansado/ok/acima); falta o aprendizado pessoal | — (Science to Sport 23/09; Friel case study 2010) | **semente implementada — aprendizado pessoal: validar c/ treinador** | 2 |
 | 17 | feature | ~~**Indicadores de zona extrema no Expected PMC**~~ **implementado (v0.0.19)**: Friel — `TSB < −30` = risco alto (R&R), `> +25` = transição (descanso longo); `forecast_pmc()` etiqueta a zona por dia (`_tsb_zone`) e o `model` avisa | — (Joe Friel 23/09) | **implementado** | 2 ✅ |
@@ -82,7 +82,7 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 
 ## Prioridade operacional atual (2026-10-02)
 
-**[ENGENHARIA] CP/W′ Fase 2 — CONCLUÍDA.** Metadados objetivos, ajuste e confidence informativa foram fechados. FTP continua o baseline universal; CP/W′ não têm consumidor prescritivo. A Fase 3 (enhancement experimental em Severe/VO2) está **não iniciada/adiada**: não existe decisão de benefício, contrato ou gates de uso.
+**[ENGENHARIA] CP/W′ Fase 2 — CONCLUÍDA.** Estimativa, proveniência, metadados, métricas de fit e confidence informativa estão completos como capacidade analítica. FTP continua o baseline operacional universal; CP/W′ não têm consumidor prescritivo. Fase 3 não tem roadmap ativo e integração prescritiva não é planejada no momento.
 
 **[ENGENHARIA] #40 + #41 — PRÓXIMO TRABALHO DE CÓDIGO RECOMENDADO.** `absorbed_ids` não persiste no `plan.json`, logo o mesmo treino perdido pode ser absorvido em execuções sucessivas do timer e alterar plano publicado. O `by_id` morto toca a mesma função e pode ser removido junto se o diff permanecer coeso. Prioridade vem de impacto operacional direto no atleta.
 
@@ -90,7 +90,7 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
 
 **[EVIDÊNCIA + ENGENHARIA] #60 — AUDITORIA CONCLUÍDA.** `decay()` terá correção futura apenas como invariante de engenharia; CP/W′ OLS permanece informativo e requer pesquisa de protocolo/quality gates antes de qualquer uso prescritivo; `intensity=0.90` permanece placeholder isolado até haver contrato por família. Nenhuma implementação prescritiva foi autorizada.
 
-**[ENGENHARIA/PRODUTO] Rationale.** Priorizar bugs que afetam plano publicado antes de ativar módulos científicos isolados; #58 requer contrato antes de código; #60 requer revisão científica; CP/W′ Fase 3 permanece adiada até uma decisão explícita de onde o enhancement melhora o modelo FTP atual.
+**[ENGENHARIA/PRODUTO] Rationale.** Priorizar bugs que afetam plano publicado antes de ativar módulos científicos isolados; #58 requer contrato antes de código; #60 requer revisão científica. CP/W′ só será reconsiderado para integração produtiva diante de caso de uso concreto em que FTP seja insuficiente ou CP/W′ demonstre benefício claro, exigindo nova avaliação científica, arquitetural e de produto.
 
 ## Fases
 
@@ -266,8 +266,8 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
   produto sobrevive à troca de provedor, o deles É o provedor;
   (3) **W′/CP** — post "Why Tredict does not calculate W-Prime" (mai/2026)
   recusa W′-balance por instabilidade/baixa acionabilidade para endurance ⇒
-  CP/W′ ficam como **contexto/candidata** no glossário, **fora do motor por
-  ora** (backlog #14);
+  CP/W′ ficam como referência analítica opcional, sem consumidor prescritivo e
+  sem roadmap ativo de integração (item #14);
   (4) **preço p/ coaches**: "prepaid credits for write access" (créditos por
   escrita) — opção de monetização a validar na Fase 3;
   (5) **posicionamento**: Tredict resolve "onde guardo/analiso/sincronizo"; o
@@ -534,4 +534,4 @@ Revisão dos itens (release v0.0.15, sessão de 22/09):
   **Nova entrada #12** (app comercial: tiers solo/coach + retenção) marcada
   como **"possível — validar c/ treinador"**; detalhe na Fase 3.
   ROTEIRO-TREINADOR 3.6 ganha a âncora de preços de mercado.
-| 60 | decisão | **Auditoria científica e arquitetural concluída.** Os três módulos continuam isolados, sem consumidores produtivos em `plan.py`/`training_plan.py`: não alteram workout publicado, TSS, intensidade, duração, zonas, calendário ou payload. (a) `decay()`: **corrigir futuramente** como invariantes de entrada/normalização de engenharia; implementação pendente. (b) CP/W′ OLS: **pesquisar mais**, manter Fase 2 informativa e sem uso prescritivo; priorizar protocolo, qualidade de esforço, cobertura de durações e quality gates antes de escolher estimador. (c) `intensity=0.90`: **manter placeholder isolado**; decisão por família e reconciliação com `ZONE_BANDS` antes de integração. | — (03/10 — auditoria #60; 811 testes, 0 falhas, 3 skips) | **auditoria concluída — follow-ups pendentes** | 0 |
+| 60 | decisão | **Auditoria científica e arquitetural concluída.** Os três módulos continuam isolados, sem consumidores produtivos em `plan.py`/`training_plan.py`: não alteram workout publicado, TSS, intensidade, duração, zonas, calendário ou payload. (a) `decay()`: **corrigir futuramente** como invariantes de entrada/normalização de engenharia; implementação pendente. (b) CP/W′ OLS: **pesquisar mais** para qualidade da referência analítica, mantendo Fase 2 informativa e sem uso prescritivo; quality gates não criam roadmap de Fase 3. (c) `intensity=0.90`: **manter placeholder isolado**; decisão por família e reconciliação com `ZONE_BANDS` antes de integração. | — (03/10 — auditoria #60; 811 testes, 0 falhas, 3 skips) | **auditoria concluída — follow-ups pendentes** | 0 |
