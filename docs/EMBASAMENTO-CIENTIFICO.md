@@ -24,7 +24,7 @@
 > espelho — e o doc diz isso no topo. Exceção única e explícita: esta tabela
 > Z1–Z7, mantida pelos dois lados por causa do `ZoneIntegrityTest`.
 
-**Data:** 25/09/2026 · atualizado 02/10/2026 (P3-02)
+**Data:** 25/09/2026 · atualizado 03/10/2026 (#60)
 **Projeto:** Hermes Coach
 **Mapeamento:** Fisiologia do Exercício aplicada ao Algoritmo de Treino
 
@@ -872,6 +872,60 @@ própria, e cada um tem trava de teste.
     pondera por duração e não filtra outlier. O CP é honesto dentro da faixa de
     durações medida; extrapolar para o assíntoto com poucos pontos é chute.
 
+### 14.1 Limitações de modelos isolados (#60)
+
+**EVIDÊNCIA CIENTÍFICA.** Destreino, CP/W' e dose de treino intervalado dependem
+do atleta, do protocolo, da variável observada, da distribuição das durações e
+do contexto. Não há, na evidência usada pelo Hermes, uma taxa universal de
+perda de adaptação entre domínios, um estimador universalmente superior de
+CP/W', nem um percentual único de FTP adequado a todas as famílias de treino.
+
+Coyle et al. observaram cinéticas distintas de perda após destreino, e a revisão
+de Clarke & Skiba descreve os modelos fitness-fatigue como modelos de desempenho
+ajustados ao indivíduo, não como estoque fisiológico universal normalizado
+(PMID 6511559; PMID 23728131). Estimativas de CP/W' variam com modelo e com a
+faixa de durações dos esforços, mesmo quando o ajuste aparenta ser bom (Jenkins
+et al., PMID 9923729; Bull et al., PMID 10694142; Vinetti et al., PMID
+30694386). Intensidade, duração, recuperação, repetições e séries compõem a
+dose do intervalado; uma intensidade isolada não identifica uma família de
+treino (Buchheit & Laursen, PMID 23539308). FTP não é intercambiável com
+marcadores fisiológicos individuais (Inglis et al., PMID 31689684; Jeffries et
+al., PMID 31269000; Mackey et al., PMID 34304689).
+
+**LIMITAÇÕES.** `AdaptationState.decay()` é uma heurística linear:
+`max(0, 1 - days * daily_rate)`. Com `days` ou `daily_rate` negativos, o fator
+pode exceder 1 e o estado crescer acima da faixa conceitual normalizada. O
+fitting CP/W' usa OLS não ponderado de `P` contra `1/t`, sem quality gates de
+protocolo/esforço nem remoção automática de outliers. `ProgressionStep` carrega
+`intensity=0.90` uniforme como placeholder; isso não é dose fisiológica
+universal entre Endurance, Sweet Spot, Threshold, VO2max e Anaerobic.
+
+**DECISÕES DE ENGENHARIA HERMES.** Os três módulos permanecem isolados, sem
+consumidores produtivos em `src/plan.py` ou `src/training_plan.py`; hoje não
+alteram workout publicado, TSS, intensidade, duração, zonas, calendário ou
+payload. A auditoria #60 encerra as decisões, não implementações:
+
+- `decay()`: corrigir futuramente como invariante de engenharia. A futura
+  decisão deve separar validação de entrada (`days >= 0`, `daily_rate >= 0`) de
+  eventual normalização de estado em `0..1`; não define função fisiológica.
+- CP/W' OLS: manter informativo; uso prescritivo não está autorizado. CP/W'
+  Fase 2 permanece complementar ao FTP, e a Fase 3 está não iniciada/adiada.
+- `intensity=0.90`: manter isolado como placeholder declarado; não substituir o
+  valor nem integrar `ProgressionEngine` nesta decisão.
+
+Qualquer integração futura exige decisão explícita, contrato de domínio e testes
+de não regressão. `zone_intent` já é guardrail semântico derivado de `focus` no
+build; esta auditoria não altera `ZONE_BANDS`, `focus`, `WorkoutParams` nem
+`plan.json`.
+
+**QUESTÕES ABERTAS.** Para `decay()`, definir invariantes de entrada e de
+normalização sem apresentá-los como teto fisiológico. Para CP/W', definir
+protocolo, qualidade dos esforços, cobertura de durações e quality gates antes
+de comparar OLS, WLS, regressão robusta ou outro modelo. Para
+`ProgressionEngine`, definir intensidade por família e sua reconciliação com
+`ZONE_BANDS`, `focus` e o contrato de `WorkoutParams` antes de integração
+produtiva.
+
 ## 15. Referências
 
 Todas verificadas por PMID no NCBI. Autores, títulos e resultados citados neste
@@ -925,6 +979,16 @@ documento foram conferidos contra o abstract.
    *EVIDÊNCIA. Correlação forte não torna CP e FTP intercambiáveis no indivíduo; os limites de concordância foram amplos.*
 26. **Leo, P., Spragg, J., Podlogar, T., Lawley, J. S., & Mujika, I. (2022).** *Power profiling and the power-duration relationship in cycling: a narrative review.* European Journal of Applied Physiology, 122(2), 301–316. PMID 34708276 — <https://doi.org/10.1007/s00421-021-04833-y>
    *EVIDÊNCIA. Revisão sobre perfil potência-duração; recomenda testes de campo estruturados e alerta contra inferência a partir de esforço único.*
+27. **Coyle, E. F., Martin, W. H., Sinacore, D. R., et al. (1984).** *Time course of loss of adaptations after stopping prolonged intense endurance training.* Journal of Applied Physiology, 57(6), 1857–1864. PMID 6511559 — <https://doi.org/10.1152/jappl.1984.57.6.1857>
+    *EVIDÊNCIA. Marcadores de destreino tiveram cinéticas distintas após cessar treino de endurance; não sustenta taxa única para todos os domínios.*
+28. **Clarke, D. C., & Skiba, P. F. (2013).** *Rationale and resources for teaching the mathematical modeling of athletic training and performance.* Advances in Physiology Education, 37(2), 134–152. PMID 23728131 — <https://doi.org/10.1152/advan.00078.2011>
+    *EVIDÊNCIA. Modelos fitness-fatigue e CP abstraem a fisiologia; não definem estoque fisiológico universal normalizado.*
+29. **Jenkins, D. G., Kretek, K., & Bishop, D. (1998).** *The duration of predicting trials influences time to fatigue at critical power.* Journal of Science and Medicine in Sport, 1(4), 213–218. PMID 9923729 — <https://doi.org/10.1016/S1440-2440(09)60004-9>
+    *EVIDÊNCIA. A seleção das durações de esforço altera a estimativa de CP.*
+30. **Bull, A. J., Housh, T. J., Johnson, G. O., & Perry, S. R. (2000).** *Effect of mathematical modeling on the estimation of critical power.* Medicine & Science in Sports & Exercise, 32(2), 526–530. PMID 10694142 — <https://doi.org/10.1097/00005768-200002000-00040>
+    *EVIDÊNCIA. Estimativas variam entre parametrizações/modelos de CP.*
+31. **Vinetti, G., Taboni, A., Bruseghini, P., et al. (2019).** *Experimental validation of the 3-parameter critical power model in cycling.* European Journal of Applied Physiology, 119(4), 941–949. PMID 30694386 — <https://doi.org/10.1007/s00421-019-04083-z>
+    *EVIDÊNCIA. A inclusão do componente curto e a escolha do modelo afetam parâmetros do ajuste.*
 
 ### Referências que sustentam a tabela Z1–Z7
 
