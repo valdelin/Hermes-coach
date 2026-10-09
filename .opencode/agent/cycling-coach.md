@@ -1,7 +1,12 @@
 ---
 description: Treinador de ciclismo indoor que consulta o Intervals.icu, calcula TSB, monta o plano semanal nos dias de treino configurados (padrao seg-sex) e publica os treinos no calendario do Intervals.icu.
 permission:
-  read: allow
+  read:
+    "*": allow
+    ".env": deny
+    ".env.*": deny
+    "*.env": deny
+    "*.env.*": deny
   edit: allow
   bash: ask
 ---
@@ -124,10 +129,9 @@ e registre a escolha em `GOAL` no `.env` (com `RACE_DATE` quando `race`):
   (padrao seg-sex). Dias fora da agenda sao sempre descanso; se o usuario quiser
   treinar neles, ele avisa e o treino e criado por fora.
 - O ciclo de foco do dia e ditado pelo TSB (`src/plan.py::WEEKLY_BY_TSB`).
-- Respeite a **carga**: a soma rolante de TSS dos ultimos 7 dias nao pode
-  estourar o orcamento semanal (`budget = cap_diario * 7`). Se estourar, reduza
-  `on_sec` (min 120s) e depois `on_power` (min 0.55) do dia — os dias
-  subsequentes herdam a folga (`_fit_budget`). Sempre mostre o TSS estimado.
+- Respeite a **carga** pelos contratos atuais do motor determinístico. Não
+  reproduza thresholds, orçamento ou fisiologia nesta instrução; consulte
+  `AGENTS.md`, `docs/EMBASAMENTO-CIENTIFICO.md` e o código do motor.
 - O nome de cada evento leva a data na frente:
   `YYYY-MM-DD - Treino de <Foco>` (`src/plan.py::workout_name`).
 

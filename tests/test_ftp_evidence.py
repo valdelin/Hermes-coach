@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -172,6 +173,15 @@ class FtpEvidenceRepositoryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repo.save((evidence("ev-1", 250), evidence("ev-1", 260)))
 
+    def test_id_duplicado_no_arquivo_e_rejeitado_no_load(self):
+        self.path.write_text(json.dumps({
+            "schema_version": 1,
+            "evidence": [evidence("ev-1", 250).to_dict(),
+                         evidence("ev-1", 260).to_dict()],
+        }), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "ids de evidencia FTP"):
+            self.repo.load()
+
 
 class ApplicationFtpEvidenceTest(unittest.TestCase):
     def setUp(self):
@@ -199,6 +209,30 @@ class ApplicationFtpEvidenceTest(unittest.TestCase):
         persisted = FtpHistoryRepository(
             Path(self.tmp) / "ftp_history.json").load()
         self.assertEqual(persisted.references[0].evidence_id, "ev-1")
+
+    def test_confirmacao_repetida_retorna_referencia_existente(self):
+        self.app.record_ftp_evidence(evidence())
+        first = self.app.confirm_ftp_evidence("ev-1", now=T0)
+        second = self.app.confirm_ftp_evidence(
+            "ev-1", now=T0 + timedelta(minutes=1))
+        self.assertEqual(second, first)
+        history = FtpHistoryRepository(
+            Path(self.tmp) / "ftp_history.json").load()
+        self.assertEqual(len(history.references), 1)
+
+    def test_confirmacao_repetida_com_provenance_conflitante_falha(self):
+        self.app.record_ftp_evidence(evidence())
+        self.app.confirm_ftp_evidence("ev-1", now=T0)
+        history_path = Path(self.tmp) / "ftp_history.json"
+        history = FtpHistoryRepository(history_path).load()
+        conflicting = FtpReference(
+            id="ftp-ev-1", value_watts=260, effective_from=T0,
+            recorded_at=T0, source=FtpReferenceSource.USER_ENTERED,
+            evidence_id="ev-1")
+        FtpHistoryRepository(history_path).save(
+            type(history)((conflicting,), athlete_id=history.athlete_id))
+        with self.assertRaisesRegex(ValueError, "provenance incompativel"):
+            self.app.confirm_ftp_evidence("ev-1", now=T0)
 
     def test_advice_depois_de_confirmar_passa_a_within(self):
         self.app.record_ftp_evidence(evidence())

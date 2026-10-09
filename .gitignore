@@ -7,4 +7,5 @@ __pycache__/
 plan.json
 logs/
 data/relatorio-*.html
+/relatorio-*.html
 relatorio-*.pdf

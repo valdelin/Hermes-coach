@@ -11,10 +11,9 @@ rastreio no GitHub (issue) e estágio.
 Referências: [ADR-003](https://github.com/valdelin/Hermes-coach/issues) (visão
 de produto: "Runna do ciclismo indoor" — ver `docs/ARQUITETURA.md` e vault);
 **fundamentação científica** do algoritmo em `docs/EMBASAMENTO-CIENTIFICO.md`
-(o **contrato algorítmico**; a tabela científica Z1–Z7 completa — com %FCmáx,
-%FC de limiar, RPE e ressalvas por zona — está no documento canônico do vault,
-ao qual o arquivo do repo aponta; essa é a **única** exceção à regra de dono
-acima, porque `ZoneIntegrityTest` compara os dois lados);
+(o **contrato algorítmico** canônico no repo; o vault é somente espelho de
+leitura). `ZoneIntegrityTest` compara `src/coach.py:ZONE_BANDS` com um literal
+no próprio teste; não lê Markdown nem estabelece uma fonte científica;
 **visão SaaS** (arquitetura alvo multi-tenant) em
 `docs/ROADMAP-2-CRIACAO-DE-SAAS.md` (itens #24-#27, Fases 1B/3B); **parecer da
 revisão técnica** (propostas aplicadas/não aplicadas) em

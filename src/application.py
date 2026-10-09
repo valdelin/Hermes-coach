@@ -240,7 +240,33 @@ class Application:
             recorded_at=resolved_now,
             notes=notes,
         )
-        self.save_ftp_reference(reference)
+        repository = _ftp_history.FtpHistoryRepository(self._ftp_history_file())
+        history = repository.load()
+        same_evidence = [entry for entry in history.references
+                         if entry.evidence_id == evidence.id]
+        if len(same_evidence) > 1:
+            raise ValueError(
+                f"historico FTP corrompido: evidencia {evidence.id} possui "
+                "mais de uma referencia")
+        if same_evidence:
+            existing = same_evidence[0]
+            provenance = (
+                existing.ftp_value == reference.ftp_value
+                and existing.source == reference.source
+                and existing.protocol == reference.protocol
+                and existing.evidence_activity_id == reference.evidence_activity_id
+                and existing.evidence_workout_id == reference.evidence_workout_id
+                and existing.provider == reference.provider
+            )
+            if provenance:
+                return existing
+            raise ValueError(
+                f"referencia FTP existente para evidencia {evidence.id} tem "
+                "provenance incompativel")
+        if any(entry.id == reference.id for entry in history.references):
+            raise ValueError(
+                f"id de referencia FTP em conflito: {reference.id}")
+        repository.save(history.with_reference(reference))
         return reference
 
     # -- identity / lifecycle (UI-2) -------------------------------------

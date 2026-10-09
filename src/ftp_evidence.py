@@ -381,7 +381,11 @@ class FtpEvidenceRepository:
         entries = data.get("evidence")
         if not isinstance(entries, list):
             raise ValueError("evidence FTP deve ser lista")
-        return tuple(FtpEvidence.from_dict(entry) for entry in entries)
+        parsed = tuple(FtpEvidence.from_dict(entry) for entry in entries)
+        ids = [entry.id for entry in parsed]
+        if len(ids) != len(set(ids)):
+            raise ValueError("ids de evidencia FTP devem ser unicos")
+        return parsed
 
     def save(self, evidence_entries: Tuple[FtpEvidence, ...]) -> Path:
         ids = [entry.id for entry in evidence_entries]

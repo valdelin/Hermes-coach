@@ -254,10 +254,25 @@ Fixture real (últimos dias): compare `plan.json` x treinos feitos.
 ## 11. Segurança e boas práticas
 
 - [x] A API key **nunca** aparece na saída de nenhum comando nem nos logs:
-      ```bash
-      python3 src/training_plan.py info 2>&1 | grep -ci "$(grep -oP '^INTERVALS_API_KEY=\K.*' .env)" 
-      # esperado: 0
-      ```
+       ```bash
+       python3 - <<'PY'
+       from pathlib import Path
+       import subprocess
+
+       secret = next(
+           (line.partition("=")[2] for line in Path(".env").read_text().splitlines()
+            if line.startswith("INTERVALS_API_KEY=")),
+           None,
+       )
+       result = subprocess.run(
+           ["python3", "src/training_plan.py", "info"],
+           text=True, capture_output=True, check=False,
+       )
+       if secret and secret in result.stdout + result.stderr:
+           raise SystemExit("API key encontrada na saída")
+       print("API key ausente da saída")
+       PY
+       ```
 - [x] `git status` não mostra `.env` (deve estar no `.gitignore`).
 - [x] `cp .env.bak .env` restaura o `.env` original ao final do roteiro.
       → `.env` idêntico ao `.env.bak` (conferido com `diff`).
