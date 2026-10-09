@@ -10,7 +10,13 @@ personalizado ('custom' com `--start`/`--end`).
 """
 
 import re
+from collections.abc import Mapping
 from datetime import date, timedelta
+
+try:
+    from provider_fields import field as _field
+except ImportError:  # execucao como pacote (src.activity_summary)
+    from .provider_fields import field as _field  # type: ignore
 
 PERIODS = ("day", "week", "month", "quarter", "semester", "year", "plan",
            "custom")
@@ -79,25 +85,26 @@ def done_activities(client, start, end):
     events = client.events(oldest=start.isoformat(), newest=end.isoformat())
     rows = []
     for e in events:
-        aid = e.get("activity_id") or e.get("paired_activity_id")
+        aid = _field(e, "completion_activity_id")
         if not aid:
             continue
         a = client.activity(aid)
-        if not isinstance(a, dict):
+        if not isinstance(a, Mapping):
             continue
-        day = (e.get("start_date_local") or "").split("T")[0] or str(start)
+        day = (_field(e, "start_date") or "").split("T")[0] or str(start)
         rows.append({
-            "name": (a.get("name") or e.get("name") or "Treino").strip(),
+            "name": (_field(a, "name") or _field(e, "name") or "Treino").strip(),
             "day": day,
             "_day": date.fromisoformat(day),
-            "type": a.get("type") or "",
-            "time_s": int(a.get("moving_time") or a.get("elapsed_time") or 0),
-            "distance_m": float(a.get("distance") or 0),
-            "elevation_m": float(a.get("total_elevation_gain") or 0),
-            "load": float(a.get("icu_training_load") or a.get("tss") or 0),
-            "avg_power": a.get("icu_average_watts") or a.get("average_power"),
-            "np": a.get("icu_weighted_avg_watts"),
-            "avg_hr": a.get("average_heartrate"),
+            "type": _field(a, "type") or "",
+            "time_s": int(_field(a, "moving_time")
+                          or _field(a, "elapsed_time") or 0),
+            "distance_m": float(_field(a, "distance") or 0),
+            "elevation_m": float(_field(a, "elevation_gain") or 0),
+            "load": float(_field(a, "training_load") or _field(a, "tss") or 0),
+            "avg_power": _field(a, "avg_power"),
+            "np": _field(a, "np"),
+            "avg_hr": _field(a, "avg_hr"),
         })
     return rows
 

@@ -1,5 +1,10 @@
 # Sincronização de plataformas com o Intervals.icu
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/SYNC-PLATAFORMAS.md` **no repo** (o mesmo arquivo do vault
+> é cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+> Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/SYNC-PLATAFORMAS.md`.
+
 Guia de como conectar o Intervals.icu às plataformas compatíveis (atividades,
 wellness e treinos planejados). Baseado na documentação oficial e nos fóruns
 do Intervals.icu (2026-09).

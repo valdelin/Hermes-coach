@@ -54,14 +54,16 @@ O Intervals expõe quatro métricas em `/wellness`: `restingHR`, `hrv`/`hrvSDNN`
 | `performance_score` | — | `None`. Sem fonte. |
 | `consistency_score` | — | `None`. Só teria fonte derivada. |
 
-**Cobertura máxima real: 3/7 ≈ 43%.** `ReadinessAssessment.confidence` é
-reportado como **cobertura** (fração de eixos observados), não confiança
-estatística. Não existe piso de cobertura: descartar uma avaliação por
-cobertura baixa jogaria fora sinais ruins que foram de fato observados.
+**Capacidade máxima atual: 3/7 ≈ 43%.** Três eixos têm produtor, mas a
+cobertura diária pode ser 0, 1, 2 ou 3 conforme HRV/RHR/sono estejam válidos no
+registro de referência. `ReadinessAssessment.confidence` é reportado como
+**cobertura** (fração de eixos observados), não confiança estatística. Não
+existe piso de cobertura: descartar uma avaliação por cobertura baixa jogaria
+fora sinais ruins que foram de fato observados.
 
 ### 3.1 Ausência de dado não é neutra
 
-Eixo sem observação fica `None`. **Não** `0.5`.
+Eixo sem observação fica `None`. **Não** `0.5` nem `0.8`.
 
 Preencher ausente com neutro rebaixaria a média de todo mundo: um atleta
 saudável com 3 eixos a `0.8` e 4 ausentes cairia para média `0.34` e leria
@@ -454,9 +456,9 @@ Limitações residuais da resolução estão em §15.
   fisiologia; os testes verificam consistência de contrato e ausência de
   compensação. `REPLACE` (Z2 900 s) é recurso conservador **de convenção**, não
   resposta validada para possível doença.
-- **Cobertura 3/7.** Quatro eixos sem fonte em `/wellness`. O resultado é
-  honesto (`ausência de dado não vira escore`), mas deixa a avaliação dependente
-  de três sinais apenas.
+- **Capacidade 3/7.** Quatro eixos seguem sem produtor. A cobertura diária é
+  menor quando HRV/RHR/sono não chegam válidos no registro; ausência não vira
+  escore, mas deixa a avaliação dependente de até três sinais.
 - **Deterioração moderada não verificada com dados reais.** Um sinal que não
   cruza o limiar legado não gera escore ruim. A detecção de doença
   (`_illness`) exige ≥ 3 noites e é heurística de convenção.
@@ -632,6 +634,7 @@ estado desconhecido como aplicável; remover a guarda de idempotência; remover 
    `~/.config/systemd/user/.backup-20261002/`.
    **Ressalva honesta:** a chegada é variável (dois registros vieram às 11:28 e
    13:53, provavelmente reenvio). 05:30 maximiza a chance, não garante.
-4. **Cobertura 3/7** e heurística sem calibração, de §14. Inalteradas.
+4. **Capacidade 3/7** e heurística sem calibração, de §14. Inalteradas; a
+   cobertura disponível no dia pode ser menor conforme os sinais recebidos.
 5. **`build` continua sendo a autoridade do TSB.** `check` não aplica adaptação
    por TSB; quando o TSB domina, a saída diz isso explicitamente.

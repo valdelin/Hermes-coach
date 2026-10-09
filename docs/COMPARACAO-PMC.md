@@ -1,5 +1,10 @@
 # Comparação de Cálculo de PMC — modelo antigo vs atual (v0.0.29)
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/COMPARACAO-PMC.md` **no repo** (o mesmo arquivo do vault
+> é cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+> Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/COMPARACAO-PMC.md`.
+
 Análise de 27/09/2026, dados reais da conta do atleta (janela de 60 dias,
 28/07 a 26/09/2026). Contexto completo da investigação no ROADMAP (#33, #34,
 #35) e no CHANGELOG [0.0.29].

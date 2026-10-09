@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+try:
+    from provider_fields import field as _field
+except ImportError:  # execucao como pacote (src.coach)
+    from .provider_fields import field as _field  # type: ignore
+
 
 @dataclass(frozen=True)
 class Metrics:
@@ -112,9 +117,9 @@ def _raw_metrics(item):
     ctl = item.get("ctl", summary.get("ctl"))
     atl = item.get("atl", summary.get("atl"))
     if ctl is None:
-        ctl = item.get("icu_ctl", summary.get("icu_ctl"))
+        ctl = _field(item, "ctl")
     if atl is None:
-        atl = item.get("icu_atl", summary.get("icu_atl"))
+        atl = _field(item, "atl")
     if ctl is not None:
         ctl = _num(ctl)
     if atl is not None:
@@ -127,14 +132,14 @@ def _raw_metrics(item):
         return None
     tss = item.get("tss", summary.get("tss"))
     if tss is None:
-        tss = item.get("icu_training_load")
+        tss = _field(item, "training_load")
     return Metrics(
         tsb=float(tsb),
         ctl=_num(ctl),
         atl=_num(atl),
         tss=_num(tss),
-        ftp=_num(item.get("icu_ftp", summary.get("icu_ftp"))),
-        day=item.get("start_time_local") or item.get("start_date_local"),
+        ftp=_num(_field(item, "ftp", _field(summary, "ftp"))),
+        day=_field(item, "start_date"),
     )
 
 
@@ -337,7 +342,7 @@ def wellness_summary(records, days=7):
         return None
     rows = []
     for rec in records:
-        day = str(rec.get("id") or rec.get("day") or "")[:10]
+        day = str(_field(rec, "day") or "")[:10]
         rows.append((day, rec))
     rows = [r for r in rows if r[0]]
     rows.sort()
@@ -346,13 +351,13 @@ def wellness_summary(records, days=7):
     recent = rows[-days:]
 
     def _avg(key):
-        vals = [r.get(key) for _, r in recent
-                if isinstance(r.get(key), (int, float))]
+        vals = [_field(r, key) for _, r in recent
+                if isinstance(_field(r, key), (int, float))]
         return (sum(vals) / len(vals)) if vals else None
 
     def _last(key):
         for _, r in reversed(rows):
-            v = r.get(key)
+            v = _field(r, key)
             if isinstance(v, (int, float)):
                 return v
         return None
@@ -360,18 +365,18 @@ def wellness_summary(records, days=7):
     def _hours(secs):
         return round(secs / 3600, 1) if secs is not None else None
 
-    sleep_last = _last("sleepSecs")
-    sleep_avg = _avg("sleepSecs")
+    sleep_last = _last("sleep_secs")
+    sleep_avg = _avg("sleep_secs")
     return {
         "days": len(recent),
-        "resting_hr_last": _last("restingHR"),
-        "resting_hr_avg": _avg("restingHR"),
+        "resting_hr_last": _last("resting_hr"),
+        "resting_hr_avg": _avg("resting_hr"),
         "sleep_hours_last": _hours(sleep_last),
         "sleep_hours_avg": _hours(sleep_avg),
         "hrv_last": _last("hrv"),
-        "hrv_sdnn_last": _last("hrvSDNN"),
+        "hrv_sdnn_last": _last("hrv_sdnn"),
         "stress_last": _last("stress"),
-        "sleep_score_last": _last("sleepScore"),
+        "sleep_score_last": _last("sleep_score"),
         "readiness_last": _last("readiness"),
         "steps_last": _last("steps"),
     }

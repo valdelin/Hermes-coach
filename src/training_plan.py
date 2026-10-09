@@ -1,32 +1,40 @@
 import argparse
 import os
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    # Execucao direta mantem `src/` como diretorio do script (imports legados
+    # top-level), mas dependencias transitivas tambem usam `src.*`. A raiz do
+    # projeto torna esse pacote disponivel sem a Application manipular paths.
+    project_root = str(Path(__file__).resolve().parent.parent)
+    if project_root not in sys.path:
+        sys.path.append(project_root)
 
 try:
     from coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                        wellness_summary, format_wellness, real_pmc_by_day)
     from intervals_client import IntervalsClient, IntervalsApiError
+    from intervals_adapter import IntervalsAdapter
     from impulse_response import (ImpulseResponseEngine, daily_tss_series,
                                   forecast_pmc)
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
-                      reconcile, save_plan, orphan_external_ids,
-                      manual_duplicate_ids,
-                      parse_training_days, parse_goal, parse_weekly_hours,
-                      parse_long_day, parse_fthr, parse_periodization,
+                       reconcile, save_plan, orphan_external_ids,
+                       manual_duplicate_ids,
+                       parse_training_days, parse_goal, parse_weekly_hours,
+                       parse_long_day, parse_fthr, parse_periodization,
                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                       GOALS, adherence_report, _tsb_race_verdict,
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
-                      BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
-                      readiness_eligibility, TSB_ADAPT_LIMIT)
+                       BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
+                       readiness_eligibility, TSB_ADAPT_LIMIT,
+                       planned_workout_profile)
     import ftp_scan
+    import ftp_evidence
     import recovery
     import activity_summary
     import charts
@@ -37,18 +45,19 @@ except ImportError:
     from .coach import (latest_metrics, suggest_ftp_test, FOCUS_LABELS,
                         wellness_summary, format_wellness, real_pmc_by_day)
     from .intervals_client import IntervalsClient, IntervalsApiError
+    from .intervals_adapter import IntervalsAdapter
     from .impulse_response import (ImpulseResponseEngine, daily_tss_series,
                                    forecast_pmc)
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
-                      reconcile, save_plan, orphan_external_ids,
-                      manual_duplicate_ids,
-                      parse_training_days, parse_goal, parse_weekly_hours,
+                       reconcile, save_plan, orphan_external_ids,
+                       manual_duplicate_ids,
+                       parse_training_days, parse_goal, parse_weekly_hours,
                       parse_long_day, parse_fthr, parse_periodization,
                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                       GOALS, adherence_report, _tsb_race_verdict,
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
-                      BUDGET_WINDOW_DAYS)
+                       BUDGET_WINDOW_DAYS, planned_workout_profile)
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                       manual_duplicate_ids,
@@ -58,9 +67,11 @@ except ImportError:
                        PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                        GOALS, adherence_report, _tsb_race_verdict,
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
-                      BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
-                      readiness_eligibility, TSB_ADAPT_LIMIT)
+                       BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
+                       readiness_eligibility, TSB_ADAPT_LIMIT,
+                       planned_workout_profile)
     from . import ftp_scan
+    from . import ftp_evidence
     from . import recovery
     from . import activity_summary
     from . import charts
@@ -72,16 +83,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
 ENV_FILE = PROJECT_ROOT / ".env"
 
-
-def load_env(path):
-    if not path.is_file():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip())
+try:
+    from application import (load_env, get_env, Application, build_workouts,
+                             reconcile_workouts, push_workouts,
+                             summarize_period, recovery_outlook,
+                             assess_daily_readiness)
+except Exception:
+    from .application import (load_env, get_env, Application, build_workouts,
+                              reconcile_workouts, push_workouts,
+                              summarize_period, recovery_outlook,
+                              assess_daily_readiness)
 
 
 def get_client():
@@ -91,6 +102,23 @@ def get_client():
     if not athlete_id or not api_key:
         sys.exit("Faltam INTERVALS_ATHLETE_ID/INTERVALS_API_KEY no .env")
     return IntervalsClient(athlete_id, api_key)
+
+
+def get_provider() -> "IntervalsAdapter":
+    """Composition root do provider (UI-3): client cru do Intervals por tras do
+    adapter, que traduz para os contratos normalizados da Application."""
+    return IntervalsAdapter(get_client())
+
+
+def _make_app(client_factory=None) -> "Application":
+    """Composition root da CLI: injeta explicitamente um provider (o adapter do
+    Intervals por padrao) e nao deixa a Application resolver um global por conta
+    propria. Isso mantem a fronteira de mock dos testes intacta e evita que a
+    camada de aplicacao localize dependencias globais sozinha."""
+    if client_factory is None:
+        client_factory = get_provider
+    return Application(plan_path=PLAN_FILE, env_path=ENV_FILE,
+                       client_factory=client_factory)
 
 
 def get_ftp():
@@ -316,7 +344,7 @@ def cmd_periodization(args):
     tsb = None
     if not args.no_tsb:
         try:
-            client = get_client()
+            client = _make_app().client()
             today = date.today()
             events = client.events(oldest=(today - timedelta(days=args.days)).isoformat(),
                                    newest=today.isoformat())
@@ -347,7 +375,7 @@ def cmd_periodization(args):
 
 
 def cmd_info(args):
-    client = get_client()
+    client = _make_app().client()
     ftp = get_ftp()
     newest = date.today()
     oldest = newest - timedelta(days=args.days)
@@ -403,31 +431,40 @@ def cmd_check(args):
 
     O alerta de doenca e o `COACH_WEBHOOK` seguem como na #31.
     """
-    client = get_client()
-    ftp = get_ftp()
+    app = _make_app()
     today = date.today()
-    newest = today
-    oldest = newest - timedelta(days=args.days)
-    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
-    metrics = latest_metrics(events)
+    plan = app.load_plan()
+    meta = app.load_plan_meta()
+    # Orquestracao (events/wellness/prontidao/elegibilidade/sem-com) vive no
+    # caso de uso; aqui so ha leitura de args, formatacao e `--apply`.
+    result = assess_daily_readiness(
+        app.client(),
+        plan=plan,
+        meta=meta,
+        today=today,
+        now=_agora(),
+        days=args.days,
+        ftp=get_ftp(),
+        training_days=get_training_days(),
+        weekly_hours=get_weekly_hours(),
+        long_day=get_long_day(),
+        periodization=get_periodization(),
+        tsb_adapt_limit=TSB_ADAPT_LIMIT,
+        latest_metrics_fn=latest_metrics,
+        build_plan_fn=build_plan,
+        readiness_module=readiness,
+        eligibility_fn=readiness_eligibility,
+    )
+    metrics = result.metrics
     if metrics:
         print(f"TSB {metrics.tsb:.1f} (CTL {metrics.ctl:.1f} / "
               f"ATL {metrics.atl:.1f})")
     else:
         print("TSB: sem metricas na janela.")
-    wellness = client.wellness(oldest=oldest.isoformat(),
-                               newest=newest.isoformat())
 
     # --- Etapa 0: estado da sessao de hoje -------------------------------
-    # Antes de qualquer leitura: se nao ha sessao elegivel hoje, nao ha o que
-    # avaliar, e a leitura NAO e transferida para amanha.
-    try:
-        plan = load_plan(PLAN_FILE)
-    except FileNotFoundError:
-        plan = []
-    elegibilidade = readiness_eligibility(plan, events, today=today,
-                                        now=_agora())
-    treino = elegibilidade.workout
+    treino = result.treino
+    elegibilidade = result.elegibilidade
     if treino is not None:
         print(f"Treino de hoje: {treino['name']} "
               f"({treino['planned_duration'] // 60}m, "
@@ -437,11 +474,8 @@ def cmd_check(args):
     print(f"Estado da sessao: {elegibilidade.state} ({elegibilidade.reason})")
 
     # --- Etapa 1: proposta ------------------------------------------------
-    avaliacao, trace = readiness.assess_readiness_assessment(
-        wellness, days=args.days)
-    decisao = readiness.readiness_decision(
-        avaliacao, trace.illness_alert, trace.composite_low, trace.coverage,
-        trace.observations, reference_day=trace.reference_day)
+    decisao = result.decisao
+    trace = result.trace
     print(f"Prontidao: {decisao.reason}")
     if trace.illness_alert:
         print("ALERTA DE DOENCA: considere descanso e monitore amanha.")
@@ -449,22 +483,23 @@ def cmd_check(args):
         # webhook continua recebendo aquele objeto. A DECISAO do Passo A e a
         # que governa a sessao; as duas nao sao misturadas.
         _notify_coach_if_configured(
-            readiness.assess_readiness(wellness, days=args.days), today)
+            readiness.assess_readiness(result.wellness, days=args.days), today)
 
-    if not decisao.is_adaptive:
+    if result.status == "not_adaptive":
         print("Sem alteracao por prontidao: "
-              + ("nao ha dado de wellness para avaliar." if avaliacao is None
+              + ("nao ha dado de wellness para avaliar."
+                 if result.avaliacao is None
                  else "a leitura nao pede adaptacao."))
         return None
 
     # Validade temporal: a leitura so vale para o dia que descreve.
-    if decisao.applies_to_day != today.isoformat():
+    if result.status == "wrong_day":
         quando = decisao.applies_to_day or "dia desconhecido"
         print(f"Leitura de {quando} nao descreve hoje ({today.isoformat()}); "
               "nao foi transferida para outra sessao.")
         return None
 
-    if treino is None or not elegibilidade.eligible:
+    if result.status == "not_eligible":
         print(f"Proposta: nao aplicada — {elegibilidade.reason}.")
         return None
 
@@ -481,43 +516,28 @@ def cmd_check(args):
     # vezes com a mesma leitura produz a MESMA proposta, e nao 38 -> 30 -> 22.
     # E o default de `start=None` (amanha) fica intacto: quem pede hoje e
     # explicitamente o `check`.
-    meta = load_plan_meta(PLAN_FILE)
-    comum = dict(ftp=ftp, days=1, start=today, existing=None,
-                 training_days=get_training_days(), goal=meta.get("goal"),
-                 race_date=meta.get("race_date"),
-                 ftp_test_date=meta.get("ftp_test_date"),
-                 weekly_hours=get_weekly_hours(), long_day=get_long_day(),
-                 hr_mode=bool(treino.get("hr_mode")),
-                 periodization=get_periodization())
-    tsb = metrics.tsb if metrics else 0.0
-    relatorio = {}
-    sem = build_plan(events, tsb, readiness=None, **comum)[0]
-    com = build_plan(events, tsb, readiness=decisao,
-                     readiness_report=relatorio, **comum)[0]
-    autor = ("prontidao" if relatorio.get("aplicada_em") else "TSB")
+    tsb = result.tsb
+    sem, com = result.sem, result.com
+    autor = result.autor
 
-    def _igual(a, b):
-        return (a["focus"] == b["focus"] and a["params"] == b["params"]
-                and abs(float(a["tss"]) - float(b["tss"])) < 1e-9)
-
-    if not relatorio.get("aplicada_em") or _igual(sem, com):
-        if not _igual(treino, sem) and tsb < TSB_ADAPT_LIMIT:
-            # A regra mais restritiva venceu e foi o TSB: a leitura nao
-            # acrescenta nada. Dizer isso e melhor que um "nada a alterar"
-            # opaco, porque o operador precisa saber que o TSB ja manda.
-            print(f"Proposta: nada atribuivel a prontidao — o TSB "
-                  f"({tsb:.0f}) ja determina a sessao de hoje "
-                  f"({sem['tss']:.0f} TSS). A leitura nao acrescenta nada e "
-                  "nao recebe credito no orcamento; `build` e a autoridade "
-                  "do TSB.")
-        else:
-            print("Proposta: nada a alterar.")
+    if result.status == "tsb_wins":
+        # A regra mais restritiva venceu e foi o TSB: a leitura nao
+        # acrescenta nada. Dizer isso e melhor que um "nada a alterar"
+        # opaco, porque o operador precisa saber que o TSB ja manda.
+        print(f"Proposta: nada atribuivel a prontidao — o TSB "
+              f"({tsb:.0f}) ja determina a sessao de hoje "
+              f"({sem['tss']:.0f} TSS). A leitura nao acrescenta nada e "
+              "nao recebe credito no orcamento; `build` e a autoridade "
+              "do TSB.")
         return None
-    if _igual(treino, com):
+    if result.status == "nothing":
+        print("Proposta: nada a alterar.")
+        return None
+    if result.status == "already":
         print("Proposta: ja aplicada a sessao de hoje; "
               "reexecucoes com a mesma leitura nao reduzem de novo.")
         return com
-    if not _igual(treino, sem):
+    if result.status == "divergent":
         # O plan.json diverge da reconstrucao sem prontidao, entao a diferenca
         # NAO e atribuivel a leitura de hoje. Propoe e nao aplica.
         print(f"Proposta: a sessao de hoje no plano ({treino['tss']:.0f} TSS) "
@@ -541,10 +561,11 @@ def cmd_check(args):
               f"{PLAN_FILE.name}; nada foi publicado.")
         return com
     novo_plano = [com if w["day"] == today.isoformat() else w for w in plan]
-    save_plan(novo_plano, PLAN_FILE, goal=meta["goal"],
-              race_date=meta["race_date"], ftp_test_date=meta["ftp_test_date"],
-              ftp_candidates=meta.get("ftp_candidates"),
-              absorbed_ids=meta["absorbed_ids"])
+    app.save_plan(novo_plano, goal=meta.get("goal"),
+                  race_date=meta.get("race_date"),
+                  ftp_test_date=meta.get("ftp_test_date"),
+                  ftp_candidates=meta.get("ftp_candidates"),
+                  absorbed_ids=meta["absorbed_ids"])
     print(f"Aplicado no {PLAN_FILE.name}: sessao de hoje ajustada por "
           f"{autor}. O plano NAO foi publicado no calendario.")
     print("Rode `push` para publicar. A proposta so vai ao calendario por "
@@ -573,7 +594,7 @@ def _notify_coach_if_configured(assessment, today):
 
 
 def cmd_ftp_check(args):
-    client = get_client()
+    client = _make_app().client()
     ftp = get_ftp()
     goal = get_goal()
     newest = date.today()
@@ -596,7 +617,7 @@ def cmd_ftp_check(args):
 
 
 def cmd_model(args):
-    client = get_client()
+    client = _make_app().client()
     newest = date.today()
     oldest = newest - timedelta(days=args.days)
     events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
@@ -661,16 +682,18 @@ def cmd_model(args):
 
 
 def cmd_adherence(args):
-    client = get_client()
+    app = _make_app()
     newest = date.today()
-    oldest = newest - timedelta(days=args.days)
-    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
-    try:
-        plan = load_plan(PLAN_FILE)
-    except FileNotFoundError:
+    # UI-5: presenca/periodo do plano vem da View (contrato de leitura); o
+    # provider so entra para o cruzamento com o que foi de fato feito.
+    state = app.get_application_state(today=newest)
+    if not state.plan.has_plan:
         print("sem plan.json: rode `build` primeiro.")
         return
-    report = adherence_report(plan, events)
+    client = app.client()
+    oldest = newest - timedelta(days=args.days)
+    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
+    report = adherence_report(app.load_plan(), events)
     print(f"Cumprimento do plano (plan.json) ate {report['today']}:")
     for w in report["weeks"]:
         pct = f"{w['pct']:.0f}%" if w["pct"] is not None else "  --"
@@ -684,7 +707,8 @@ def cmd_adherence(args):
 
 
 def cmd_build(args):
-    client = get_client()
+    app = _make_app()
+    provider = app.client()
     ftp = get_ftp()
     fthr = get_fthr()
     goal = get_goal()
@@ -716,61 +740,38 @@ def cmd_build(args):
         # Regra da issue #5: plano race SEMPRE pergunta a data alvo antes de
         # montar o plano — nunca assume default nem deixa em branco.
         race_date = prompt_race_date()
-    newest = date.today()
-    oldest = newest - timedelta(days=args.days)
-    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
-    metrics = latest_metrics(events)
-    tsb = metrics.tsb if metrics else 0.0
-    # Issue #58 Passo A: uma unica leitura de wellness alimenta a avaliacao de
-    # prontidao que decide a adaptacao do plano. Antes, o `build` nunca
-    # consultava wellness e o gate de prontidao ficava inalcancavel.
-    wellness = client.wellness(oldest=oldest.isoformat(),
-                               newest=newest.isoformat())
-    avaliacao, trace = readiness.assess_readiness_assessment(wellness,
-                                                             days=args.days)
-    decisao = readiness.readiness_decision(
-        avaliacao, trace.illness_alert, trace.composite_low, trace.coverage,
-        trace.observations, reference_day=trace.reference_day)
-    readiness_report = {}
-    try:
-        existing = load_plan(PLAN_FILE)
-    except FileNotFoundError:
-        existing = None
-    recovery_ramp = None
-    ramp_label = None
-    if getattr(args, "recovery", False):
-        # #19: `build --recovery` ora o plano pelos tetos da rampa segura de
-        # retorno a forma (mesma prescricao do CLI `recovery`).
-        all_events = recovery.fetch_full_history(client)
-        daily = recovery.actual_daily_load(all_events)
-        rows, anchored = _pmc_rows(all_events, date(2011, 1, 1), date.today())
-        if rows:
-            st_real = recovery.state(rows)
-            vol = recovery.weekly_volume(daily)
-            if anchored:
-                st = recovery.calibrated_state(st_real, vol) or st_real
-            else:
-                st = st_real
-            ramp_pts = getattr(args, "ramp_pts", 9)
-            weeks = max(getattr(args, "recovery_weeks", 12),
-                        (args.days_plan + 6) // 7)
-            schedule = recovery.ramp_schedule(st["peak_ctl"], vol, ramp_pts,
-                                              weeks=weeks)
-            recovery_ramp = schedule
-            ramp_label = (f"teto semanal de retorno (CTL pico {st_real['peak_ctl']:.0f}; "
-                          f"rampa +{ramp_pts}/sem): {schedule[0]:.0f} -> "
-                          f"{schedule[-1]:.0f} TSS")
-        else:
-            print("aviso: sem treinos feitos com carga no historico; "
-                  "`--recovery` ignorado (orcamento padrao).")
-    plan = build_plan(events, tsb, ftp=ftp, days=args.days_plan,
-                      existing=existing, training_days=get_training_days(),
-                      goal=goal, race_date=race_date, ftp_test_date=ftp_test_date,
-                      weekly_hours=weekly_hours, long_day=long_day,
-                      hr_mode=hr_mode, recovery_ramp=recovery_ramp,
-                      periodization=periodization, readiness=decisao,
-                      readiness_report=readiness_report)
+    existing = app.load_plan() or None
     dry_run = bool(getattr(args, "dry_run", False))
+    # Orquestracao (events/wellness/prontidao/rampa/plano) vive no caso de uso.
+    result = build_workouts(
+        provider,
+        today=date.today(),
+        days=args.days,
+        days_plan=args.days_plan,
+        ftp=ftp,
+        fthr=fthr,
+        goal=goal,
+        periodization=periodization,
+        race_date=race_date,
+        weekly_hours=weekly_hours,
+        long_day=long_day,
+        hr_mode=hr_mode,
+        ftp_test_date=ftp_test_date,
+        training_days=get_training_days(),
+        existing=existing,
+        latest_metrics_fn=latest_metrics,
+        build_plan_fn=build_plan,
+        readiness_module=readiness,
+        recovery_module=recovery,
+        pmc_rows_fn=_pmc_rows,
+        recovery=getattr(args, "recovery", False),
+        ramp_pts=getattr(args, "ramp_pts", 9),
+        recovery_weeks=getattr(args, "recovery_weeks", 12),
+        phase_report={},
+    )
+    plan = result.plan
+    if result.recovery_warning:
+        print(result.recovery_warning)
     if dry_run:
         # `--dry-run` mostra a proposta (ja adaptada) e NAO toca em disco.
         # Publicacao e sempre um comando separado (`push`), que continua
@@ -780,11 +781,11 @@ def cmd_build(args):
     else:
         # Preserva estado registrado na meta: build nao apaga candidatos de FTP
         # nem marcas de faltas ja absorvidas.
-        existing_meta = load_plan_meta(PLAN_FILE)
-        save_plan(plan, PLAN_FILE, goal=goal, race_date=race_date,
-                  ftp_test_date=ftp_test_date,
-                  ftp_candidates=existing_meta.get("ftp_candidates"),
-                  absorbed_ids=existing_meta["absorbed_ids"])
+        existing_meta = app.load_plan_meta()
+        app.save_plan(plan, goal=goal, race_date=race_date,
+                      ftp_test_date=ftp_test_date,
+                      ftp_candidates=existing_meta.get("ftp_candidates"),
+                      absorbed_ids=existing_meta["absorbed_ids"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     avail = []
     if weekly_hours:
@@ -800,13 +801,15 @@ def cmd_build(args):
         plano_label += f" / {PERIODIZATION_LABELS[periodization]}"
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
     test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""
-    print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {tsb:.1f} | FTP {ftp}W")
-    _print_readiness_decision(decisao, trace, dry_run, readiness_report)
-    if ramp_label:
-        print(ramp_label)
+    print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {result.tsb:.1f} | FTP {ftp}W")
+    _print_readiness_decision(result.decisao, result.trace, dry_run,
+                              result.readiness_report)
+    if result.ramp_label:
+        print(result.ramp_label)
     if hr_mode:
         print(f"Prescricao sem medidor de potencia: alvos em %FTHR + RPE "
               f"(FTHR {fthr} bpm); carga estimada por FC no Intervals.")
+    _print_phase_advisory(result.phase_report)
     est_tss = sum(w["tss"] for w in plan)
     print(f"Plano gerado: {len(plan)} treinos | TSS estimado {est_tss:.0f}"
           + (" | preparacao p/ teste em " + ftp_test_date
@@ -815,8 +818,20 @@ def cmd_build(args):
     for w in plan:
         print(f"  {w['day']} {w['name']:<30} {w['planned_duration'] // 60:>3}m TSS {w['tss']:.0f}")
     if goal == "race" and race_date:
-        _print_race_tsb_projection(events, plan, metrics, race_date)
+        _print_race_tsb_projection(result.events, plan, result.metrics,
+                                   race_date)
     return plan
+
+
+def _print_phase_advisory(phase_report):
+    """Rotulo advisory da fase do plano (observacional; nao e recomendacao).
+
+    Deriva do `phase_report` preenchido pelo seam do `build_plan`. O rotulo
+    nao entra no nome da sessao, no plan.json nem no payload do Intervals.
+    """
+    fases = sorted({entrada["phase"] for entrada in phase_report.values()})
+    if fases:
+        print(f"Fase do plano: {', '.join(fases)}")
 
 
 def _print_readiness_decision(decisao, trace, dry_run=False, report=None):
@@ -912,28 +927,25 @@ def cmd_recovery(args):
     conservadora/realista/otimista (CTL calibrado para a moeda TSS do plano),
     e a prescricao da a rampa semanal.
     """
-    client = get_client()
-    events = recovery.fetch_full_history(client)
-    done = [e for e in events
-            if e.get("paired_activity_id") or e.get("activity_id")]
-    daily = recovery.actual_daily_load(events)
-    rows, anchored = _pmc_rows(events, date(2011, 1, 1), date.today())
-    if not rows:
+    app = _make_app()
+    outlook = recovery_outlook(
+        app.client(), recovery_module=recovery, pmc_rows_fn=_pmc_rows,
+        ramp_pts=args.ramp_pts, weeks=args.weeks, today=date.today())
+    if outlook is None:
         print("Sem treinos feitos com carga no historico.")
         return None
-    st_real = recovery.state(rows)
-    print(f"historico: {len(events)} eventos | treinos feitos com carga: "
-          f"{len(done)}")
+    st_real = outlook.st_real
+    st = outlook.st
+    vol = outlook.vol
+    anchored = outlook.anchored
+    print(f"historico: {outlook.event_count} eventos | treinos feitos com "
+          f"carga: {outlook.done_count}")
     print(f"periodo coberto: {st_real['first_day']} a {st_real['last_day']}")
     if anchored:
         print("(PMC real do Intervals: serie ancorada nos valores da API)")
     else:
         print("(PMC reconstruido local: sem icu_ctl/icu_atl no historico)")
 
-    st = st_real
-    vol = recovery.weekly_volume(daily)
-    if anchored:
-        st = recovery.calibrated_state(st, vol) or st
     print("\n=== AGORA ===")
     print(f"CTL {st_real['current_ctl']:.1f} | ATL {st_real['current_atl']:.1f} | "
           f"TSB {st_real['current_tsb']:+.1f}")
@@ -947,7 +959,7 @@ def cmd_recovery(args):
     print(f"pico de TSB: {st_real['peak_tsb']:+.1f} em {st_real['peak_tsb_day']} "
           f"(CTL {st_real['peak_tsb_ctl']:.1f})")
 
-    target = st["peak_ctl"]
+    target = outlook.target
     print("\n=== ESTIMATIVA DE RETORNO AO CTL PICO "
           f"({st_real['peak_ctl']:.0f} real) ===")
     scenarios = (
@@ -968,8 +980,7 @@ def cmd_recovery(args):
         ramp = args.ramp_pts
         print("\n=== PRESCRICAO SEGURA DE RETORNO "
               f"(rampa +{ramp}/sem, deload a cada 4 sem) ===")
-        schedule = recovery.ramp_schedule(target, vol, ramp,
-                                          weeks=args.weeks)
+        schedule = outlook.schedule
         line = []
         for i, wk in enumerate(schedule, start=1):
             tag = " (deload)" if i % 4 == 0 else ""
@@ -1001,7 +1012,8 @@ def cmd_summary(args):
     `--start`/`--end`; 'plan' cobre do primeiro ao ultimo dia do plano
     salvo. Usa apenas atividades pareadas (planejado-nao-feito fica fora).
     """
-    client = get_client()
+    app = _make_app()
+    client = app.client()
     anchor = args.date or (date.today() - timedelta(days=1))
     theme = getattr(args, "theme", None)
     if theme and theme not in report.THEMES:
@@ -1010,54 +1022,61 @@ def cmd_summary(args):
             + ", ".join(report.THEMES))
     plan_days = _plan_days() if args.period == "plan" else None
     try:
-        start, end = activity_summary.resolve_period(
-            anchor, args.period, start=args.start, end=args.end,
-            plan_days=plan_days)
+        result = summarize_period(
+            client, period=args.period, anchor=anchor, start=args.start,
+            end=args.end, plan_days=plan_days,
+            resolve_period_fn=activity_summary.resolve_period,
+            done_activities_fn=activity_summary.done_activities,
+            summarize_fn=activity_summary.summarize)
     except ValueError as exc:
         raise SystemExit(f"Periodo invalido: {exc}")
-    rows = activity_summary.done_activities(client, start, end)
-    agg = activity_summary.summarize(rows)
+    start, end = result.start, result.end
+    rows, agg = result.rows, result.agg
 
     label = activity_summary.period_label(args.period)
     article = "DA" if args.period == "week" else "DO"
     print(f"=== RESUMO {article} {label.upper()} ({start} a {end}) ===")
     if not rows:
+        # Ausencia de treino FEITO nao e ausencia de relatorio: o Hermes
+        # ainda tem sessao planejada, prontidao, estado do plano,
+        # consistencia e contexto de carga. O console mantem a mensagem
+        # curta (o comportamento humano nao muda), mas `--export` nao pode
+        # abortar aqui -- era esse o early return que engolia o arquivo.
         print("Nenhum treino feito no periodo.")
-        return agg
+    else:
+        print(f"Treinos feitos: {agg['sessions']} | "
+              f"carga total: {agg['load']:.0f} TSS")
+        parts = [
+            f"Tempo: {activity_summary.fmt_time(agg['time_s'])}",
+            f"Distancia: {activity_summary.fmt_dist(agg['distance_m'])}",
+        ]
+        if agg["elevation_m"]:
+            parts.append(f"Elevacao: +{agg['elevation_m']:.0f} m")
+        print(" | ".join(parts))
+        power_parts = []
+        if agg["avg_power"] is not None:
+            power_parts.append(f"media {agg['avg_power']:.0f} W")
+        if agg["np"] is not None:
+            power_parts.append(f"NP {agg['np']:.0f} W")
+        if power_parts:
+            print("Potencia: " + " | ".join(power_parts))
+        if agg["avg_hr"] is not None:
+            print(f"FC: {agg['avg_hr']:.0f} bpm media")
 
-    print(f"Treinos feitos: {agg['sessions']} | "
-          f"carga total: {agg['load']:.0f} TSS")
-    parts = [
-        f"Tempo: {activity_summary.fmt_time(agg['time_s'])}",
-        f"Distancia: {activity_summary.fmt_dist(agg['distance_m'])}",
-    ]
-    if agg["elevation_m"]:
-        parts.append(f"Elevacao: +{agg['elevation_m']:.0f} m")
-    print(" | ".join(parts))
-    power_parts = []
-    if agg["avg_power"] is not None:
-        power_parts.append(f"media {agg['avg_power']:.0f} W")
-    if agg["np"] is not None:
-        power_parts.append(f"NP {agg['np']:.0f} W")
-    if power_parts:
-        print("Potencia: " + " | ".join(power_parts))
-    if agg["avg_hr"] is not None:
-        print(f"FC: {agg['avg_hr']:.0f} bpm media")
+        print("\nDetalhe por treino:")
+        for r in rows:
+            bits = [f"{r['day']}  {r['name']}"]
+            if r["type"]:
+                bits.append(f"({r['type']})")
+            bits.append(activity_summary.fmt_time(r["time_s"]))
+            if r["distance_m"]:
+                bits.append(activity_summary.fmt_dist(r["distance_m"]))
+            if r["load"]:
+                bits.append(f"{r['load']:.0f} TSS")
+            print("  " + "  ".join(bits))
 
-    print("\nDetalhe por treino:")
-    for r in rows:
-        bits = [f"{r['day']}  {r['name']}"]
-        if r["type"]:
-            bits.append(f"({r['type']})")
-        bits.append(activity_summary.fmt_time(r["time_s"]))
-        if r["distance_m"]:
-            bits.append(activity_summary.fmt_dist(r["distance_m"]))
-        if r["load"]:
-            bits.append(f"{r['load']:.0f} TSS")
-        print("  " + "  ".join(bits))
-
-    _summary_charts(client, start, end, rows, args.chart)
-    _summary_export(client, args, start, end, rows, agg)
+        _summary_charts(client, start, end, rows, args.chart)
+    _summary_export(app, client, args, start, end, rows, agg, today=date.today())
     return agg
 
 
@@ -1132,7 +1151,107 @@ def _summary_charts(client, start, end, rows, chart):
     return
 
 
-def _summary_export(client, args, start, end, rows, agg):
+def _planned_profile_for_day(plan, target_day):
+    """Perfil do treino canônico daquele dia, ou ``None`` sem sessão.
+
+    A seleção usa a data do objeto persistido; o perfil vem exclusivamente dos
+    ``params`` da própria sessão, antes de qualquer renderer HTML.
+    """
+    target = target_day.isoformat() if isinstance(target_day, date) else str(target_day)
+    workout = next((item for item in plan if item.get("day") == target), None)
+    return planned_workout_profile(workout) if workout else None
+
+
+def _report_plan_status(app, target_day):
+    """Projeção read-only do lifecycle para o relatório HTML.
+
+    O controller entrega contagens e semanas já classificadas; o renderer só
+    apresenta esse estado e não tenta inferir conclusão a partir de texto.
+    """
+    view = app.plan_view(today=target_day).to_dict()
+    buckets = {}
+    today_item = None
+    for workout in view["workouts"]:
+        day = date.fromisoformat(str(workout["day"])[:10])
+        state = workout.get("lifecycle_effective")
+        kind = ("done" if state == "completed" else
+                "missed" if state == "missed" else "pending")
+        key = day.isocalendar()[:2]
+        bucket = buckets.setdefault(key, {
+            "week": f"{key[0]}-W{key[1]:02d}", "done": 0,
+            "missed": 0, "pending": 0,
+        })
+        bucket[kind] += 1
+        if workout.get("day") == target_day.isoformat():
+            today_item = workout
+    weeks = []
+    for _, bucket in sorted(buckets.items()):
+        occurred = bucket["done"] + bucket["missed"]
+        weeks.append({**bucket, "pct": (bucket["done"] / occurred * 100
+                                         if occurred else None)})
+    summary = {
+        key: sum(week[key] for week in weeks)
+        for key in ("done", "missed", "pending")
+    }
+    return {"today": today_item, "weeks": weeks, "summary": summary}
+
+
+def _vo2_indicators(end=None):
+    """VO2max do atleta para o relatorio -- hoje, SEM FONTE REAL.
+
+    Auditoria (PROMPT 37, secoes 29-32): `AthletePhysiologicalProfile.vo2max`
+    existe como campo e nunca e preenchido; nao ha campo de provider, nem
+    persistencia local, nem serie historica. Devolver `None` e o estado
+    honesto -- o renderer mostra "Indisponivel". NUNCA estimar a partir de
+    CP/W' ou de potencia: isso fabricaria dado fisiologico.
+    """
+    return None
+
+
+def _ftp_indicators(end=None):
+    """FTP atual (configuracao real) + serie de FTPs realmente aplicados.
+
+    Atual: a variavel `FTP` do `.env`, a MESMA referencia de potencia que
+    `build`/`push` usam. `DEFAULT_FTP` nao e medicao, entao nao preenche o
+    indicador quando `FTP` nao esta configurado (secoes 34-35).
+
+    Serie: somente `ftp_candidates` do `plan.json` com `applied=True`
+    (`ftp-scan`), que registra o dia em que o FTP foi de fato trocado
+    (secao 36). `PlannedWorkout.ftp_watts` NAO entra aqui: ele reproduz a
+    prescricao historica da sessao, nao uma medicao de FTP (secao 37).
+    Janela: ate 12 meses terminando em `end` (secao 40).
+    """
+    load_env(PROJECT_ROOT / ".env")
+    raw = (os.environ.get("FTP") or "").strip()
+    value = int(raw) if raw.isdigit() else None
+    origin = ".env FTP" if value is not None else None
+
+    series = []
+    meta = load_plan_meta(PLAN_FILE)
+    for candidate in (meta.get("ftp_candidates") or {}).values():
+        if not isinstance(candidate, dict) or not candidate.get("applied"):
+            continue
+        day = str(candidate.get("day") or "")[:10]
+        watts = candidate.get("proposed_ftp")
+        if not day or watts is None:
+            continue
+        try:
+            series.append((day, int(watts)))
+        except (TypeError, ValueError):
+            continue
+    series.sort(key=lambda point: point[0])
+    if end is not None:
+        cutoff = (end - timedelta(days=365)).isoformat()
+        series = [point for point in series if point[0] >= cutoff]
+
+    if value is None and series:
+        value, origin = series[-1][1], "FTP aplicado (ftp-scan)"
+    measured_on = series[-1][0] if series and value == series[-1][1] else None
+    return {"value": value, "unit": "W", "source": origin,
+            "date": measured_on, "series": series}
+
+
+def _summary_export(app, client, args, start, end, rows, agg, *, today=None):
     """Exporta (--export) o resumo com graficos em SVG para HTML/PDF.
 
     A extensao do caminho decide: .html escreve direto; .pdf renderiza o HTML
@@ -1142,43 +1261,48 @@ def _summary_export(client, args, start, end, rows, agg):
     if not path:
         return
     pmc_rows, weeks = _summary_chart_data(client, start, end, rows)
+    target_day = today or date.today()
+    plan = app.load_plan()
+    profile = _planned_profile_for_day(plan, target_day)
+    plan_status = (_report_plan_status(app, target_day)
+                   if hasattr(app, "plan_view") else None)
+    readiness_view = app.get_readiness_view(today=target_day)
+    readiness_data = readiness_view.to_dict() if readiness_view else None
     theme = getattr(args, "theme", None) or report.DEFAULT_THEME
     html = report.render_summary_html(
-        title=(f"Resumo {activity_summary.period_label(args.period)}"
-               f" - {start} a {end}"),
+        title=report.summary_heading(args.period),
         start=start, end=end, agg=agg, rows=rows,
-        pmc_rows=pmc_rows, weeks=weeks, theme=theme)
+        pmc_rows=pmc_rows, weeks=weeks, planned_workout=profile,
+        readiness=readiness_data, plan_status=plan_status,
+        vo2=_vo2_indicators(), ftp=_ftp_indicators(end=end), theme=theme)
     report.write(path, html)
     print(f"Exportado: {path}")
 
 
 def cmd_reconcile(args):
-    plan = load_plan(PLAN_FILE)
-    client = get_client()
-    ftp = get_ftp()
+    app = _make_app()
+    plan = app.load_plan()
     training_days = get_training_days()
-    meta = load_plan_meta(PLAN_FILE)
-    newest = date.today() + timedelta(days=1)
-    oldest = newest - timedelta(days=args.days)
-    events = client.events(oldest=oldest.isoformat(), newest=newest.isoformat())
-    # O teto do reconcile precisa ser o MESMO do build_plan: mesma janela do
-    # avg_load (BUDGET_WINDOW_DAYS) e mesma escala do goal. Sem isso, o reconcile
-    # derivaria um teto de outra janela e absorveria por cima/por baixo do plano.
-    scale = GOAL_BUDGET_SCALE.get(meta.get("goal"), 1.0)
-    if args.days >= BUDGET_WINDOW_DAYS:
-        budget_events = events
-    else:
-        budget_events = client.events(
-            oldest=(newest - timedelta(days=BUDGET_WINDOW_DAYS)).isoformat(),
-            newest=newest.isoformat())
-    budget = weekly_budget(avg_load(budget_events), training_days, scale)
-    plan, missed, info = reconcile(plan, events, ftp=ftp,
-                                   training_days=training_days, budget=budget,
-                                   absorbed_ids=meta["absorbed_ids"])
-    save_plan(plan, PLAN_FILE, goal=meta["goal"], race_date=meta["race_date"],
-              ftp_test_date=meta["ftp_test_date"],
-              ftp_candidates=meta["ftp_candidates"],
-              absorbed_ids=info["absorbed_ids"])
+    meta = app.load_plan_meta()
+    result = reconcile_workouts(
+        app.client(),
+        plan=plan,
+        meta=meta,
+        ftp=get_ftp(),
+        training_days=training_days,
+        days=args.days,
+        today=date.today(),
+        budget_window_days=BUDGET_WINDOW_DAYS,
+        goal_budget_scale=GOAL_BUDGET_SCALE,
+        reconcile_fn=reconcile,
+        weekly_budget_fn=weekly_budget,
+        avg_load_fn=avg_load,
+    )
+    plan, missed, info = result.plan, result.missed, result.info
+    app.save_plan(plan, goal=meta["goal"], race_date=meta["race_date"],
+                  ftp_test_date=meta["ftp_test_date"],
+                  ftp_candidates=meta["ftp_candidates"],
+                  absorbed_ids=info["absorbed_ids"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
@@ -1208,7 +1332,9 @@ def cmd_reconcile(args):
     hr_hint = _hr_mode_hint()
     if hr_hint:
         print(hr_hint)
-    if args.show:
+    # `all` chama este comando sem declarar --show; ler args.show direto
+    # derrubava o pipeline com AttributeError no caminho real.
+    if getattr(args, "show", False):
         for w in plan:
             print(f"  {w['day']} {w['name']:<30} TSS {w['tss']:.0f}")
     return plan
@@ -1238,7 +1364,8 @@ def cmd_ftp_scan(args):
     Fluxo (issue #6): eventos pareados nao-hermes -> detalhe -> filtros baratos
     -> stream de watts -> analise local (20 min x 0.95) -> relatorio ->
     confirmacao obrigatoria -> .env FTP + PUT indoor_ftp no Intervals."""
-    client = get_client()
+    client = _make_app().client()
+    app = _make_app()
     ftp = get_ftp()
     newest = date.today() + timedelta(days=1)
     oldest = newest - timedelta(days=args.days)
@@ -1266,6 +1393,8 @@ def cmd_ftp_scan(args):
         print(f"  - {e['day']} {e['name'][:36]:<36} "
               f"20min {rec['best20']:.0f}W | prop {rec['proposed_ftp']}W "
               f"{status} {rec['reason']}".rstrip())
+        if rec["quality_ok"] and rec["proposed_ftp"]:
+            _record_scan_evidence(app, rec, activity)
     if not scanned:
         print("Nenhum treino analisavel na janela.")
         return None
@@ -1314,61 +1443,162 @@ def cmd_ftp_scan(args):
     return scanned
 
 
+def _record_scan_evidence(app, rec, activity):
+    """Registra o candidato do ftp-scan como evidencia (FTP-H2).
+
+    Evidencia permanece evidencia — nao promove referencia, nao toca .env.
+    Idempotente: a mesma activity_id gera o mesmo id e execucoes repetidas do
+    scan apenas preservam o primeiro registro."""
+    try:
+        observed = ftp_evidence.observed_at_from_provider(
+            activity.get("start_date_local"), default_day=rec["day"])
+    except ValueError:
+        observed = ftp_evidence.observed_at_from_provider(None, default_day=rec["day"])
+    evidence = ftp_evidence.FtpEvidence(
+        id=f"scan-{rec['activity_id']}",
+        value_watts=rec["proposed_ftp"],
+        observed_at=observed,
+        recorded_at=datetime.now(timezone.utc),
+        source=ftp_evidence.FtpEvidenceSource.FTP_SCAN,
+        protocol=ftp_evidence.FtpProtocol.FTP_20_MIN,
+        activity_id=rec["activity_id"],
+        provider="intervals",
+        best20=rec["best20"],
+        quality_ok=bool(rec["quality_ok"]),
+        proposes_new=bool(rec["suggests_new"]),
+        notes="candidato do ftp-scan (treino fora do plano)",
+    )
+    try:
+        app.record_ftp_evidence(evidence)
+    except ValueError:
+        pass  # ja registrado em execucao anterior
+
+
+def cmd_ftp_evidence(args):
+    """Lista a evidencia de FTP registrada e o Advice (FTP-H2). Read-only."""
+    app = _make_app()
+    now = datetime.now(timezone.utc)
+    current = app.get_current_ftp_reference(now)
+    if current is None:
+        print("FTP canonico: nenhum (FtpHistory vazio ou sem referencia vigente).")
+    else:
+        print(f"FTP canonico: {current.value_watts:.0f}W (id {current.id}, "
+              f"vigente desde {current.effective_from.date()})")
+    entries = app.get_ftp_evidence()
+    if not entries:
+        print("Nenhuma evidencia de FTP registrada (ftp_evidence.json vazio).")
+    for entry in sorted(entries, key=lambda item: item.observed_at, reverse=True):
+        gate = ("sugere novo" if entry.proposes_new else
+                "dentro" if entry.quality_ok else "invalido")
+        tail = f" | 20min {entry.best20:.0f}W" if entry.best20 else ""
+        print(f"  {entry.id:<22} {entry.observed_at.date()}  "
+              f"{entry.source.value:<20} {entry.value_watts:.0f}W  "
+              f"[{gate}]{tail}")
+    advice = app.get_ftp_advice(now)
+    print(f"\nAdvice: {advice.kind.value}")
+    if advice.reason:
+        print(f"  {advice.reason}")
+    if advice.suggests_confirmation and advice.evidence_id:
+        print(f"  acao: `ftp-confirm {advice.evidence_id}` cria a referencia "
+              "canonica (com sua confirmacao explicita).")
+    print("Observacao: evidencia nao muda prescricao, .env nem calendario "
+          "(isso e escopo do FTP-H6).")
+
+
+def cmd_ftp_confirm(args):
+    """Confirma uma evidencia e cria a `FtpReference` canonica (FTP-H2).
+
+    Unica ponte evidencia -> estado canonico: exige confirmacao explicita do
+    usuario e nunca toca build, `.env`, provider nem calendario (FTP-H6)."""
+    app = _make_app()
+    now = datetime.now(timezone.utc)
+    evidence_by_id = {item.id: item for item in app.get_ftp_evidence()}
+    if args.evidence_id not in evidence_by_id:
+        print(f"evidencia FTP inexistente: {args.evidence_id} "
+              "(rode `ftp-evidence` para listar).")
+        return None
+    evidence = evidence_by_id[args.evidence_id]
+    current = app.get_current_ftp_reference(now)
+    print(f"Evidencia: {evidence.id}  {evidence.observed_at.date()}  "
+          f"{evidence.source.value}  {evidence.value_watts:.0f}W")
+    if evidence.best20 is not None:
+        print(f"  20min {evidence.best20:.0f}W | quality_ok "
+              f"{bool(evidence.quality_ok)} | proposes_new "
+              f"{bool(evidence.proposes_new)}")
+    if current is None:
+        print("FTP canonico atual: nenhum")
+    else:
+        print(f"FTP canonico atual: {current.value_watts:.0f}W (id {current.id})")
+    ref_id = args.reference_id or f"ftp-{evidence.id}"
+    if args.effective_from:
+        effective = datetime.combine(
+            date.fromisoformat(args.effective_from),
+            datetime.min.time(), timezone.utc)
+    else:
+        effective = now
+    print(f"Vai criar referencia canonica: {ref_id}  "
+          f"{evidence.value_watts:.0f}W  vigente desde {effective.date()}")
+    answer = input("Confirmar e criar a referencia canonica? (s/N) ").strip().lower()
+    if answer != "s":
+        print("Nao confirmado; nenhuma referencia foi criada.")
+        return None
+    reference = app.confirm_ftp_evidence(
+        args.evidence_id, now=now, effective_from=effective,
+        reference_id=ref_id)
+    print(f"FTP canonico registrado: {reference.value_watts:.0f}W a partir "
+          f"de {reference.effective_from.date()} (id {reference.id}).")
+    print("Nota: prescricao/build continuam via .env (legado) ate o FTP-H6; "
+          "este registro e o novo estado canonico de perfil.")
+    return reference
+
+
 def cmd_push(args):
     load_env(PROJECT_ROOT / ".env")
-    plan = load_plan(PLAN_FILE)
-    client = get_client()
+    app = _make_app()
+    plan = app.load_plan()
     lang = get_cue_lang()
-    ftp = get_ftp()
-    fthr = get_fthr()
-    start = args.start or (date.today() + timedelta(days=1)).isoformat()
-    batch = [event_payload(w, ftp, lang=lang,
-                           prev=_prev_same_focus(plan, w), fthr=fthr)
-             for w in plan if w["day"] >= start]
-
-    # Varredura de orfaos em duas camadas. `newest` = ultimo dia do plano: e
-    # por isso que um plano anterior MAIS LONGO nao e apagado (ex.: plano de 20
-    # dias vs atual de 14). A busca e ampla (start+120) para ver o que existe,
-    # mas so removemos o que esta DENTRO do horizonte do plano -- eventos
-    # alem do horizonte pertencem a um plano anterior e nao sao nostros para
-    # apagar.
-    start_dt = date.fromisoformat(start)
-    plan_end = max((w["day"] for w in plan), default=None)
-    fetch_end = (start_dt + timedelta(days=120)).isoformat()
-    recent = client.events(oldest=start, newest=fetch_end)
-    all_orphans = orphan_external_ids(plan, recent, start=start)
-    orphans = [oid for oid in all_orphans
-               if plan_end is None or oid <= f"hermes-plan-{plan_end}"]
-    beyond = [oid for oid in all_orphans if oid not in orphans]
-    # Duplicatas manuais (sem external_id) que repetem um dia do plano: o
-    # bulk-delete nao as alcanca, entao sao removidas por id numerico.
-    dup_ids = manual_duplicate_ids(plan, recent, start=start)
-
-    if args.dry_run:
-        print(f"dry-run: enviaria {len(batch)} eventos ao calendario")
-        for p in batch:
+    # `all` nao declara --start; o default e o mesmo do subparser `push`.
+    start = getattr(args, "start", None) or (date.today()
+                                             + timedelta(days=1)).isoformat()
+    result = push_workouts(
+        app.client(),
+        plan=plan,
+        start=start,
+        ftp=get_ftp(),
+        fthr=get_fthr(),
+        lang=lang,
+        event_payload_fn=event_payload,
+        prev_same_focus_fn=_prev_same_focus,
+        orphan_external_ids_fn=orphan_external_ids,
+        manual_duplicate_ids_fn=manual_duplicate_ids,
+        dry_run=bool(getattr(args, "dry_run", False)),
+    )
+    if result.dry_run:
+        print(f"dry-run: enviaria {len(result.batch)} eventos ao calendario")
+        for p in result.batch:
             print(f"  {p['start_date_local']} {p['name']}")
-        if orphans:
-            print(f"dry-run: removeria {len(orphans)} orfaos: {orphans}")
-        if dup_ids:
-            print(f"dry-run: removeria {len(dup_ids)} duplicatas manuais "
-                  f"(ids): {dup_ids}")
-        if beyond:
-            print(f"dry-run: {len(beyond)} orfaos ALÉM do horizonte do plano "
-                  f"(mantidos, de plano anterior mais longo): {beyond}")
+        if result.orphans:
+            print(f"dry-run: removeria {len(result.orphans)} orfaos: "
+                  f"{result.orphans}")
+        if result.dup_ids:
+            print(f"dry-run: removeria {len(result.dup_ids)} duplicatas manuais "
+                  f"(ids): {result.dup_ids}")
+        if result.beyond:
+            print(f"dry-run: {len(result.beyond)} orfaos ALÉM do horizonte do "
+                  f"plano (mantidos, de plano anterior mais longo): "
+                  f"{result.beyond}")
         return
 
-    if orphans:
-        st, body = client.delete_events(orphans)
-        print(f"Orfaos removidos (HTTP {st}): {body.get('eventsDeleted')}")
-    for did in dup_ids:
-        cst = client.delete_event(did)
+    if result.orphans:
+        print(f"Orfaos removidos (HTTP {result.orphan_status}): "
+              f"{result.orphans_deleted}")
+    for did, cst in result.dup_statuses:
         print(f"Duplicata manual removida (id {did}, HTTP {cst})")
-    if beyond:
-        print(f"{len(beyond)} eventos hermes-plan além do horizonte do plano "
-              f"mantidos (de plano anterior mais longo).")
-    status, body = client.create_events(batch)
-    print(f"Calendario atualizado (HTTP {status}): {len(body)} eventos")
+    if result.beyond:
+        print(f"{len(result.beyond)} eventos hermes-plan além do horizonte do "
+              "plano mantidos (de plano anterior mais longo).")
+    print(f"Calendario atualizado (HTTP {result.create_status}): "
+          f"{result.created} eventos")
 
 
 def cmd_all(args):
@@ -1385,6 +1615,24 @@ def cmd_all(args):
     cmd_build(args)
     cmd_reconcile(args)
     cmd_push(args)
+
+
+def _iso_date(text):
+    """`--date` -> `date` na borda do argparse.
+
+    O anchor era o UNICO parametro do summary aceito como `str` OU `date`
+    (default `date`, explicito `str`): era essa a mistura de tipos -- nao o
+    parsing do `--start/--end`, que e `str` do fim ao fim e e convertido uma
+    unica vez dentro de `resolve_period`. Com a mistura, `period_range`/
+    `resolve_period` estouravam TypeError e `done_activities` AttributeError.
+    Converte-se UMA vez, aqui; o core so ve o tipo canonico. Erro vira
+    `ArgumentTypeError` para o argparse reportar erro de uso com exit 2.
+    """
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"data invalida {text!r}; use YYYY-MM-DD") from None
 
 
 def main(argv=None):
@@ -1409,6 +1657,24 @@ def main(argv=None):
     p_scan.add_argument("--days", type=int, default=45,
                         help="Janela de historico de treinos fora do plano (dias)")
     p_scan.set_defaults(func=cmd_ftp_scan)
+
+    p_evidence = sub.add_parser(
+        "ftp-evidence",
+        help="Lista a evidencia de FTP registrada e o Advice (FTP-H2; read-only)")
+    p_evidence.set_defaults(func=cmd_ftp_evidence)
+
+    p_confirm = sub.add_parser(
+        "ftp-confirm",
+        help="Confirma uma evidencia e cria a referencia canonica de FTP (FTP-H2)")
+    p_confirm.add_argument(
+        "evidence_id", help="id da evidencia (veja `ftp-evidence`)")
+    p_confirm.add_argument(
+        "--reference-id", default=None,
+        help="id da referencia canonica (default: ftp-<evidencia>)")
+    p_confirm.add_argument(
+        "--effective-from", default=None, metavar="YYYY-MM-DD",
+        help="inicio de vigencia da referencia (default: agora)")
+    p_confirm.set_defaults(func=cmd_ftp_confirm)
 
     p_check = sub.add_parser(
         "check",
@@ -1470,7 +1736,7 @@ def main(argv=None):
              "duracao livre (ex.: 45d, 6m, 1y), plan (do inicio ao fim do "
              "plano salvo) ou custom (com --start/--end); default: day")
     p_sum.add_argument(
-        "--date", metavar="YYYY-MM-DD",
+        "--date", type=_iso_date, metavar="YYYY-MM-DD",
         help="Dia-ancla do periodo (default: ontem)")
     p_sum.add_argument(
         "--start", metavar="YYYY-MM-DD",

@@ -22,6 +22,11 @@ import math
 from collections import defaultdict
 from datetime import date, timedelta
 
+try:
+    from provider_fields import field as _field, is_completed as _is_completed
+except ImportError:  # execucao como pacote (src.recovery)
+    from .provider_fields import field as _field, is_completed as _is_completed  # type: ignore
+
 TC_CTL = 42
 TC_ATL = 7
 MAX_WEEKS = 160
@@ -44,7 +49,7 @@ def fetch_full_history(client, start_year=2011, chunk_days=180):
         batch = client.events(oldest=oldest.isoformat(),
                               newest=(oldest + timedelta(days=chunk_days - 1)).isoformat())
         for e in batch:
-            key = e.get("id") or e.get("uid")
+            key = _field(e, "provider_event_id")
             if key is not None:
                 out[key] = e
         oldest = oldest - timedelta(days=chunk_days)
@@ -60,12 +65,12 @@ def actual_daily_load(events):
     """
     by = defaultdict(float)
     for e in events:
-        if not (e.get("paired_activity_id") or e.get("activity_id")):
+        if not _is_completed(e):
             continue
-        day = str(e.get("start_date_local") or e.get("start_time_local") or "")[:10]
-        raw = e.get("icu_training_load")
+        day = str(_field(e, "start_date") or "")[:10]
+        raw = _field(e, "training_load")
         if raw is None:
-            raw = e.get("tss")
+            raw = _field(e, "tss")
         try:
             load = float(raw)
         except (TypeError, ValueError):

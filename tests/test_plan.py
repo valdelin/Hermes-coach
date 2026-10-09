@@ -1,6 +1,8 @@
+import json
 import unittest
 from contextlib import contextmanager
 from datetime import date, timedelta
+from pathlib import Path
 from unittest import mock
 
 import src.plan
@@ -8,15 +10,16 @@ import src.plan
 from src.plan import (build_plan, event_payload, reconcile, templates,
                        weekly_template, phase_weekly_template, training_plan_state,
                        workout_text, orphan_external_ids,
-                      manual_duplicate_ids,
-                      parse_training_days, _next_training_day,
-                      _reduce_next_hard, parse_fthr, hr_target_bpm,
-                      weekly_budget, rpe_for_focus, adherence_report, FOCUS_VO2,
-                      avg_load, DEFAULT_TRAINING_DAYS,
-                      REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2,
-                      ABSORB_FOCUSES, ABSORB_SKIP_FOCUSES, _absorbable_tss,
-                      _is_active_recovery,
-                      _tsb_race_verdict)
+                       manual_duplicate_ids,
+                       parse_training_days, _next_training_day,
+                       _reduce_next_hard, parse_fthr, hr_target_bpm,
+                       weekly_budget, rpe_for_focus, adherence_report, FOCUS_VO2,
+                       avg_load, DEFAULT_TRAINING_DAYS,
+                       REST, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_ZONE2,
+                       ABSORB_FOCUSES, ABSORB_SKIP_FOCUSES, _absorbable_tss,
+                       _is_active_recovery,
+                       _tsb_race_verdict,
+                       derive_plan_phase, GOAL_START_PHASE, TAPER_DAYS)
 from src.coach import (WorkoutParams, estimate_tss, zone_floor, zone_ceiling,
                        zone_band, focus_zone, ZONE_BANDS, FOCUS_ZONE,
                        ZONE_SWEETSPOT, FOCUS_ZONE1_RECOVERY,
@@ -24,6 +27,8 @@ from src.coach import (WorkoutParams, estimate_tss, zone_floor, zone_ceiling,
                        FOCUS_ZONE4_LIMIAR, FOCUS_ZONE5_VO2MAX,
                        FOCUS_ZONE6_ANAEROBICA, FOCUS_ENDURANCE)
 from src.zone_intent import ENDURANCE, SWEET_SPOT, THRESHOLD
+from src.training_phase import TrainingPhase
+from src.readiness import ReadinessAction, ReadinessDecision
 
 
 def _Data(fixa):
@@ -167,6 +172,194 @@ class ZoneIntentBuildGuardrailTest(unittest.TestCase):
             self.assertEqual(actual["params"]["repeats"], expected["params"]["repeats"])
             self.assertEqual(actual["params"]["off_sec"], expected["params"]["off_sec"])
             self.assertEqual(actual["tss"], expected["tss"])
+
+
+def _phase_report_pair(events, tsb, **kwargs):
+    """(baseline, com_seam) para a mesma entrada de build."""
+    return (build_plan(events, tsb, **kwargs),
+            build_plan(events, tsb, **kwargs, phase_report={}))
+
+
+class TrainingPhaseAdvisoryTest(unittest.TestCase):
+    """Derivacao advisory da fase (#58-A): GOAL + calendario apenas."""
+
+    def test_tabela_goal_cobre_todos_os_goals_reais(self):
+        self.assertEqual(set(GOAL_START_PHASE), set(src.plan.GOALS) | {None})
+
+    def test_tabela_fase_inicial_por_goal(self):
+        esperado = {
+            None: TrainingPhase.BUILD,
+            "back-to-fitness": TrainingPhase.BASE,
+            "active-off-season": TrainingPhase.BASE,
+            "ftp-builder": TrainingPhase.BUILD,
+            "gran-fondo": TrainingPhase.BUILD,
+            "time-trial": TrainingPhase.BUILD,
+            "climbing": TrainingPhase.BUILD,
+            "race": TrainingPhase.BUILD,
+        }
+        self.assertEqual(GOAL_START_PHASE, esperado)
+
+    def test_fallback_goal_desconhecido_e_build(self):
+        self.assertIs(derive_plan_phase("meta-futura", None, date(2026, 9, 14)),
+                      TrainingPhase.BUILD)
+
+    def test_race_fora_do_taper_nao_e_peak(self):
+        self.assertIs(derive_plan_phase("race", "2027-06-01",
+                                        date(2026, 9, 14)), TrainingPhase.BUILD)
+
+    def test_race_dentro_do_taper_e_peak(self):
+        self.assertIs(derive_plan_phase("race", "2026-09-20",
+                                        date(2026, 9, 14)), TrainingPhase.PEAK)
+
+    def test_race_no_dia_da_prova_e_peak(self):
+        self.assertIs(derive_plan_phase("race", "2026-09-14",
+                                        date(2026, 9, 14)), TrainingPhase.PEAK)
+
+    def test_boundary_exato_do_taper(self):
+        # dia com (prova - dia) == TAPER_DAYS fica fora; com TAPER_DAYS-1, dentro.
+        self.assertIs(derive_plan_phase("race", "2026-09-21",
+                                        date(2026, 9, 14)), TrainingPhase.BUILD)
+        self.assertIs(derive_plan_phase("race", "2026-09-21",
+                                        date(2026, 9, 15)), TrainingPhase.PEAK)
+
+    def test_race_sem_data_valida_fallback_sem_peak(self):
+        self.assertIs(derive_plan_phase("race", None, date(2026, 9, 14)),
+                      TrainingPhase.BUILD)
+        self.assertIs(derive_plan_phase("race", "18/06/2026", date(2026, 9, 14)),
+                      TrainingPhase.BUILD)
+
+    def test_taper_so_se_aplica_ao_goal_race(self):
+        self.assertIs(derive_plan_phase("ftp-builder", "2026-09-15",
+                                        date(2026, 9, 14)), TrainingPhase.BUILD)
+
+    def test_test_e_recovery_nunca_sao_implicitos(self):
+        for goal in src.plan.GOALS + (None,):
+            for delta in range(-2, 5):
+                dia = date(2026, 9, 14) + timedelta(days=delta)
+                with self.subTest(goal=goal, delta=delta):
+                    fase = derive_plan_phase(goal, "2026-09-14", dia)
+                    self.assertNotIn(fase.value, ("test", "recovery"))
+
+    def test_determinismo_por_goal(self):
+        for goal in src.plan.GOALS + (None,):
+            with self.subTest(goal=goal):
+                a = derive_plan_phase(goal, "2026-09-14", date(2026, 9, 10))
+                b = derive_plan_phase(goal, "2026-09-14", date(2026, 9, 10))
+                self.assertIs(a, b)
+
+
+class PhaseReportNeutralityTest(unittest.TestCase):
+    """O seam advisory não altera plano, payload nem decisão."""
+
+    def _asserir_planos_identicos(self, base, com_report):
+        self.assertEqual(com_report, base)
+        self.assertEqual([event_payload(w, ftp=182) for w in com_report],
+                         [event_payload(w, ftp=182) for w in base])
+        self.assertEqual(json.dumps(com_report, sort_keys=True),
+                         json.dumps(base, sort_keys=True))
+        for atual, esperado in zip(com_report, base):
+            self.assertEqual(atual["focus"], esperado["focus"])
+            self.assertEqual(atual["tss"], esperado["tss"])
+
+    def test_sem_seam_igual_a_assinatura_legada(self):
+        kwargs = {"ftp": 182, "days": 5, "start": date(2026, 9, 14)}
+        self.assertEqual(build_plan([], 0, **kwargs, phase_report=None),
+                         build_plan([], 0, **kwargs))
+
+    def test_seam_por_goal_nao_altera_plano_nem_payload(self):
+        for goal in src.plan.GOALS + (None,):
+            kwargs = {"ftp": 182, "days": 7, "start": date(2026, 9, 14),
+                      "goal": goal}
+            if goal == "race":
+                kwargs["race_date"] = "2027-06-01"
+            with self.subTest(goal=goal):
+                base, com = _phase_report_pair([], 0, **kwargs)
+                self._asserir_planos_identicos(base, com)
+
+    def test_seam_race_no_taper_nao_altera_plano(self):
+        for race_date in ("2026-09-14", "2026-09-18", "2026-09-21",
+                          "2026-09-25"):
+            kwargs = {"ftp": 182, "days": 7, "start": date(2026, 9, 14),
+                      "goal": "race", "race_date": race_date}
+            with self.subTest(race_date=race_date):
+                base, com = _phase_report_pair([], 0, **kwargs)
+                self._asserir_planos_identicos(base, com)
+
+    def test_seam_com_periodizacao_nao_altera_plano(self):
+        kwargs = {"ftp": 182, "days": 7, "start": date(2026, 9, 14),
+                  "goal": "race", "race_date": "2026-09-20",
+                  "periodization": "polarized"}
+        base, com = _phase_report_pair([], 0, **kwargs)
+        self._asserir_planos_identicos(base, com)
+
+    def test_seam_com_prontidao_ativa_nao_altera_plano(self):
+        decisao = ReadinessDecision(
+            action=ReadinessAction.REDUCE,
+            reason="prova de neutralidade do seam",
+            level=None,
+            coverage=3 / 7,
+            illness_alert=False,
+            composite_low=True,
+            observations=(),
+            applies_to_day=None,
+        )
+        kwargs = {"ftp": 182, "days": 7, "start": date(2026, 9, 14),
+                  "goal": "ftp-builder", "readiness": decisao}
+        base, com = _phase_report_pair([], 0, **kwargs)
+        self._asserir_planos_identicos(base, com)
+
+    def test_seam_com_rampa_de_recuperacao_nao_altera_plano(self):
+        kwargs = {"ftp": 182, "days": 7, "start": date(2026, 9, 14),
+                  "recovery_ramp": [80, 85, 90, 100]}
+        base, com = _phase_report_pair([], 0, **kwargs)
+        self._asserir_planos_identicos(base, com)
+
+    def test_phase_report_cobre_todos_os_dias(self):
+        report = {}
+        plan = build_plan([], 0, ftp=182, days=7, start=date(2026, 9, 14),
+                          goal="back-to-fitness", phase_report=report)
+        self.assertEqual(len(report), len(plan))
+        self.assertEqual(list(report), [w["day"] for w in plan])
+
+    def test_fase_base_e_alinhamento_por_dia(self):
+        report = {}
+        build_plan([], 0, ftp=182, days=7, start=date(2026, 9, 14),
+                   goal="back-to-fitness", phase_report=report)
+        for entrada in report.values():
+            self.assertEqual(entrada["phase"], "base")
+            self.assertEqual(entrada["template_alignment"], "match")
+
+    def test_race_taper_preenche_peak_somente_dentro_da_janela(self):
+        report = {}
+        # Semana 14/09 (seg-sex) com prova 21/09: delta 7 em seg (build),
+        # delta < 7 de ter a sex (peak).
+        build_plan([], 0, ftp=182, days=7, start=date(2026, 9, 14),
+                   goal="race", race_date="2026-09-21", phase_report=report)
+        self.assertEqual(report["2026-09-14"]["phase"], "build")
+        for dia in ("2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"):
+            self.assertEqual(report[dia]["phase"], "peak")
+
+    def test_race_sem_data_fase_build(self):
+        report = {}
+        build_plan([], 0, ftp=182, days=7, start=date(2026, 9, 14),
+                   goal="race", phase_report=report)
+        for entrada in report.values():
+            self.assertEqual(entrada["phase"], "build")
+
+    def test_determinismo_do_relatorio_no_build(self):
+        kwargs = {"ftp": 182, "days": 14, "start": date(2026, 9, 14),
+                  "goal": "race", "race_date": "2026-09-21"}
+        ph1, ph2 = {}, {}
+        p1 = build_plan([], 0, **kwargs, phase_report=ph1)
+        p2 = build_plan([], 0, **kwargs, phase_report=ph2)
+        self.assertEqual(ph2, ph1)
+        self.assertEqual(p2, p1)
+
+    def test_seam_desligado_nao_preenche_relatorio(self):
+        report = {}
+        build_plan([], 0, ftp=182, days=7, start=date(2026, 9, 14),
+                   goal="back-to-fitness", phase_report=None)
+        self.assertEqual(report, {})
 
 
 class TrainingDaysTest(unittest.TestCase):
@@ -608,6 +801,33 @@ class EventPayloadTest(unittest.TestCase):
         self.assertIn("Agora voce vai entrar em", payload["description"])
         self.assertRegex(payload["description"], r"- .* \d+m \d+%")
 
+    def test_lang_invalida_cai_para_pt(self):
+        """Defesa em profundidade: `workout_text`/`event_payload` normalizam
+        lang invalida p/ 'pt' (nota defensiva do KNOWN_ISSUES), em vez de
+        estourar `KeyError: 'zz'`."""
+        plan = build_plan([], 2, ftp=182, days=1,
+                          start=date(2026, 9, 28))
+        desc = workout_text(plan[0], lang="zz")
+        self.assertIn("por cento", desc)
+        self.assertNotIn("percent", desc)
+        payload = event_payload(plan[0], ftp=182, lang="zz")
+        self.assertIn("por cento", payload["description"])
+
+    def test_lang_invalida_no_modo_fc_cai_para_pt(self):
+        plan = build_plan([], 2, ftp=182, days=1,
+                          start=date(2026, 9, 28))
+        plan[0]["hr_mode"] = True
+        desc = workout_text(plan[0], fthr=182, lang="zz")
+        self.assertIn("por cento", desc)
+        self.assertNotIn("percent", desc)
+
+    def test_lang_en_continua_valendo(self):
+        plan = build_plan([], 2, ftp=182, days=1,
+                          start=date(2026, 9, 28))
+        desc = workout_text(plan[0], lang="en")
+        self.assertIn("percent", desc)
+        self.assertNotIn("por cento", desc)
+
     def test_texto_descricao_nativo(self):
         plan = build_plan([], 2, ftp=182, days=1,
                           start=date(2026, 9, 28))
@@ -1028,8 +1248,7 @@ class RaceTsbVerdictTest(unittest.TestCase):
 
 
 class ZoneIntegrityTest(unittest.TestCase):
-    """Invariante de zona (Tabela Z1-Z7; ver docs/EMBASAMENTO-CIENTIFICO.md
-    secao 6, que aponta para o documento canonico no vault).
+    """Invariante de zona (ver docs/EMBASAMENTO-CIENTIFICO.md secao 4).
 
     REGRA: um treino NUNCA entrega menos de %FTP do que o piso da zona que ele
     declara. O `focus` e o nome podem nao mudar enquanto a potencia rebaixada
@@ -1099,10 +1318,11 @@ class ZoneIntegrityTest(unittest.TestCase):
                         f"{w['day']} {w['focus']} @ {pot} < piso {piso}")
 
     def test_zona_bands_espelham_a_tabela_do_documento(self):
-        # ZONE_BANDS e a versao legivel da "Tabela Cientifica Z1-Z7" do
-        # documento canonico no vault (docs/EMBASAMENTO-CIENTIFICO.md secao 6
-        # aponta para ele). Se a tabela mudar, este teste falha.
-        # ordem e identical a "Tabela Cientifica Z1-Z7" do documento
+        # Garante que ZONE_BANDS continua alinhado aos valores de %FTP
+        # esperados, codificados neste teste como regressao. Os valores sao
+        # faixas de referencia do sistema, nao limiares fisiologicos: nao ha
+        # conversao universal entre %FTP, %FCmax, %FC de limiar e RPE.
+        # Este teste nao le nenhum arquivo de markdown.
         esperado = {
             FOCUS_ZONE1_RECOVERY: (0.00, 0.55),    # Z1 Recuperacao  <55%
             FOCUS_ZONE2_ENDURANCE: (0.56, 0.75),   # Z2 Endurance  56-75%
@@ -1157,6 +1377,29 @@ class ZoneIntegrityTest(unittest.TestCase):
                                      "active recovery acima do limiar")
                 # so Z2 pode ser active recovery
                 self.assertEqual(w["focus"], FOCUS_ZONE2)
+
+
+class PlanTopLevelImportTest(unittest.TestCase):
+    """Regressao: o branch `from coach import (...)` de `plan.py` precisa expor
+    `zone_floor`/`zone_ceiling`/`ZONE_BANDS`.
+
+    Sem eles, importar `plan` como modulo top-level (script/uso fora do pacote)
+    levantava `NameError` ao reduzir intensidade por prontidao. O teste roda num
+    subprocesso com `src/` no path para exercitar exatamente esse branch."""
+
+    def test_import_top_level_expoe_simbolos_de_zona(self):
+        import subprocess
+        import sys
+        src_dir = str(Path(__file__).resolve().parent.parent / "src")
+        code = (
+            "import sys;"
+            f"sys.path.insert(0, {src_dir!r});"
+            "import plan;"
+            "assert callable(plan.zone_floor);"
+            "assert callable(plan.zone_ceiling);"
+            "assert plan.ZONE_BANDS;"
+        )
+        subprocess.run([sys.executable, "-c", code], check=True)
 
 
 if __name__ == "__main__":

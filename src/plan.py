@@ -5,7 +5,8 @@ from datetime import date, datetime, timedelta
 
 try:
     from coach import (WorkoutParams, estimate_tss,
-                       FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2)
+                       FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2,
+                       zone_floor, zone_ceiling, ZONE_BANDS)
 except ImportError:
     from .coach import (WorkoutParams, estimate_tss,
                         FOCUS_ZONE2, FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2,
@@ -15,10 +16,22 @@ try:
     from . import readiness as readiness_mod
     from .readiness import ReadinessAction, ReadinessDecision
     from . import zone_intent
+    from . import lifecycle
+    from . import training_phase as training_phase_mod
+    from .training_phase import TrainingPhase
 except ImportError:  # pragma: no cover - execucao como script solto
     import readiness as readiness_mod
     from readiness import ReadinessAction, ReadinessDecision
     import zone_intent
+    import lifecycle
+    import training_phase as training_phase_mod
+    from training_phase import TrainingPhase
+
+try:
+    from provider_fields import field as _field, is_completed as _is_completed
+except ImportError:  # execucao como pacote (src.plan)
+    from .provider_fields import (field as _field,  # type: ignore
+                                  is_completed as _is_completed)
 
 # TSB abaixo disso conta como fadiga acumulada e dispara a adaptacao da sessao
 # de qualidade. Regra historica, inalterada pelo Passo A da #58 — o nome serve
@@ -93,6 +106,7 @@ class PlannedWorkout:
     params: dict
     tss: float
     external_id: str
+    ftp_watts: int = DEFAULT_FTP
 
 
 @dataclasses.dataclass(frozen=True)
@@ -346,6 +360,25 @@ GOAL_LABELS = {
     "race": "Race",
 }
 
+# Fase semantica advisory inicial por GOAL (integracao #58-A). Tabela explicita,
+# nao inferida pelo nome do GOAL. Classificacao conservadora sobre a semantica
+# atual dos GOALS (ver GOAL_TEMPLATES/GOAL_BUDGET_SCALE):
+#  - retorno/base          -> BASE   (back-to-fitness, active-off-season);
+#  - construcao de perf.   -> BUILD  (ftp-builder, gran-fondo, time-trial,
+#                                     climbing, race);
+#  - sem GOAL explicito    -> BUILD, espelhando a fase legada do build.
+# `race` sai de BUILD para PEAK apenas na janela de taper (derive_plan_phase).
+GOAL_START_PHASE = {
+    None: TrainingPhase.BUILD,
+    "back-to-fitness": TrainingPhase.BASE,
+    "ftp-builder": TrainingPhase.BUILD,
+    "gran-fondo": TrainingPhase.BUILD,
+    "time-trial": TrainingPhase.BUILD,
+    "climbing": TrainingPhase.BUILD,
+    "active-off-season": TrainingPhase.BASE,
+    "race": TrainingPhase.BUILD,
+}
+
 # Variedade de formato por foco (o build rotaciona as variantes quando um
 # GOAL esta ativo, para o plano nao ficar monotonico). A variante 0 de cada
 # foco e identica ao template atual (comportamento sem GOAL preservado).
@@ -586,9 +619,8 @@ def session_execution_state(workout, events):
     eid = (workout or {}).get("external_id")
     if not eid:
         return SESSAO_SEM_IDENTIDADE
-    achados = [e for e in (events or []) if e.get("external_id") == eid]
-    if any(e.get("paired_activity_id") or e.get("activity_id")
-           for e in achados):
+    achados = [e for e in (events or []) if _field(e, "external_id") == eid]
+    if any(_is_completed(e) for e in achados):
         return SESSAO_CONCLUIDA
     if achados:
         return SESSAO_PUBLICADA
@@ -681,7 +713,7 @@ def rebuild_workout(workout, params, ftp=DEFAULT_FTP):
         day=workout["day"], focus=focus, planned_duration=duration,
         name=workout_name(workout["day"], focus),
         params=_params_dict(params), tss=float(estimate_tss(params, ftp)),
-        external_id=workout["external_id"])
+        external_id=workout["external_id"], ftp_watts=int(ftp))
     saida = _as_dict(novo)
     # `hr_mode` nao vem de `params`: e uma marca de prescricao do registro
     # original e precisa sobreviver a reconstrucao (ver `reconcile`).
@@ -803,10 +835,10 @@ def avg_load(events, window_days=BUDGET_WINDOW_DAYS, realized_only=True):
     loads = []
     cutoff = date.today() - timedelta(days=window_days)
     for item in events:
-        if realized_only and not item.get("paired_activity_id"):
+        if realized_only and not _is_completed(item):
             continue
         day = _day(item)
-        load = _num(item.get("icu_training_load"))
+        load = _num(_field(item, "training_load"))
         if day and load and load > 0 and day >= cutoff:
             loads.append(load)
     return sum(loads) / len(loads) if loads else 40.0
@@ -850,11 +882,74 @@ def _validate_zone_intent(focus, params):
         return None
 
 
+_PHASE_ENGINE = training_phase_mod.TrainingPhaseEngine()
+
+
+def _focus_stimulus(focus):
+    """Familia de estimulo canonica de um foco prescrito (para o alinhamento
+    advisory). `None` quando o foco nao e mapeavel — o alinhamento fica de fora
+    em vez de emitir observacao falsa."""
+    return {
+        FOCUS_ZONE2: "zone2",
+        ENDURANCE: "zone2",
+        FOCUS_SWEETSPOT: "sweetspot",
+        FOCUS_THRESHOLD: "threshold",
+        FOCUS_VO2: "vo2max",
+    }.get(focus)
+
+
+def derive_plan_phase(goal, race_date, day):
+    """Fase semantica advisory do dia — observacional, no padrao de zone_intent.
+
+    Deriva a fase apenas de GOAL + calendario (race_date/start). Nao usa TSB,
+    CTL, readiness, wellness, FTP, VO2 nem Pw:HR; nao alimenta prescricao (o
+    valor nunca entra no PlannedWorkout) e nao toca a fase legada
+    (`state.phase`/`phase_weekly_template`).
+
+    Regras v1:
+    - GOAL_START_PHASE define a fase inicial (tabela explicita por GOAL);
+    - `race` com race_date valida rotula PEAK na janela de taper
+      (0 <= (prova - dia) < TAPER_DAYS), incluindo o dia da prova;
+    - fora do taper nao ha PEAK; TEST/RECOVERY nunca sao inferidos
+      automaticamente (exigem contexto explicito, fora desta integracao);
+    - race sem data valida usa o fallback da tabela (BUILD), sem PEAK.
+    """
+    if goal == "race" and race_date:
+        try:
+            days_to_race = (date.fromisoformat(race_date) - day).days
+        except (TypeError, ValueError):
+            days_to_race = None
+        if days_to_race is not None and 0 <= days_to_race < TAPER_DAYS:
+            return TrainingPhase.PEAK
+    return GOAL_START_PHASE.get(goal, TrainingPhase.BUILD)
+
+
+def _record_phase_report(phase_report, goal, race_date, day, focus):
+    """Preenche a entrada advisory do dia. Nunca altera prescricao.
+
+    `phase_report` e dict preenchido in-place (seam opcional, mesmo contrato de
+    `readiness_report`); `None` desliga o seam por completo. O alinhamento e
+    neutro: "match"/"mismatch" entre a familia do foco final e os estimulos da
+    fase, sem diagnostico fisiologico.
+    """
+    if phase_report is None:
+        return
+    phase = derive_plan_phase(goal, race_date, day)
+    entry = {"phase": phase.value}
+    stimulus = _focus_stimulus(focus)
+    if stimulus is not None:
+        definition = _PHASE_ENGINE.definition(phase)
+        alinhado = (stimulus in definition.priority_stimuli or
+                    stimulus in definition.secondary_stimuli)
+        entry["template_alignment"] = "match" if alinhado else "mismatch"
+    phase_report[day.isoformat()] = entry
+
+
 def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
                hr_mode=False, recovery_ramp=None, periodization=None,
-               readiness=None, readiness_report=None):
+               readiness=None, readiness_report=None, phase_report=None):
     # `readiness_report` e preenchido in-place para o CLI relatar o desfecho da
     # avaliacao sem alterar o retorno (que e a lista de treinos, contrato).
     readiness_report = {} if readiness_report is None else readiness_report
@@ -874,8 +969,19 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                         readiness.applies_to_day == today.isoformat():
                     readiness_report.setdefault("situacao",
                                                 "sessao_do_dia_preservada")
-                plan = [kept[0]]
-                recent = [(today, kept[0]["tss"])]
+                sessao = dict(kept[0])
+                # Esta e a UNICA saida de `build_plan` que nao constroi a
+                # sessao, entao e por aqui que uma entrada gravada antes da
+                # introducao de `ftp_watts` escapa sem o campo. O relatorio
+                # recusa o perfil (contrato: nao inferir watts do `.env`), e a
+                # sessao de HOJE -- o dia que o painel descreve -- ficava sem
+                # grafico. Carimba a MESMA referencia FTP usada para estimar o
+                # TSS das demais sessoes desta chamada.
+                sessao.setdefault("ftp_watts", int(ftp))
+                _record_phase_report(phase_report, goal, race_date, today,
+                                     sessao.get("focus", FOCUS_ZONE2))
+                plan = [sessao]
+                recent = [(today, sessao["tss"])]
                 return plan + build_plan(events, tsb, ftp=ftp, days=days,
                                          start=start,
                                          training_days=training_days,
@@ -886,7 +992,8 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          recovery_ramp=recovery_ramp,
                                          periodization=periodization,
                                          readiness=readiness,
-                                         readiness_report=readiness_report)
+                                         readiness_report=readiness_report,
+                                         phase_report=phase_report)
     slots = sorted(training_days)
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
     avg = avg_load(events)
@@ -940,6 +1047,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         # A intencao e derivada do foco final. O perfil nao entra no workout,
         # preservando `focus` como a unica fonte de verdade publicada.
         _validate_zone_intent(focus, params)
+        _record_phase_report(phase_report, goal, race_date, day, focus)
         tss = estimate_tss(params, ftp)
         if tss > cap:
             factor = max(0.4, cap / tss)
@@ -956,6 +1064,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
             name=day_name,
             params=_params_dict(params), tss=float(tss),
             external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
+            ftp_watts=int(ftp),
         ))
         recent.append((day, tss_pre if readiness_agiu else tss))
         while recent and day - recent[0][0] >= timedelta(days=7):
@@ -1114,6 +1223,7 @@ def _prep_workout(day, kind, ftp):
         name=f"{day.isoformat()} - {name}",
         params=_params_dict(params), tss=float(tss),
         external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
+        ftp_watts=int(ftp),
     )
 
 
@@ -1144,7 +1254,7 @@ def _protect_ftp_test(plan, ftp_test_date, training_days, start, days, ftp):
     return kept
 
 
-def _race_workout(day):
+def _race_workout(day, ftp):
     """Evento do dia da prova (GOAL=race): marcador no calendario com TSS 0 —
     a carga real da prova entra pela API depois. O TSB projetado nesse dia
     reflete o estado de chegada (descansado), como quer a periodizacao."""
@@ -1160,6 +1270,7 @@ def _race_workout(day):
         name=f"{day.isoformat()} - Prova: dia de prova",
         params=_params_dict(params), tss=0.0,
         external_id=f"{EXTERNAL_ID_PREFIX}-race-{day.isoformat()}",
+        ftp_watts=int(ftp),
     )
 
 
@@ -1178,6 +1289,7 @@ def _race_recovery(day, ftp):
         name=f"{day.isoformat()} - Recuperacao (pos-prova)",
         params=_params_dict(params), tss=float(tss),
         external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
+        ftp_watts=int(ftp),
     )
 
 
@@ -1202,7 +1314,7 @@ def _protect_race(plan, race_date, training_days, start, days, ftp):
             continue
         if kind == "after" and d.weekday() not in training_days:
             continue  # descanso natural: nada a criar
-        w = _race_workout(d) if kind == "race" else _race_recovery(d, ftp)
+        w = _race_workout(d, ftp) if kind == "race" else _race_recovery(d, ftp)
         kept.append(_as_dict(w))
     kept.sort(key=lambda w: w["day"])
     return kept
@@ -1295,16 +1407,136 @@ def _params_dict(params):
     }
 
 
+def planned_workout_profile(workout):
+    """Projeta os ``params`` canônicos em blocos serializáveis para leitura.
+
+    Esta é uma projeção do formato persistido em ``plan.json`` — não faz parsing
+    de ``name``/``description`` nem estima blocos a partir de TSS ou duração.
+    Watts são calculados com ``ftp_watts`` salvo na própria sessão; um plano
+    legado sem essa referência não ganha um gráfico em watts inferido do `.env`.
+    Quando os parâmetros estruturados não existem ou estão incompletos, mantém
+    apenas os metadados canônicos disponíveis e declara ``has_structured_blocks``
+    falso. Assim um consumidor visual pode mostrar um estado vazio honesto.
+
+    A duração de um perfil estruturado é a soma exata dos blocos canônicos. Ela
+    prevalece sobre um ``planned_duration`` legado eventualmente divergente para
+    impedir que gráfico e metadados apresentem tempos diferentes.
+    """
+    workout = workout if isinstance(workout, dict) else {}
+    params = workout.get("params")
+    focus = workout.get("focus")
+    if not focus and isinstance(params, dict):
+        focus = params.get("focus")
+    focus = str(focus or "")
+    duration = _profile_int(workout.get("planned_duration"))
+    tss = _profile_float(workout.get("tss"))
+    intensity = _profile_float(workout.get("intensity_factor"))
+    ftp = _profile_int(workout.get("ftp_watts"))
+    profile = {
+        "date": workout.get("day"),
+        "title": workout.get("name") or FOCUS_LABELS_PT.get(focus, focus),
+        "focus": focus or None,
+        "focus_label": FOCUS_LABELS_PT.get(focus, focus or "Treino"),
+        "duration_seconds": duration,
+        "planned_tss": tss,
+        "intensity_factor": intensity,
+        "ftp_watts": ftp,
+        "has_structured_blocks": False,
+        "blocks": [],
+    }
+    if not isinstance(params, dict):
+        return profile
+
+    required = ("warmup_sec", "warmup_power_low", "warmup_power_high",
+                "repeats", "on_sec", "on_power", "off_sec", "off_power",
+                "cooldown_sec", "cooldown_power_low", "cooldown_power_high")
+    if ftp is None or ftp <= 0 or any(key not in params for key in required):
+        return profile
+
+    warmup_sec = _profile_int(params["warmup_sec"])
+    repeats = _profile_int(params["repeats"])
+    on_sec = _profile_int(params["on_sec"])
+    off_sec = _profile_int(params["off_sec"])
+    cooldown_sec = _profile_int(params["cooldown_sec"])
+    powers = [_profile_float(params[key]) for key in (
+        "warmup_power_low", "warmup_power_high", "on_power", "off_power",
+        "cooldown_power_low", "cooldown_power_high")]
+    if (None in (warmup_sec, repeats, on_sec, off_sec, cooldown_sec)
+            or any(power is None for power in powers)
+            or warmup_sec < 0 or cooldown_sec < 0 or off_sec < 0
+            or repeats < 1 or on_sec < 1):
+        return profile
+
+    warmup_low, warmup_high, on_power, off_power, cooldown_low, cooldown_high = powers
+    blocks = []
+    elapsed = 0
+
+    def add(kind, seconds, start_pct, end_pct, label):
+        nonlocal elapsed
+        if seconds <= 0:
+            return
+        start = elapsed
+        elapsed += seconds
+        blocks.append({
+            "kind": kind,
+            "duration_seconds": seconds,
+            "start_seconds": start,
+            "end_seconds": elapsed,
+            "start_pct_ftp": start_pct,
+            "end_pct_ftp": end_pct,
+            "start_watts": round(start_pct * ftp, 1),
+            "end_watts": round(end_pct * ftp, 1),
+            "label": label,
+        })
+
+    add("warmup", warmup_sec, warmup_low, warmup_high, "Aquecimento")
+    focus_label = FOCUS_LABELS_PT.get(focus, focus or "Trabalho")
+    for repeat in range(repeats):
+        add("work", on_sec, on_power, on_power,
+            f"{focus_label} · série {repeat + 1}")
+        add("recovery", off_sec, off_power, off_power,
+            f"Recuperação · série {repeat + 1}")
+    add("cooldown", cooldown_sec, cooldown_low, cooldown_high, "Desaquecimento")
+
+    if not blocks:
+        return profile
+    profile.update({
+        "duration_seconds": elapsed,
+        "ftp_watts": ftp,
+        "has_structured_blocks": True,
+        "blocks": blocks,
+    })
+    return profile
+
+
+def _profile_int(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, float) and not value.is_integer():
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _profile_float(value):
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _as_dict(w):
     return dataclasses.asdict(w)
 
 
 def _day(item):
-    raw = item.get("start_date_local") or item.get("start_time_local")
+    raw = _field(item, "start_date")
     if not raw:
         return None
     try:
-        return datetime.fromisoformat(raw[:19]).date()
+        return datetime.fromisoformat(str(raw)[:19]).date()
     except ValueError:
         return None
 
@@ -1317,6 +1549,14 @@ def _num(value):
 
 
 CUE_LANGS = ("pt", "en")
+
+
+def _normalize_lang(lang: str) -> str:
+    """Defesa em profundidade: idioma invalido cai para 'pt' (ver nota
+    defensiva de `workout_text`/`event_payload` no KNOWN_ISSUES). O argparse
+    da CLI ja normaliza; aqui garantimos que nenhum chamador externo quebre
+    com `KeyError: 'zz'`."""
+    return lang if lang in CUE_LANGS else "pt"
 
 # Roteiro explicativo da zona do dia (cue text no aquecimento). IMPORTANTE: o
 # parser do Intervals.icu trunca o texto explicativo do passo no primeiro "%"
@@ -1417,6 +1657,7 @@ def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None,
     target vira HR e o texto usa %FTHR + RPE; senao, POWER (%FTP). Nota: o
     Intervals usa o enum `HR` (nao `HEART_RATE`) no campo `target`."""
     hr = bool(workout.get("hr_mode")) and bool(fthr)
+    lang = _normalize_lang(lang)
     return {
         "start_date_local": f"{workout['day']}T{START_TIME}",
         "category": "WORKOUT", "type": "Ride",
@@ -1441,6 +1682,7 @@ def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None, fthr=None):
 
     Com `fthr` e `hr_mode` no workout: prescricao por FC (#3) — os alvos usam
     %FTHR e cada serie traz o RPE como ancora (sem medidor de potencia)."""
+    lang = _normalize_lang(lang)
     if workout.get("hr_mode") and fthr:
         return _workout_text_hr(workout, fthr, lang=lang, prev=prev)
     params = workout["params"]
@@ -1732,15 +1974,14 @@ def _done_and_extra(events):
     done_ids = set()
     extras = []
     for item in events:
-        eid = item.get("external_id")
-        paired = item.get("paired_activity_id")
-        if not paired:
+        eid = _field(item, "external_id")
+        if not _is_completed(item):
             continue
         if eid and eid.startswith(EXTERNAL_ID_PREFIX):
             done_ids.add(eid)
         else:
             day = _day(item)
-            load = _num(item.get("tss") or item.get("icu_training_load"))
+            load = _num(_field(item, "tss") or _field(item, "training_load"))
             if day and load:
                 extras.append({"day": day, "load": float(load)})
     return done_ids, extras
@@ -1772,9 +2013,15 @@ def adherence_report(plan, events, today=None):
         bucket = weeks.setdefault(
             key, {"week_start": _week_start(day),
                   "done": 0, "missed": 0, "pending": 0})
-        if day >= today:
+        # UI-2: a classificacao passa pelo lifecycle explicito (planned /
+        # completed / missed), em vez de inferir "feito" de `external_id` aqui.
+        state = lifecycle.derive(
+            day=str(w["day"]), today=today,
+            is_done=w.get("external_id") in done_ids,
+            declared=w.get("lifecycle"))
+        if state == lifecycle.LIFECYCLE_PLANNED:
             bucket["pending"] += 1
-        elif w.get("external_id") in done_ids:
+        elif state == lifecycle.LIFECYCLE_COMPLETED:
             bucket["done"] += 1
         else:
             bucket["missed"] += 1
@@ -1841,6 +2088,7 @@ def _insert_recovery(plan, day, ftp, training_days=DEFAULT_TRAINING_DAYS, on=Non
         name=f"{next_day} - Recuperacao (plano ajustado)",
         params=_params_dict(params), tss=float(estimate_tss(params, ftp)),
         external_id=f"{EXTERNAL_ID_PREFIX}-{next_day}",
+        ftp_watts=int(ftp),
     )
     return [w for w in plan if w["day"] != next_day] + [_as_dict(recovery)]
 
@@ -1858,7 +2106,8 @@ def _reduce_next_hard(plan, day, ftp, reduced_ids=None):
             w = PlannedWorkout(day=w["day"], focus=w["focus"],
                                planned_duration=w["planned_duration"],
                                name=w["name"], params=params,
-                               tss=float(tss), external_id=w["external_id"])
+                                tss=float(tss), external_id=w["external_id"],
+                                ftp_watts=int(ftp))
             w = _as_dict(w)
             reduced_ids.add(w["external_id"])
             reduced_this_call = True

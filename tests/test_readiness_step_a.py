@@ -20,6 +20,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from src import training_plan as tp
+from src.application import PushResult
 from src.plan import (FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2, FOCUS_ZONE2,
                       build_plan, save_plan)
 from src.readiness import (HEALTHY_SCORE, ReadinessAction,
@@ -91,17 +92,27 @@ class ProdutorTest(unittest.TestCase):
         self.assertEqual(len(trace.observations), 3)
         self.assertFalse(any(o.flagged for o in trace.observations))
 
-    def test_leituras_ausentes_no_registro_ficam_sem_sinal(self):
-        """Um registro sem `hrv` nao pode virar hrv ruim por ausencia. O
-        produtor so marca o que o limiar viu."""
-        recs = [{"day": (date.today() - timedelta(days=i)).isoformat(),
-                 "restingHR": 50, "sleepSecs": 8 * 3600, "readiness": 80}
-                for i in range(3)]
-        avaliacao, trace = assess_readiness_assessment(recs)
-        self.assertIsNotNone(avaliacao)
-        hrv = next(o for o in trace.observations if o.axis == "hrv_score")
-        self.assertEqual(hrv.score, HEALTHY_SCORE)
-        self.assertFalse(hrv.flagged)
+    def test_leituras_ausentes_ficam_fora_da_avaliacao(self):
+        """Ausência não é sinal saudável: somente métrica presente recebe score."""
+        cases = (
+            ("hrv", "hrv_score"),
+            ("restingHR", "rhr_score"),
+            ("sleepSecs", "sleep_score"),
+        )
+        for field, axis in cases:
+            with self.subTest(field=field):
+                recs = [
+                    {key: value for key, value in {
+                        "day": (date.today() - timedelta(days=i)).isoformat(),
+                        "restingHR": 50, "hrv": 60, "sleepSecs": 8 * 3600,
+                        "readiness": 80,
+                    }.items() if key != field}
+                    for i in range(3)
+                ]
+                avaliacao, trace = assess_readiness_assessment(recs)
+                self.assertIsNone(getattr(avaliacao, axis))
+                self.assertNotIn(axis, [o.axis for o in trace.observations])
+                self.assertIn(axis, trace.missing)
 
     def test_rastreia_datas_desatualizadas(self):
         recs = [{"day": (date.today() - timedelta(days=9)).isoformat(),
@@ -421,11 +432,47 @@ class IntegracaoCliTest(_CliTest):
         self.assertIn("reconciliacao nao foi executada nem simulada",
                       buf.getvalue())
 
+    def test_all_sem_dry_run_passa_no_argparse_real(self):
+        """`all` nao declara --show nem --start, mas chama cmd_reconcile e
+        cmd_push. Antes, args.show derrubava o pipeline com AttributeError no
+        build+reconcile+push de verdade. Aqui o Namespace vem do argparse REAL
+        (main), nao de um SimpleNamespace montado a mao -- foi isso que deixou
+        os testes de dry-run passarem por cima do bug."""
+        self.cliente = _FakeClient(wellness(3, 50, 60, 5))
+        tp.get_client = lambda: self.cliente
+        orig = tp.push_workouts
+
+        def _sem_rede(*_a, **_k):
+            return PushResult(batch=[], orphans=[], dup_ids=[], beyond=[],
+                              dry_run=False, create_status=200, created=0)
+
+        tp.push_workouts = _sem_rede
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = tp.main(["all"])
+        finally:
+            tp.push_workouts = orig
+        saida = buf.getvalue()
+        self.assertEqual(rc, 0, saida)
+        self.assertIn("Calendario atualizado (HTTP 200)", saida)
+        self.assertTrue(self.path.exists(), "o build dentro de all deve gravar")
+
     def test_saida_avisa_quando_a_leitura_nao_foi_aplicada(self):
         """Leitura de ontem, build de hoje: nada e adaptado e o CLI diz o
-        motivo, para nao parecer que a prontidao foi ignorada."""
+        motivo, para nao parecer que a prontidao foi ignorada.
+
+        A janela precisa TERMINAR em D-1. O produtor ancora a decisao no ultimo
+        registro (`ReadinessTrace.reference_day`), e `build` comeca o plano em
+        D+1, com a sessao de hoje preservada verbatim. Se o fixture incluisse D
+        ou D+1, a ancora viraria um dia do plano e a leitura SERIA aplicada — o
+        teste mediria "foi aplicada" enquanto o nome e o docstring prometem "nao
+        aplicada". Tres registros porque a avaliacao precisa da
+        janela para classificar os eixos; o ultimo e D-1, e D-1 nunca esta no
+        plano, em qualquer dia da semana.
+        """
         ontem = date.today() - timedelta(days=1)
-        recs = [{"day": (ontem + timedelta(days=i)).isoformat(),
+        recs = [{"day": (ontem - timedelta(days=2 - i)).isoformat(),
                  "restingHR": 50, "hrv": 60, "sleepSecs": 5 * 3600,
                  "readiness": 80} for i in range(3)]
         _, saida = self._build(recs, dry_run=True)

@@ -1,12 +1,20 @@
 # Diagramas UML — Hermes Coach
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/DIAGRAMAS.md` **no repo** (o mesmo arquivo do vault é
+> cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+> Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/DIAGRAMAS.md`.
+> Os `.mmd`/`.png` têm dono próprio: `docs/diagramas/` no repo (ver "Fonte
+> canônica dos assets" abaixo).
+
 Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.35).
 Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
 fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
 
-**Fonte canônica: este diretório no repo.** Os `.mmd` e `.png` são espelhados
-em `01-Projetos/cycling-coach/` no vault do Obsidian para leitura; quando os dois
-divergirem, o repo vence. Editar aqui e copiar — nunca editar os dois lados.
+**Fonte canônica dos assets: `docs/diagramas/` no repo.** Os `.mmd` e `.png` são
+espelhados em `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/` no
+vault do Obsidian para leitura; quando os dois divergirem, o repo vence. Editar
+aqui e copiar — nunca editar os dois lados.
 Os blocos `mermaid` deste `.md` são embutidos, não gerados: se um `.mmd` mudar,
 atualizar o bloco correspondente aqui também.
 

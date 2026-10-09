@@ -1,5 +1,10 @@
 # Temas do Hermes Coach — kit portátil de design tokens
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/TEMAS.md` **no repo** (o mesmo arquivo do vault é cópia).
+> Quando divergirem, o repo vence. Editar no repo e copiar.
+> Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/TEMAS.md`.
+
 Este documento é um **kit autocontido**: copie o código da seção "Módulo
 completo" para outro projeto e você tem a mesma paleta de temas. É a fonte
 única de identidade usada pelo relatório (HTML/PDF) e pensada para o frontend

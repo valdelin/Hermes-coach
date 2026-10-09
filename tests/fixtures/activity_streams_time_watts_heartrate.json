@@ -1,0 +1,19 @@
+{
+  "sanitization": {
+    "source": "cycling virtual activity",
+    "source_lengths": {
+      "time": 2448,
+      "watts": 2448,
+      "heartrate": 2448,
+      "fixed_heartrate": 2448
+    },
+    "sample_indices": [0, 1, 2, 612, 1224, 1836, 2447],
+    "removed": ["activity_id", "athlete", "name", "location", "timestamps"]
+  },
+  "response": [
+    {"type": "time", "data": [0, 1, 2, 612, 1224, 1836, 2447]},
+    {"type": "watts", "data": [29, 33, 59, 109, 109, 104, 2]},
+    {"type": "heartrate", "data": [67, 67, 68, 132, 133, 134, 126]},
+    {"type": "fixed_heartrate", "data": [67, 67, 68, 132, 133, 134, 126]}
+  ]
+}

@@ -22,9 +22,16 @@ except ImportError:
     from .coach import WorkoutParams, estimate_tss, FOCUS_ZONE2
 
 try:
-    from .readiness_assessment import ReadinessAssessment, ReadinessLevel
+    from .readiness_assessment import (READINESS_AXIS_NAMES, READINESS_AXIS_SPECS,
+                                       ReadinessAssessment, ReadinessLevel)
 except ImportError:  # pragma: no cover - execucao como script solto
-    from readiness_assessment import ReadinessAssessment, ReadinessLevel
+    from readiness_assessment import (READINESS_AXIS_NAMES, READINESS_AXIS_SPECS,
+                                      ReadinessAssessment, ReadinessLevel)
+
+try:
+    from provider_fields import field as _field
+except ImportError:  # execucao como pacote (src.readiness)
+    from .provider_fields import field as _field  # type: ignore
 
 
 # Limiares dos sinais (ajustaveis por constante, documentados aqui):
@@ -47,6 +54,23 @@ class Readiness:
     illness: bool          # possivel inicio de doenca (RHR 2 noites + HRV caindo)
     reason: str            # texto explicativo do porquê
     has_data: bool         # False quando nao ha wellness sincronizado
+
+
+def _normalized_wellness_records(records):
+    """Converte wellness canonico ou legado na entrada historica do assessment.
+
+    O algoritmo existente continua lendo os mesmos quatro sinais e mantendo os
+    mesmos thresholds. A compatibilidade fica nesta borda: snapshots UI-4 usam
+    nomes canonicos; fixtures/consumidores legados ainda usam as chaves antigas.
+    """
+    return [{
+        "id": _field(rec, "day"),
+        "restingHR": _field(rec, "resting_hr"),
+        "hrv": _field(rec, "hrv"),
+        "hrvSDNN": _field(rec, "hrv_sdnn"),
+        "sleepSecs": _field(rec, "sleep_secs"),
+        "readiness": _field(rec, "readiness"),
+    } for rec in (records or [])]
 
 
 def _rows(records):
@@ -87,9 +111,19 @@ def _rising_rhr(rows, days=7):
 
 
 def _low_hrv(rows, days=7):
-    """HRV caindo: ultimo abaixo de HRV_LOW_RATIO x a media."""
+    """HRV caindo: ultimo abaixo de HRV_LOW_RATIO x a media.
+
+    Usa a media dos dias anteriores ao ultimo para nao contaminar a base: o
+    proprio valor corrente nao pode entrar na media contra a qual ele e
+    comparado. Sem isso uma queda forte baixa a media, ergue o threshold e
+    mascara o sinal — `[60,59,58,57,56,45,44]` dava media 54.14 e
+    `44 < 43.31` falso, apesar de queda de ~27%. Mesma politica de base de
+    `_rising_rhr`. HRV_LOW_RATIO e a janela nao mudam; muda apenas o conjunto
+    de amostras do baseline.
+    """
     last_hrv = _last("hrv", rows) or _last("hrvSDNN", rows)
-    base = _avg("hrv", rows, days=days) or _avg("hrvSDNN", rows, days=days)
+    base = _avg("hrv", rows[:-1], days=days) or _avg("hrvSDNN", rows[:-1],
+                                                      days=days)
     if last_hrv is None or base is None or base <= 0:
         return False
     return last_hrv < base * HRV_LOW_RATIO
@@ -140,7 +174,7 @@ def _illness(rows):
 
 def assess_readiness(records, days=7):
     """Analisa os registros de wellness e devolve o estado de prontidao."""
-    rows = _rows(records)
+    rows = _rows(_normalized_wellness_records(records))
     if not rows:
         return Readiness({}, False,
                          "sem dados de wellness (sync Garmin -> Intervals "
@@ -358,36 +392,53 @@ class ReadinessDecision:
 HEALTHY_SCORE = 0.8    # heuristica do sistema, nao escala calibrada
 FLAGGED_SCORE = 0.2   # idem
 
+# Estes sao os eixos que a pipeline atual tem fonte para avaliar. Os outros
+# nomes existem no modelo, mas nao recebem valor ate haver produtor proprio.
+IMPLEMENTED_READINESS_AXES = ("hrv_score", "rhr_score", "sleep_score")
 
-def assess_readiness_assessment(records, days=7):
+
+def assess_readiness_assessment(records, days=7, today=None):
     """Wellness bruto -> (ReadinessAssessment | None, ReadinessTrace).
 
     Devolve `None` quando nao ha wellness utilizavel: um atleta sem dispositivo
     de sono/HRV precisa gerar plano normalmente, entao ausencia de dado aqui
     significa "nada a dizer", nunca "prontidao ruim".
     """
-    legacy = assess_readiness(records, days=days)
-    trace_missing = ("hrv_score", "rhr_score", "sleep_score",
-                     "recent_load_score", "subjective_fatigue_score",
-                     "performance_score", "consistency_score")
+    normalized = _normalized_wellness_records(records)
+    legacy = assess_readiness(normalized, days=days)
+    trace_missing = READINESS_AXIS_NAMES
     if not legacy.has_data:
         return None, ReadinessTrace(observations=(), missing=trace_missing,
                                     signals={}, illness_alert=False,
                                     composite_low=False, stale_days=None,
                                     reference_day=None)
 
-    rows = _rows(records)
+    rows = _rows(normalized)
     obs = []
 
-    def eixo(nome, fonte, sinal):
+    def eixo(nome, fonte, sinal, presente):
+        if not presente:
+            return None
         obs.append(ReadinessObservation(
             axis=nome,
             score=FLAGGED_SCORE if sinal else HEALTHY_SCORE,
             source=fonte, flagged=bool(sinal)))
+        return obs[-1].score
 
-    eixo("hrv_score", f"hrv/hrvSDNN (< {HRV_LOW_RATIO:.2f} x media)", _low_hrv(rows, days))
-    eixo("rhr_score", f"restingHR (> media + {RHR_RISE_BPM} bpm)", _rising_rhr(rows, days))
-    eixo("sleep_score", f"sleepSecs (< {SLEEP_SHORT_HOURS}h ou < media - {SLEEP_BELOW_AVG_HOURS}h)", _short_sleep(rows, days))
+    current = rows[-1][1]
+    current_hrv = current.get("hrv")
+    if not isinstance(current_hrv, (int, float)):
+        current_hrv = current.get("hrvSDNN")
+    hrv = eixo("hrv_score", f"hrv/hrvSDNN (< {HRV_LOW_RATIO:.2f} x media)",
+               _low_hrv(rows, days),
+               isinstance(current_hrv, (int, float)))
+    rhr = eixo("rhr_score", f"restingHR (> media + {RHR_RISE_BPM} bpm)",
+               _rising_rhr(rows, days),
+               isinstance(current.get("restingHR"), (int, float)))
+    sleep = eixo("sleep_score",
+                 f"sleepSecs (< {SLEEP_SHORT_HOURS}h ou < media - {SLEEP_BELOW_AVG_HOURS}h)",
+                 _short_sleep(rows, days),
+                 isinstance(current.get("sleepSecs"), (int, float)))
 
     # `illness` e conjuncao (RHR 2+ noites E HRV caindo) e nao cabe em um eixo
     # escalar. Fica como sinal separado, avaliado por `readiness_decision`, e
@@ -395,24 +446,24 @@ def assess_readiness_assessment(records, days=7):
     # dado duas vezes e criaria um RED que o detector de doenca nunca pediu.
     legacy_comp = legacy.signals.get("readiness_low", False)
     avaliacao = ReadinessAssessment(
-        hrv_score=obs[0].score,
-        rhr_score=obs[1].score,
-        sleep_score=obs[2].score,
+        hrv_score=hrv,
+        rhr_score=rhr,
+        sleep_score=sleep,
         recent_load_score=None,
         subjective_fatigue_score=None,
         performance_score=None,
         consistency_score=None,
     )
-    missing = tuple(nome for nome in trace_missing
-                    if nome not in ("hrv_score", "rhr_score", "sleep_score"))
-    stale = _days_since_last(rows)
+    observed_axes = {observation.axis for observation in obs}
+    missing = tuple(nome for nome in trace_missing if nome not in observed_axes)
+    stale = _days_since_last(rows, today=today)
     return avaliacao, ReadinessTrace(
         observations=tuple(obs), missing=missing, signals=dict(legacy.signals),
         illness_alert=bool(legacy.illness), composite_low=bool(legacy_comp),
         stale_days=stale, reference_day=rows[-1][0] if rows else None)
 
 
-def _days_since_last(rows):
+def _days_since_last(rows, today=None):
     """Dias desde o ultimo registro, ou None se a data nao e parseavel."""
     from datetime import date
     if not rows:
@@ -421,7 +472,7 @@ def _days_since_last(rows):
         ultimo = date.fromisoformat(rows[-1][0])
     except (TypeError, ValueError):
         return None
-    return max(0, (date.today() - ultimo).days)
+    return max(0, ((today or date.today()) - ultimo).days)
 
 
 def readiness_decision(assessment, illness_alert=False, composite_low=False,

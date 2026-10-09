@@ -1,30 +1,11 @@
 # 🧬 Embasamento Científico do Algoritmo — Hermes Coach
 
-> [!important] Fonte única da verdade: o vault
-> A **tabela científica Z1–Z7** e o embasamento completo vivem no vault do
-> Obsidian, e é de lá que `ZONE_BANDS` (`src/coach.py`) deriva:
->
-> ```
-> ~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/EMBASAMENTO-CIENTIFICO.md
-> ```
->
-> Este arquivo é o **contrato algorítmico**: o que o código faz e por quê, em
-> termos de seção e fórmula. O *por quê fisiológico* (a tabela Z1–Z7 com
-> %FCmáx, %FC de limiar, RPE, sistema energético, recuperação típica, ressalvas
-> por zona e a matriz de geração `.ZWO`) está no vault.
->
-> Alterar a tabela exige alterar **os dois lados** — o teste
-> `ZoneIntegrityTest` compara `ZONE_BANDS` com os valores da tabela e falha a
-> suíte se divergirem (v0.0.30).
->
-> **Regra de dono (02/10/2026):** a **tabela científica** e as referências são
-> do vault; o **contrato algorítmico** (o que o código faz e por quê, mais os
-> limites de implementação) é deste arquivo, no repo. Para todo outro documento
-> duplicado entre os dois lados o padrão se inverte — repo canônico, vault
-> espelho — e o doc diz isso no topo. Exceção única e explícita: esta tabela
-> Z1–Z7, mantida pelos dois lados por causa do `ZoneIntegrityTest`.
+> [!info] Dono deste documento
+> Fonte canônica: `docs/EMBASAMENTO-CIENTIFICO.md` **no repo** (o mesmo arquivo
+> do vault é cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+> Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/EMBASAMENTO-CIENTIFICO.md`.
 
-**Data:** 25/09/2026 · atualizado 03/10/2026 (#60)
+**Data:** 25/09/2026 · atualizado 05/10/2026
 **Projeto:** Hermes Coach
 **Mapeamento:** Fisiologia do Exercício aplicada ao Algoritmo de Treino
 
@@ -48,7 +29,7 @@ evidência suficiente** e aponta a heterogeneidade.
 
 ## Índice
 
-1. [Princípios](#1-princípios) · 2. [FTP](#2-ftp) · 3. [Critical Power e W'](#3-critical-power-e-w) ·
+1. [Princípios](#1-princípios) · 2. [FTP](#2-ftp) · [FTP, eFTP e modelos Power-Duration](#21-ftp-eftp-e-modelos-power-duration) · 3. [Critical Power e W'](#3-critical-power-e-w) ·
 4. [Zonas](#4-zonas) · 5. [Periodização](#5-periodização) ·
 6. [Distribuição de intensidade](#6-distribuição-de-intensidade) ·
 7. [Training Load](#7-training-load) · 8. [CTL / ATL / TSB](#8-ctl--atl--tsb) ·
@@ -119,6 +100,106 @@ majoritariamente masculina treinada (PMID 34304689).
 preserva FTP e sua fonte/confiança (`FtpSource`, `FtpConfidence`) separadamente
 de CP, W′, VO2max e marcadores de FC, todos opcionais. **O motor não infere
 marcador ausente a partir de FTP.** FTP é referência operacional de potência.
+
+### 2.1 FTP, eFTP e modelos Power-Duration
+
+Esta seção distingue **INTERVALS_OFFICIAL** (fonte oficial do provider),
+**SCIENTIFIC_MODEL** (literatura científica) e **INFERENCE** (não confirmada).
+O eFTP é um estimate do provider; o FTP canônico Hermes é um valor confirmado
+explicitamente pelo usuário.
+
+#### Intervals.icu: o que é documentado
+
+**INTERVALS_OFFICIAL — alta confiança.** David, mantenedor do Intervals.icu,
+descreve o eFTP a partir de um esforço máximo: o serviço encontra a curva Morton
+3P mais próxima, com parâmetros CP, W′ e pMax, e usa a potência dessa curva em
+1 h como FTP estimado. A calibração usou milhares de curvas reais fornecidas por
+FastFitness.Tips e os primeiros 20 min de cada curva. O autor caracteriza a
+decisão como pragmática para zonas e acompanhamento, não validação fisiológica
+universal [37].
+
+**INTERVALS_OFFICIAL — alta confiança.** O eFTP contínuo é calculado atividade a
+atividade, apenas com os dados daquela atividade. Um esforço máximo longo pode
+gerar novo eFTP; se o estimate for menor que o eFTP corrente, este é mantido; o
+serviço também declara decay quando a carga de treino diminui. Coeficientes, taxa
+e função desse decay não foram publicados [38]. Isso atualiza o **eFTP do
+provider**, não confirma FTP canônico Hermes.
+
+**INTERVALS_OFFICIAL — confiança média.** Texto de interface reproduzido por
+usuário afirma modelo Morton 3P, curvas FastFitness.Tips, esforço máximo entre
+180 s e 30 min e duração mínima configurável [39]. Como não é especificação do
+mantenedor, essa faixa é evidência operacional, não regra atemporal do Hermes.
+
+Não foram encontradas especificações oficiais completas de coeficientes,
+transformações, seleção de esforços/curvas, outliers ou decay. **INFERENCE:** as
+fontes permitem descrever o workflow, mas não reproduzir a fórmula integral do
+eFTP. Também não há evidência de que o eFTP Intervals use o modelo de Riegel.
+
+| Campo/recurso Intervals | Significado conhecido | Semântica temporal conhecida | Uso Hermes |
+| --- | --- | --- | --- |
+| `activity.icu_pm_ftp` | eFTP da atividade, derivado do power model/best effort [40][41] | activity-specific; imutabilidade/effective dating não documentados | evidência `ACTIVITY_SPECIFIC_PROVIDER_DERIVED_ESTIMATE` |
+| `activity.icu_ftp` | “User captured FTP”; usado no cálculo de intensidade [40] | snapshot existe; garantia histórica não encontrada | dado provider, não histórico Hermes |
+| `icu_pm_ftp_secs`, `icu_pm_ftp_watts` | campos declarados pelo provider [42] | significado preciso não documentado nas fontes consultadas | não inferir duração/potência |
+| `icu_rolling_ftp`, `icu_rolling_ftp_delta` | campos declarados pelo provider [42] | método e tempo não documentados | não usar como referência |
+| `SportSettings.ftp`, `SportSettings.indoor_ftp` | configurações FTP por esporte [42] | settings atuais; sem effective dating documentado | configuração provider, não histórica |
+| `FTP_UP` / eFTP contínuo | provider pode elevar eFTP e avisar [38] | não documenta confirmação humana | Advice/evidência, nunca update canônico |
+
+#### Modelos científicos: CP, W′ e duração-potência
+
+**SCIENTIFIC_MODEL — alta confiança.** No modelo hiperbólico clássico de dois
+parâmetros, a potência média sustentável por duração $t$ é
+$P(t) = CP + W'/t$. CP é a assíntota do modelo potência-duração; W′ é a capacidade
+finita de trabalho acima de CP no modelo. Eles não são sinônimos automáticos de
+FTP, MLSS, IAT ou RCP [23][25].
+
+**SCIENTIFIC_MODEL — alta confiança.** O modelo Morton 3P introduz o componente
+associado à potência máxima/pMax para tratar a região de duração curta e altera as
+estimativas de CP e capacidade de trabalho frente ao modelo de dois parâmetros
+[34]. O estudo sustenta o modelo citado pelo Intervals, não revela sua implementação
+interna. Morton 3P, o modelo CP clássico/Monod--Scherrer e Riegel são modelos
+distintos; este documento não atribui Riegel ao eFTP.
+
+Seleção de esforços, faixa de durações e parametrização mudam CP e W′ estimados
+[29][30]. Assim, CP/W′ são estimates científicos úteis, mas não substituem FTP
+canônico automaticamente.
+
+#### FTP20, comparabilidade e confirmação
+
+**SCIENTIFIC_MODEL — alta confiança.** O protocolo prático FTP20 estima
+$FTP_{est} = 0{,}95 \times P_{20}$, em que $P_{20}$ é a potência média de 20 min.
+A revisão de escopo encontrou confiabilidade em parte da literatura, mas limites
+de concordância amplos entre marcadores [10]. Repetibilidade não demonstra
+equivalência fisiológica individual. FTP20, FTP60 e IAT podem ter viés médio
+pequeno, mas não são intercambiáveis no indivíduo [35]; associação forte com MLSS
+também não os torna idênticos [36]. Aquecimento e pacing alteram o resultado do
+TT20 [43].
+
+| Método | Entrada | Saída | Natureza | Cria FTP canônico automaticamente? |
+| --- | --- | --- | --- | --- |
+| FTP confirmado pelo usuário/treinador | valor explícito | `FtpReference` | fato/state Hermes | não; a confirmação é a criação |
+| teste formal ou resultado externo | protocolo e resultado | evidência para confirmação | evidência | não |
+| FTP20 x 0,95 | TT20 | estimate operacional | heurística/protocolo | não |
+| eFTP / `activity.icu_pm_ftp` | esforço + modelo provider | estimate provider | `INTERVALS_OFFICIAL` | não |
+| best20 / `ftp_scan` | stream/atividade | estimate Hermes | evidência derivada | não |
+| CP/W′ | esforços duração-potência | parâmetros estimados | modelo científico | não |
+| `DEFAULT_FTP` | constante | fallback | engenharia Hermes | não |
+
+#### Contrato Hermes
+
+**DECISÃO DE PRODUTO/ENGENHARIA HERMES.** `FTP_CANONICAL` é exclusivamente um
+valor confirmado pelo usuário. O fluxo permitido é:
+
+```text
+provider estimate, teste ou algoritmo -> FtpEvidence -> Advice/suggestion
+-> confirmação explícita do usuário -> FtpReference -> FTP canonical Hermes
+```
+
+`FtpEvidence` pode registrar watts, método, source, `observed_at`, atividade,
+provider e contexto, mas não é `FtpReference`. Resultado externo, inclusive
+Zwift, só pode tornar-se canônico após confirmação; Hermes não pressupõe seu
+método interno. Com FTP `UNKNOWN`, sugerir teste ou entrada explícita é policy de
+produto, não conclusão automática de paper. Esse contrato impede que estimate,
+best effort, CP/W′ ou `DEFAULT_FTP` reescreva a referência canônica.
 
 ## 3. Critical Power e W'
 
@@ -201,10 +282,11 @@ ativo e uso produtivo não é planejado no momento.
 
 ## 4. Zonas
 
-**MODELO COMPUTACIONAL (invariante verificável).** A tabela Z1–Z7 do documento
-canônico não é apenas documentação: `ZONE_BANDS` (`src/coach.py`) carrega pisos
-e tetos de %FTP, e `ZoneIntegrityTest` compara o dicionário com a tabela —
-divergir entre código e documento **falha a suíte**.
+**MODELO COMPUTACIONAL (invariante verificável).** As faixas por zona não são
+apenas documentação: `ZONE_BANDS` (`src/coach.py`) carrega pisos e tetos de %FTP,
+e `ZoneIntegrityTest` (`tests/test_plan.py`) fixa esses valores como regressão —
+alterar as faixas **falha a suíte**. O teste compara o dicionário contra um
+literal codificado nele próprio; ele não lê este documento nem qualquer markdown.
 
 ```python
 ZONE_BANDS = {
@@ -337,9 +419,8 @@ parecem enhancing performance, e recomendam priorizar distribuição efetiva em
 vez de volume total ou modelo específico (Cove et al., 2025; PMID 39788807,
 DOI 10.1016/j.jsams.2024.12.005).
 
-**Consequência no motor.** A tabela Z1–Z7 do vault registra a mesma conclusão para
-ciclistas treinados: 41 estudos, 797 ciclistas, sem diferença entre polarizado e
-não polarizado.
+**Consequência no motor.** A conclusão vale para ciclistas treinados: 41 estudos,
+797 ciclistas, sem diferença entre polarizado e não polarizado.
 
 ## 7. Training Load
 
@@ -382,6 +463,59 @@ calculada **apenas sobre sessões efetivamente executadas**
 (`paired_activity_id` presente) — carga prescrita e não realizada não é
 evidência de tolerância.
 
+**MODELO COMPUTACIONAL (PMC-1).** O contrato de leitura expõe também o
+**Form relativo**: `form_pct = TSB / CTL × 100`. CTL/ATL/TSB permanecem
+**observados** do provider e não são recalculados — o Hermes faz apenas a
+divisão. Devolve `None` (nunca 0) quando `CTL` está ausente, `TSB` está
+ausente ou `CTL ≤ 0`, porque a razão não é definida. `form_pct` é uma
+**representação derivada para leitura**, medida em % do form absoluto; **não é
+regra fisiológica, não é limiar de deload e não tem efeito prescritivo**.
+Interpretar o valor (ex.: advisory em `-30%`) é tarefa de policy, não do
+cálculo. Snapshot velho (`stale`) ainda produz `form_pct`: freshness informa a
+idade da fonte, não bloqueia a derivação.
+
+**HEURÍSTICA OPERACIONAL (POL-1).** O threshold default `form_pct ≤ -30%`
+produz somente o advisory configurável `high_negative_form`. É um limiar de
+sistema para chamar atenção sobre o valor relativo, **não** uma lei fisiológica,
+critério diagnóstico, prova de overtraining ou prescrição de deload. A policy
+não altera treino, não chama `REDUCE`/`REPLACE` e pode coexistir com uma
+heurística de readiness GREEN; resolver sinais discordantes é escopo de policy
+composta/advice futuro.
+
+**MODELO COMPUTACIONAL (HR-1).** CTL ramp rate é a diferença de CTL observada
+em dois dias exatos: `CTL(D) − CTL(D−7)`, expressa em **pontos de CTL por 7
+dias**. O Hermes não recalcula CTL, não interpola gaps e devolve indisponível
+quando um ponto não existe no snapshot. O advisory de ramp é opt-in e recebe
+seu limite por configuração do consumidor: não há `5–7 pontos/semana` tratado
+como limite fisiológico universal. Um delta absoluto também depende do CTL
+basal; HR-1 não o normaliza nem prescreve alteração de treino.
+
+**EVIDÊNCIA CIENTÍFICA - cardiovascular drift.** FC pode aumentar durante
+exercício prolongado pelo cardiovascular drift; hidratação, hipertermia e
+contexto do esforço são confundidores, portanto o sinal não isola aptidão
+aeróbica (Coyle, 1998, PMID 9694416; Coyle & Gonzalez-Alonso, 2001, PMID
+11337829). Isso não valida qualquer threshold de Pw:HR como fadiga, recuperação
+ou necessidade de deload.
+
+**METODOLOGIA COMPUTACIONAL (HR-2).** Hermes escolhe a familia TrainingPeaks:
+`EF = Normalized Power / FC média` em cada metade e
+`((EF_primeira - EF_segunda) / EF_primeira) * 100`. O maintainer do
+Intervals.icu publicou outra convenção, `potência média / FC média`; portanto os
+dois produtos não são numericamente equivalentes quando NP diverge da média.
+`power` e `heart_rate` são observados pelo provider; a razão e a eligibility são
+derivadas pelo Hermes. Para calcular NP sem resampling, a implementação exige
+amostras conjuntas, únicas e contíguas de um segundo, divide pelo midpoint de
+`elapsed_seconds` e rejeita gaps/duplicatas/missing. Isto é data-quality policy
+computacional conservadora, não detector fisiológico de steady aerobic effort.
+
+**LIMITE EXPLÍCITO (HR-2).** STREAM-1/2 normalizam e armazenam os sinais, mas o
+boundary não contém pausa, coasting, temperatura, grade, cadence, warm-up,
+cooldown ou classificação de esforço estável. Assim, todo valor calculado expõe
+`computable=true` e `methodological_context="unverified"`: ele é matematicamente
+válido sob a política Hermes, não automaticamente interpretável como aerobic
+decoupling. Não existe threshold, advisory, integração com readiness/form/ramp
+ou efeito prescritivo nesta fase.
+
 > **Erro corrigido (v0.0.30):** o teto era `cap diário × 7`. Como a média de
 > carga é **por dia de treino** (não por dia-calendário), isso concedia 7
 > sessões numa semana com `n` dias de treino, inflando o teto em `7/n` (≈1,4×
@@ -394,6 +528,28 @@ evidência de tolerância.
 tendência de RHR, sono, fadiga subjetiva, carga, desempenho opcional e
 consistência. `GREEN`/`YELLOW`/`RED` indicam **adequação ao treino, não
 diagnóstico**, e um sinal isolado não cancela automaticamente uma sessão.
+
+**SEPARAÇÃO DE CAMADAS (RDY-1).** `ReadinessView` expõe sem misturar: sinais
+**observados** (RHR, HRV/SDNN, sono, readiness composto e stress), PMC
+**observada** (CTL/ATL/TSB), `form_pct` **derivado** e o resultado
+**heurístico** já existente (`GREEN`/`YELLOW`/`RED`, trace e alertas). O objeto
+não produz advice, não decide `REDUCE`/`REPLACE` e não altera treino. Esses são
+atos de policy/prescrição dos fluxos existentes e de POL-1; a View não afirma
+que um threshold seja uma lei fisiológica.
+
+**SEPARAÇÃO DE CAMADAS (HR-4).** `ObservedWellnessView` vai um passo abaixo de
+`ReadinessView`: expõe, por conceito de wellness, o **valor observado** que o
+provider entrega e o contexto derivado dele (média da janela, delta, nº de
+observações, unidade e escala). Termina em observação e tendência. O Hermes
+**observa e deriva tendência de Wellness — não diagnostica recuperação**: não há
+score composto, não há corte, não há rótulo de bom/ruim e não há direção
+assumida. As unidades e escalas que não são contrato documentado ficam
+`unknown` em vez de estimada. Interpretação continua sendo policy, em
+`readiness.py`, com os limiares que já existiam. Três conceitos do workstream
+(`soreness`, `motivation`, `fatigue`) não têm chave no provider e são
+entregues como `unsupported_field`: registrar a lacuna é mais honesto que
+fabricar um campo para parecer completo. Detalhes e limitações em
+`docs/HR-4-SUBJECTIVE-WELLNESS.md`.
 
 **EVIDÊNCIA CIENTÍFICA — efeito modesto e seletivo.** Numa revisão de escopo com
 meta-análise de 8 estudos (198 participantes), treino guiado por HRV teve efeito
@@ -420,16 +576,21 @@ exatamente o que o código faz.
 
 **O que é medido.** `assess_readiness_assessment()`
 (`src/readiness.py`) é o produtor: wellness bruto do Intervals →
-`(ReadinessAssessment | None, trace)`. O Intervals expõe quatro métricas em
-`/wellness` — `restingHR`, `hrv`/`hrvSDNN`, `sleepSecs` e o `readiness` do
-próprio Intervals — e **três dos sete eixos** do modelo têm fonte real
-(`hrv_score`, `rhr_score`, `sleep_score`). Carga recente, fadiga subjetiva,
-desempenho e consistência **ficam `None`**: não têm fonte nesse endpoint.
-Cobertura máxima real: **3/7 ≈ 43%**.
+`(ReadinessAssessment | None, trace)`. O modelo tem **sete eixos**; a pipeline
+atual implementa fonte para **três** (`hrv_score`, `rhr_score`, `sleep_score`),
+`recent_load_score`, `subjective_fatigue_score`, `performance_score` e
+`consistency_score` ficam `None` até terem produtor próprio. Portanto, **3/7
+(≈43%) é capacidade máxima da implementação atual**, não cobertura diária.
+Na leitura de cada dia, a cobertura disponível é 0..3 conforme os sinais
+válidos presentes; ela é exposta separadamente de modelo e implementação.
 
-**Ausência não é neutra.** Eixo sem observação permanece `None`, nunca `0.5`.
-Preencher ausente com valor neutro rebaixaria a média de todo mundo e leria RED
-um atleta saudável. `confidence` é reportado como **cobertura** (fração de eixos
+O `readiness` composto do Intervals também é observado, mas não ocupa um eixo:
+deriva de HRV, sono e RHR e duplicaria essas entradas. Ele permanece no trace
+como `composite_low`, com o limiar legado `< 60`.
+
+**Ausência não é neutra.** Eixo sem observação permanece `None`, nunca `0.5` ou
+o score saudável `0.8`. Preencher ausente rebaixaria ou elevaria artificialmente
+a média. `confidence` é reportado como **cobertura** (fração dos sete eixos
 observados), não confiança estatística, e **não há piso de cobertura**: um sinal
 ruim de fato observado não deve ser descartado por falta de eixos vizinhos.
 
@@ -524,6 +685,43 @@ conservadora correta, e a incerteza é declarada na saída em vez de escondida.
 Isto **não** é validação fisiológica: é uma política de não agir sobre
 informação que o sistema não tem. E o fuso horário não é configurável no
 projeto — a "data local do atleta" é a data local da máquina.
+
+### 9.3 Tendências observadas de HRV e RHR (HR-3)
+
+**O que foi implementado.** `HeartRateTrendView` (`src/ui_state.py`) expõe, por
+sinal e separadamente: valor observado, baseline individual (média da janela),
+delta absoluto, delta percentual e número de observações. Um sinal isolado é
+mais informativo que uma média; a média esconde a variabilidade.
+
+**O que é ferramenta computacional, e o que não é.** Baseline e delta são
+**aritmética sobre observações do próprio atleta** — nenhuma afirmação
+fisiológica. A janela default de 7 dias é a mesma convenção já usada por
+`_rising_rhr`/`_low_hrv`, não um protocolo de coleta. **A interpretação** do
+delta — se uma queda de HRV é adaptação, estresse ou doença — continua
+inteiramente na heurística existente de §9.1, com os mesmos thresholds, e não
+foi duplicada nem reinterpretada.
+
+**Por que a média de 7 dias não vira evidência.** A literatura de treino
+guiado por HRV (§9) sustenta o uso de HRV como *uma entrada* de decisão. Isso
+não autoriza converter HRV em limiar absoluto: o mesmo valor é normal para um
+atleta e outro para outro, e depende de horário de coleta, posição corporal e
+dispositivo — nenhum dos quais o boundary expõe. Daí o baseline ser
+**individual**, e a unidade de `hrv` estar **não documentada** no projeto:
+comparar `hrv` com `hrv_sdnn` seria comparar métricas diferentes sem saber qual
+é qual.
+
+**Consequência no motor.** HR-3 é leitura pura: local, offline, sem provider,
+sem policy e sem prescrição. Dado `stale` continua produzindo valor derivado,
+com a frescor visível. Ausência nunca vira zero, e zero observado é tratado
+como leitura quebrada de sensor, não como observação.
+
+**Nota terminológica, sem conteúdo fisiológico.** `FCR` significa **frequência
+cardíaca de repouso** — é o termo PT-BR de RHR (*Resting Heart Rate*), o mesmo
+sinal com outro nome. Não é uma terceira métrica e por isso não tem campo
+próprio: expô-lo duplicaria a mesma observação. *Heart-rate recovery* (queda da
+FC pós-esforço) é outro conceito, fora deste escopo e não implementado.
+
+Detalhes em `docs/HR-3-HRV-RHR-TRENDS.md`.
 
 ## 10. Adaptation State
 
@@ -990,12 +1188,41 @@ documento foram conferidos contra o abstract.
 30. **Bull, A. J., Housh, T. J., Johnson, G. O., & Perry, S. R. (2000).** *Effect of mathematical modeling on the estimation of critical power.* Medicine & Science in Sports & Exercise, 32(2), 526–530. PMID 10694142 — <https://doi.org/10.1097/00005768-200002000-00040>
     *EVIDÊNCIA. Estimativas variam entre parametrizações/modelos de CP.*
 31. **Vinetti, G., Taboni, A., Bruseghini, P., et al. (2019).** *Experimental validation of the 3-parameter critical power model in cycling.* European Journal of Applied Physiology, 119(4), 941–949. PMID 30694386 — <https://doi.org/10.1007/s00421-019-04083-z>
-    *EVIDÊNCIA. A inclusão do componente curto e a escolha do modelo afetam parâmetros do ajuste.*
 
-### Referências que sustentam a tabela Z1–Z7
+32. **Coyle, E. F. (1998).** *Cardiovascular drift during prolonged exercise and the effects of dehydration.* International Journal of Sports Medicine, 19(Suppl 2), S121-S124. PMID 9694416 — <https://doi.org/10.1055/s-2007-971975>
 
-A tabela científica Z1–Z7 — %FCmáx, %FC de limiar, RPE por zona (VT1, MLSS,
-VT2), sistema energético, recuperação típica e a matriz de geração `.ZWO` —
-está no documento canônico do vault, junto das referências de base de
-validação de limiares (PMC5033582) e da revisão de CP/W′ e reconstituição
-(PMC7552657).
+33. **Coyle, E. F., & Gonzalez-Alonso, J. (2001).** *Cardiovascular drift during prolonged exercise: new perspectives.* Exercise and Sport Sciences Reviews, 29(2), 88-92. PMID 11337829 — <https://doi.org/10.1097/00003677-200104000-00009>
+     *EVIDÊNCIA. A inclusão do componente curto e a escolha do modelo afetam parâmetros do ajuste.*
+
+34. **Morton, R. H. (1996).** *A 3-parameter critical power model.* Ergonomics, 39(4), 611–619. PMID 8854981 — <https://doi.org/10.1080/00140139608964484>
+    *EVIDÊNCIA. Modelo CP de três parâmetros; introduz o componente associado a potência máxima para tratar a região de duração curta.*
+35. **Borszcz, F. K., Tramontin, A. F., Bossi, A. H., Carminatti, L. J., & Costa, V. P. (2018).** *Functional Threshold Power in Cyclists: Validity of the Concept and Physiological Responses.* International Journal of Sports Medicine, 39(10), 737–742. PMID 29801189 — <https://doi.org/10.1055/s-0044-101546>
+    *EVIDÊNCIA. FTP20, FTP60 e IAT não devem ser tratados como intercambiáveis no indivíduo apenas pelo pequeno viés médio.*
+36. **Borszcz, F. K., Tramontin, A. F., & Costa, V. P. (2019).** *Is the Functional Threshold Power Interchangeable With the Maximal Lactate Steady State in Trained Cyclists?* International Journal of Sports Physiology and Performance, 14(8), 1029–1035. PMID 30676826 — <https://doi.org/10.1123/ijspp.2018-0572>
+    *EVIDÊNCIA. Relação forte com MLSS em ciclistas treinados não estabelece identidade fisiológica universal.*
+37. **Intervals.icu / David. (2021).** *FTP and CP Interchangeability: Some notes.* Fórum oficial — <https://forum.intervals.icu/t/ftp-and-cp-interchangeability-some-notes/2665/2>
+    *INTERVALS_OFFICIAL. Descreve a seleção de curva Morton 3P próxima ao esforço máximo e potência da curva em 1 h como eFTP.*
+38. **Intervals.icu / David. (2020).** *Power model now complete.* Fórum oficial — <https://forum.intervals.icu/t/power-model-now-complete/1680/4>
+    *INTERVALS_OFFICIAL. eFTP contínuo por atividade, retenção quando a estimativa é menor e decay com redução de carga; fórmula de decay não publicada.*
+39. **Intervals.icu Forum / Thijs van Luijk. (2024).** *Eftp calculation formula based on effort.* <https://forum.intervals.icu/t/eftp-calculation-formula-based-on-effort/70480/2>
+    *INTERVALS_OFFICIAL, confiança média. Reprodução de texto da UI sobre FastFitness.Tips, Morton 3P, janela 180 s–30 min e duração mínima configurável; não é resposta do mantenedor.*
+40. **Intervals.icu / David. (2020).** *Download all activities in CSV format.* Fórum oficial — <https://forum.intervals.icu/t/download-all-activities-in-csv-format/599/1>
+    *INTERVALS_OFFICIAL. Glossário de `icu_ftp`, `icu_pm_ftp`, CP/W′/pMax do power model da atividade e campos calculados.*
+41. **Intervals.icu / David. (2023).** *Custom field Java help.* Fórum oficial — <https://forum.intervals.icu/t/custom-field-java-help/40283/3>
+    *INTERVALS_OFFICIAL. `activity.icu_pm_ftp` é o eFTP da atividade.*
+42. **Intervals.icu / David. (2023).** *Server side data model for scripts.* Fórum oficial — <https://forum.intervals.icu/t/server-side-data-model-for-scripts/25781/16>
+    *INTERVALS_OFFICIAL. Declara os campos de atividade e `SportSettings.ftp_est_min_secs`; não define a semântica precisa de todos os campos rolling/pm.*
+43. **Tramontin, A., Borszcz, F., & Costa, V. (2022).** *Functional Threshold Power Estimated from a 20-minute Time-trial Test is Warm-up-dependent.* International Journal of Sports Medicine. PMID 34749416 — <https://doi.org/10.1055/a-1524-2312>
+    *EVIDÊNCIA. Aquecimento e pacing afetam o TT20 e o FTP derivado.*
+
+**Lacuna conhecida (05/10/2026).** Desde a v0.0.31 este documento foi descrito —
+também no `AGENTS.md` — como contendo uma "Tabela Científica Z1–Z7" com colunas
+de %FCmáx, %FC de limiar e RPE por zona (VT1, MLSS, VT2), sistema energético,
+recuperação típica e matriz de geração `.ZWO`, e como sendo essa tabela
+canônica no vault porque um teste compararia os dois lados. **Nada disso
+corresponde ao estado real:** a tabela não existe nem aqui nem no espelho do
+vault; `ZoneIntegrityTest` (`tests/test_plan.py`) compara `src/coach.py:ZONE_BANDS`
+com um literal dentro do próprio teste e não lê nenhum markdown. O que existe é o
+bloco `ZONE_BANDS` da seção 4, com faixas de %FTP. Escrever a tabela é trabalho de
+pesquisa com escopo próprio, com PMID por zona: não deve ser inferida nem
+fabricada para satisfazer uma referência antiga.

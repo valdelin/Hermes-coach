@@ -1,5 +1,10 @@
 # Arquitetura — conceito original do Hermes (referência / direção futura)
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/ARQUITETURA.md` **no repo** (o mesmo arquivo do vault é
+> cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+> Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/hermes_coach_arquitetura_e_implementa_o.md`.
+
 > **Status: parcialmente implementado.** A seção 1 (motor Impulse-Response)
 > foi implementada em `src/impulse_response.py` (v0.0.8, CLI `model`). O
 > restante (schema de estado e system prompt de corrida) continua como
@@ -7,7 +12,7 @@
 > [README](../README.md) para o que roda hoje.
 >
 > Mantido em sincronia com o vault do Obsidian
-> (`01-Projetos/hermes-coach/hermes_coach_arquitetura_e_implementa_o.md`).
+> (`~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/hermes_coach_arquitetura_e_implementa_o.md`).
 > Fica como referência de design e direção futura (multi-esporte/corrida).
 
 ---

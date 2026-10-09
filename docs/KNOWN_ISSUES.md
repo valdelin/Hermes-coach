@@ -4,10 +4,13 @@ Lista de bugs conhecidos e pendências técnicas registradas, com rastreio no
 GitHub. Formato: cada issue tem status, impacto, mitigação atual e direção de
 solução.
 
-**Status do arquivo:** sincronizado em 02/10/2026 (v0.0.34). Os itens #3, #5 e
-#6 estavam marcados "aguardando commit/release" desde 22/09, mas foram entregues
-em v0.0.15 — status corrigido. O único item ainda **aberto** é o #1
-(fantasmas do Intervals, bug da plataforma, prioridade baixa e aceita).
+**Status do arquivo:** revisado em 07/10/2026. Os dois defeitos locais de
+`summary` — `--date` recebido como `str` e `--export` engolido em período sem
+treinos — foram **corrigidos em 07/10/2026** e ficam documentados abaixo como
+registro de correção (sintomas reais, causa e cobertura). Em 08/10/2026 a nota
+defensiva de `lang` inválida em `workout_text`/`event_payload` também foi
+**corrigida** (defesa em profundidade). Segue aberto apenas o
+item #1 (fantasmas do Intervals, bug da plataforma, prioridade baixa e aceita).
 
 Pendências de escopo que não são bug estão em `docs/ROADMAP.md` (#58 integração
 dos módulos de P0–P3 ao `build`/`push`, #59 quatro limites de implementação) e
@@ -136,6 +139,146 @@ Etapa de **limpeza de fantasmas** no fluxo `reconcile`/`push` (ou no
   Intervals, não do agente; label `priority: low`; deixa de ser o primeiro item
   da sessão de testes de 22/09 (segue como melhoria de qualidade de dados,
   podendo entrar junto da Fase 1/notificações ou quando houver folga).
+
+---
+
+## `summary --date` recebia a âncora como `str` e quebrava o cálculo da janela
+
+**Status:** **corrigido** (2026-10-07) · **Severidade:** baixa · **Escopo:** CLI local.
+
+### Sintoma
+
+`python3 src/training_plan.py summary --date YYYY-MM-DD` entregava a âncora
+como `str` para um core que espera `date`. O ponto de falha dependia do
+`--period`, e os três caminhos vêm da mesma causa:
+
+| `--period` | Exceção | Origem |
+|---|---|---|
+| `day` | `AttributeError: 'str' object has no attribute 'isoformat'` | `activity_summary.done_activities()` (`start.isoformat()`) |
+| `week`, `month`, `quarter`, `semester`, `year` | `TypeError: unsupported operand type(s) for -: 'str' and 'datetime.timedelta'` | `activity_summary.period_range()` (`anchor - timedelta`) |
+| `45d`, `6m`, `1y` (duração livre) | `TypeError` de mesmo tipo | `activity_summary.resolve_period()` (`anchor - timedelta`) |
+
+A versão anterior deste registro apontava apenas o terceiro caminho e atribuía a
+falha a `period_range()` — descrição imprecisa, corrigida aqui.
+
+### Causa
+
+`args.date` era o único parâmetro do `summary` aceito como `str` **ou** `date`:
+sem `--date`, `cmd_summary()` montava o default `date.today() - timedelta(days=1)`
+(já `date`); com `--date`, o argparse entregava a string crua. A **mistura de
+tipos** é o defeito — não o parsing em si. `--start`/`--end` não têm esse
+problema: são `str` do fim ao fim e viram `date` uma única vez, dentro de
+`resolve_period()`.
+
+### Correção (implementada)
+
+- `--date` ganhou `type=_iso_date` no parser. `_iso_date()` converte com
+  `date.fromisoformat` **na borda do argparse** e devolve
+  `argparse.ArgumentTypeError` (`use YYYY-MM-DD`) quando a entrada é inválida,
+  para o argparse reportar erro de uso com exit 2 em vez de o core estourar
+  `AttributeError`/`TypeError`. O core só vê `datetime.date`.
+- Não houve mudança de semântica de período, nem de default D-1, nem de
+  `resolve_period()`.
+
+### Cobertura de regressão
+
+`tests/test_training_plan.py` → `SummaryVazioEDateTest`: `--date` para `day`,
+`week` (âncora −6d), `month` (−29d) e `45d` (−44d); default D-1 sem `--date`;
+`--date 2026-13-99` → exit 2 com mensagem de uso. Verificado red→green por
+mutação de cada um dos dois defeitos desta issue.
+
+### Registro
+
+- 2026-10-07: sintomas reais levantados por execução da CLI (três caminhos da
+  tabela acima); correção na borda do argparse; suíte verde.
+
+---
+
+## `summary --export` não gerava arquivo num período sem treinos
+
+**Status:** **corrigido** (2026-10-07) · **Severidade:** média · **Escopo:** CLI local.
+
+### Sintoma
+
+`summary --period ... --export relatorio.html` num período com **zero**
+atividades pareadas encerrava com exit 0, **sem criar o arquivo** e **sem
+aviso algum**. Um relatório de um dia sem treino simplesmente não aparecia —
+falha silenciosa no comando cujo propósito é produzir aquele arquivo.
+
+### Causa
+
+`cmd_summary()` imprimia `Nenhum treino feito no periodo.` e executava
+`return agg` **antes** de `_summary_charts()`/`_summary_export()`. O renderer,
+em si, já trata a lista vazia: `_hero_title()` vira "Nenhum treino no periodo",
+`_stats_cards()` degrada potência/FC/elevação para "—",
+`charts.weekly_load([])` devolve `[]` e `summarize([])` não emite
+`avg_power`/`np`/`avg_hr`. Nada impedia a geração — só o retorno antecipado.
+
+### Correção (implementada)
+
+- O `return agg` cedo saiu de `cmd_summary()`: o console mantém a mesma linha
+  `Nenhum treino feito no periodo.` (comportamento humano inalterado) e
+  `_summary_export()` passa a rodar **sempre** que `--export` for pedido.
+  Gráficos do terminal no caso vazio seguem fora, como antes.
+- `render_summary_html()` ganhou estado vazio explícito em "Treinos feitos":
+  `Nenhum treino foi realizado neste período.` no lugar de `<tbody></tbody>`.
+
+### Cobertura de regressão
+
+`tests/test_training_plan.py` → `SummaryVazioEDateTest`: (1) arquivo criado em
+período vazio com a nota de estado vazio e sem `<tbody></tbody>`; (2) relatório
+vazio contendo a sessão **planejada** e a leitura de **prontidão**; (3)
+relatório vazio sem plano e sem readiness, HTML válido.
+
+### Registro
+
+- 2026-10-07: reproduzido por execução da CLI; correção + três regressões;
+  suíte verde.
+
+---
+
+## `IntegracaoCliTest::test_saida_avisa_quando_a_leitura_nao_foi_aplicada` era date-fragile
+
+**Backlog:** `TEST-1` (P3) · **Status:** **corrigido** (2026-10-05) — dívida de
+teste, nunca bug de produção · **Severidade:** nenhuma em produção — o código
+estava correto
+
+### Sintoma
+
+O teste criava registros de wellness de ontem até **amanhã** e esperava que o
+CLI rejeitasse a leitura ("leitura de ontem, nada é adaptado"). Na prática a
+decisão aplicava-se ao primeiro dia do plano (amanhã) e a saída saía
+`efeito: aplicada em <amanhã>`, quebrando a asserção.
+
+### Causa
+
+Premissa do fixture contradita pelos próprios dados: com wellness até D+1, o
+`reference_day` da avaliação (`ReadinessTrace.reference_day` = último registro)
+era D+1, que coincide com o primeiro dia do plano. Não era regressão — o teste
+já falhava no commit `931fe16`, antes de UI-1.
+
+### Correção (implementada)
+
+Somente o fixture do teste: a janela de wellness agora **termina em D-1**
+(`ontem - timedelta(days=2 - i)`, três registros para a avaliação ter janela),
+casando a premissa com os dados. `_readiness_applies_on` e
+`_readiness_situacao` já tratavam o caso corretamente — `dia_alvo_fora_do_plano`
+produz `nao aplicada — leitura e de um dia fora do plano; nao foi transferida
+para outra sessao`, exatamente o que o teste afirma. Nenhum arquivo de `src/`
+mudou: sem seam novo, sem `--today`, sem clock abstrato, sem alteração de
+thresholds, ação, policy ou saída de CLI.
+
+A correção é estrutural, não dependente do dia: D-1 nunca pertence ao plano,
+que começa em D+1 com a sessão de hoje preservada verbatim. Verificado freezing
+`date.today()` em 75 dias consecutivos (cobre virada de mês, fim de semana e
+segunda-feira como D+1): `nao aplicada` e `nao foi transferida` presentes,
+`aplicada em` ausente em todos.
+
+### Registro
+
+- 2026-10-04 — registrado durante PMC-1; falha pré-existente mantida
+  deliberadamente (não corrigida incidentalmente).
+- 2026-10-05 — TEST-1 corrigido (fixture), suíte verde.
 
 ---
 
@@ -321,12 +464,24 @@ python3 src/training_plan.py ftp-scan [--days 45]
 
 ## Nota defensiva: `workout_text`/`event_payload` com `lang` inválida
 
-**Status:** nota (sem issue própria) · **Severidade:** defensiva — **não
+**Status:** **corrigido** (2026-10-08) · **Severidade:** defensiva — **não
 alcançável pela CLI** · **Encontrado em:** 2026-09-22 (S7)
 
-`event_payload(..., lang="zz")`/`workout_text(..., lang="zz")` levanta
-`KeyError: 'zz'` em `FOCUS_ZONE_HINT[focus][lang]`. Na CLI isso não acontece:
+`event_payload(..., lang="zz")`/`workout_text(..., lang="zz")` levantava
+`KeyError: 'zz'` em `FOCUS_ZONE_HINT[focus][lang]`. Na CLI isso não acontecia:
 `cmd_push` usa `get_cue_lang()`, que normaliza para `pt` com aviso. Risco
-apenas se um futuro código chamar as funções de texto com `CUE_LANG` cru.
-Direção: normalizar dentro de `workout_text` (defesa em profundidade) quando
-houver revisão do módulo.
+apenas se um futuro código chamasse as funções de texto com `CUE_LANG` cru.
+
+### Correção (implementada)
+
+Defesa em profundidade dentro de `src/plan.py`: `_normalize_lang()` devolve
+`lang` quando ela pertence a `CUE_LANGS`, senão `"pt"`; `event_payload` e
+`workout_text` normalizam **na entrada** (antes do branch `hr_mode`) — nenhum
+chamador externo consegue mais acertar `FOCUS_ZONE_HINT`/`FOCUS_HR_HINT` com
+idioma fora da lista. Comportamento da CLI inalterado.
+
+### Cobertura de regressão
+
+`tests/test_plan.py` → `WorkoutTextLangDefenseTest`: `lang="zz"` na descrição
+POWER (cai para `pt`), no modo FC (`hr_mode` + `fthr`) e `lang="en"` continua
+sendo usada.

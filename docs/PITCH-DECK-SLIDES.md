@@ -1,5 +1,11 @@
 # Hermes Coach
 
+> [!info] Dono deste documento
+> Fonte canônica: `docs/PITCH-DECK-SLIDES.md` **no repo** (o mesmo arquivo do vault
+> é cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
+> Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/PITCH-DECK-SLIDES.md`.
+> Deck de apoio a `docs/PITCH-DECK.md`, que tem bloco de dono próprio.
+
 O treinador automático de ciclismo indoor
 
 Plano adaptativo que decide por você, agenda no seu calendário e se ajusta sozinho após cada treino — integrado ao ecossistema que você já usa (Zwift, Garmin, Wahoo).

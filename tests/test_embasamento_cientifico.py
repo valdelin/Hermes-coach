@@ -167,11 +167,37 @@ class EmbasamentoCientificoTest(unittest.TestCase):
             self.assertIn(pmid, self.doc,
                           f"URL de PMID {pmid} sem PMID correspondente na lista")
 
-    def test_vault_e_declarado_como_fonte_da_tabela_z1_z7(self):
-        # Sem isso, nao ha como saber onde a tabela canonica vive.
-        self.assertIn("Fonte única da verdade: o vault", self.doc)
-        self.assertIn("EMBASAMENTO-CIENTIFICO.md", self.doc)
-        self.assertIn("Z1–Z7", self.doc)
+    def test_documento_declara_repo_como_fonte_canonica(self):
+        # O documento e repo-owned e o espelho no vault e leitura. A exececao
+        # Z1-Z7 que o AGENTS.md descrevia foi removida em 05/10/2026: nao ha
+        # tabela cientifica Z1-Z7 em nenhum dos dois lados, e ZoneIntegrityTest
+        # compara src/coach.py:ZONE_BANDS com um literal no proprio teste, sem
+        # ler markdown. Este guard impede a regra inventada de voltar.
+        for expected in ("Dono deste documento", "Fonte canônica",
+                         "docs/EMBASAMENTO-CIENTIFICO.md", "repo vence",
+                         "Espelho:"):
+            self.assertIn(expected, self.doc, f"ownership ausente: {expected}")
+
+        for forbidden in ("Fonte única da verdade: o vault",
+                          "tabela científica vive no vault"):
+            self.assertNotIn(forbidden, self.doc,
+                             f"ownership reverted: {forbidden}")
+
+    def test_zonas_declaram_o_contract_da_implementacao(self):
+        # As faixas por zona vem de src/coach.py:ZONE_BANDS, e ZoneIntegrityTest
+        # fixa esses valores como regressao. Isso descreve a implementacao, nao
+        # uma fonte cientifica canonica: o codigo implementa os valores, ele nao
+        # substitui evidencia cientifica.
+        block = self.doc.partition("## 4. Zonas")[2].partition("## 5.")[0]
+        self.assertIn("src/coach.py", block)
+        self.assertIn("ZONE_BANDS", block)
+        self.assertIn("tests/test_plan.py", block)
+
+    def test_tabela_cientifica_z1_z7_ausente_e_declarada_como_lacuna(self):
+        # O documento nao promete uma tabela Z1-Z7 que nao existe. Se algum dia
+        # ela for escrita, com PMID por zona, este teste deve mudar junto.
+        self.assertIn("Lacuna conhecida", self.doc)
+        self.assertNotRegex(self.doc, r"^\|\s*Z[1-7]\s*\|.*%FC")
 
     def test_bibliografia_preserva_referencias_do_prompt(self):
         refs = self.doc.partition("## 15. Referências")[2]

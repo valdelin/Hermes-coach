@@ -15,8 +15,13 @@ class IntervalsApiError(requests.exceptions.RequestException):
     """Falha de comunicacao com o Intervals.icu apos tentativas de retry.
 
     Mensagem amigavel para o usuario (rede instavel, servico fora, credenciais
-    invalidas) em vez de traceback cru de `requests`.
+    invalidas) em vez de traceback cru de `requests`. `status` guarda o HTTP
+    status quando houver, para o adapter mapear o erro sem inspecionar texto.
     """
+
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
 
 
 class IntervalsClient:
@@ -53,7 +58,8 @@ class IntervalsClient:
                 raise IntervalsApiError(
                     "nao foi possivel falar com o Intervals.icu apos "
                     f"{RETRIES} tentativas ({'; '.join(attempts)}). "
-                    "Verifique a conexao e tente de novo."
+                    "Verifique a conexao e tente de novo.",
+                    status=None,
                 ) from exc
 
             if resp.status_code in RETRY_STATUS:
@@ -64,14 +70,16 @@ class IntervalsClient:
                 raise IntervalsApiError(
                     "o Intervals.icu respondeu "
                     f"HTTP {resp.status_code} apos {RETRIES} tentativas. "
-                    "O servico pode estar instavel; tente de novo mais tarde."
+                    "O servico pode estar instavel; tente de novo mais tarde.",
+                    status=resp.status_code,
                 )
 
             if resp.status_code in (401, 403):
                 raise IntervalsApiError(
                     "credenciais invalidas (HTTP "
                     f"{resp.status_code}) — confira INTERVALS_API_KEY "
-                    "e INTERVALS_ATHLETE_ID no .env"
+                    "e INTERVALS_ATHLETE_ID no .env",
+                    status=resp.status_code,
                 )
 
             resp.raise_for_status()

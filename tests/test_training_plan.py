@@ -1,6 +1,8 @@
 import contextlib
 import io
+import json
 import os
+import re
 import tempfile
 import types
 import unittest
@@ -247,7 +249,7 @@ def _scan_fixture():
     save_plan([], str(path), goal="ftp-builder", race_date=None,
               ftp_test_date=None)
     orig = (tp.PLAN_FILE, tp.ENV_FILE, tp.PROJECT_ROOT,
-            tp.get_client, tp.get_ftp)
+            tp.get_client, tp.get_ftp, tp.build_plan)
     tp.PLAN_FILE = path
     tp.ENV_FILE = env
     tp.PROJECT_ROOT = root
@@ -256,7 +258,7 @@ def _scan_fixture():
 
 def _restore_scan(orig):
     (tp.PLAN_FILE, tp.ENV_FILE, tp.PROJECT_ROOT,
-     tp.get_client, tp.get_ftp) = orig
+     tp.get_client, tp.get_ftp, tp.build_plan) = orig
 
 
 class ScanFtpTest(unittest.TestCase):
@@ -304,6 +306,23 @@ class ScanFtpTest(unittest.TestCase):
             self.assertFalse((root / ".env.bak").exists())
             rec = load_plan_meta(str(path))["ftp_candidates"]["i1"]
             self.assertFalse(rec["applied"])
+        finally:
+            tmp.cleanup()
+
+    def test_scan_registra_evidencia_no_ftp_evidence(self):
+        """FTP-H2: candidato validado vira evidencia local (nunca referencia)."""
+        import json as _json
+        tmp, fake, root, env, path = self._run("n")
+        try:
+            evidence_path = Path(tmp.name) / "ftp_evidence.json"
+            self.assertTrue(evidence_path.exists())
+            data = _json.loads(evidence_path.read_text())
+            rec = next(e for e in data["evidence"] if e["id"] == "scan-i1")
+            self.assertEqual(rec["value_watts"], 190)  # 20min 200W x 0.95
+            self.assertEqual(rec["source"], "ftp_scan")
+            self.assertTrue(rec["proposes_new"])
+            self.assertTrue(rec["quality_ok"])
+            self.assertEqual(rec["activity_id"], "i1")
         finally:
             tmp.cleanup()
 
@@ -465,6 +484,28 @@ class NoPowerModeTest(unittest.TestCase):
             workouts = load_plan(str(path))
             self.assertTrue(all(w.get("hr_mode") for w in workouts),
                             "workouts devem carregar hr_mode")
+            self.assertEqual(meta["goal"], "ftp-builder")
+        finally:
+            self._restore(orig)
+            tmp.cleanup()
+
+    def test_build_imprime_fase_advisory(self):
+        tmp, root, env, path, orig = self._fixture_with_fthr("182")
+        try:
+            tp.get_client = lambda: _FakeClient()
+            tp.get_ftp = lambda: 182
+            tp.get_goal = lambda: "ftp-builder"
+            tp.get_race_date = lambda: None
+            tp.get_weekly_hours = lambda: None
+            tp.get_long_day = lambda: None
+            tp.get_ftp_test_date = lambda: None
+            args = types.SimpleNamespace(days=60, days_plan=14, ftp_test=None,
+                                         no_power=False)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                tp.cmd_build(args)
+            self.assertIn("Fase do plano: build", out.getvalue())
+            meta = load_plan_meta(str(path))
             self.assertEqual(meta["goal"], "ftp-builder")
         finally:
             self._restore(orig)
@@ -632,6 +673,310 @@ class SummaryCliTest(unittest.TestCase):
                 self.assertIn("58 TSS", html)
         finally:
             tp.get_client = orig_client
+
+    def test_summary_export_usa_mesma_sessao_canonica_para_metadados_e_perfil(self):
+        class _Readiness:
+            def to_dict(self):
+                return {"available": True, "reference_day": "2026-10-06",
+                        "heuristic_level": "GREEN", "heuristic_score": .8,
+                        "heuristic_confidence": .43}
+
+        class _App:
+            def load_plan(self):
+                return [{
+                    "day": "2026-10-06", "focus": "zone2",
+                    "planned_duration": 3840,
+                    "name": "2026-10-06 - Treino de Zona 2",
+                    "tss": 51.0, "intensity_factor": .69, "ftp_watts": 183,
+                    "params": {
+                        "warmup_sec": 600, "warmup_power_low": .55,
+                        "warmup_power_high": .75, "repeats": 2,
+                        "on_sec": 1140, "on_power": .75,
+                        "off_sec": 180, "off_power": .55,
+                        "cooldown_sec": 600, "cooldown_power_low": .70,
+                        "cooldown_power_high": .45,
+                    },
+                }]
+
+            def get_readiness_view(self, *, today):
+                self.readiness_day = today
+                return _Readiness()
+
+        rows = [{"name": "Atividade concluída diferente", "day": "2026-10-05",
+                 "type": "VirtualRide", "time_s": 3600, "distance_m": 0,
+                 "elevation_m": 0, "load": 99.0, "avg_power": None,
+                 "np": None, "avg_hr": None}]
+        agg = tp.activity_summary.summarize(rows)
+        app = _App()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "resumo.html")
+            args = types.SimpleNamespace(export=path, theme=None, period="2m")
+            tp._summary_export(
+                app, _SummaryClient(many_loads=True), args,
+                date(2026, 8, 7), date(2026, 10, 5), rows, agg,
+                today=date(2026, 10, 6))
+            with open(path, encoding="utf-8") as f:
+                html = f.read()
+        self.assertEqual(app.readiness_day, date(2026, 10, 6))
+        self.assertIn("Treino de Zona 2", html)
+        self.assertIn("1h04", html)
+        self.assertIn("51 TSS", html)
+        self.assertIn('class="planned-profile"', html)
+        self.assertIn('&quot;planned_tss&quot;:51.0', html)
+        self.assertNotIn('&quot;planned_tss&quot;:99.0', html)
+
+
+class SummaryVazioEDateTest(unittest.TestCase):
+    """Duas regressoes do resumo (Prompt 40).
+
+    1) Periodo sem treinos FEITOS nao podia engolir `--export`: o early
+       return em `cmd_summary` abortava antes de `_summary_export` e o
+       arquivo nunca era criado (exit 0, sem aviso).
+    2) `--date` aceitava str (explícito) E date (default): a mistura de
+       tipos levava `period_range`/`resolve_period` a TypeError e
+       `done_activities` a AttributeError.
+    """
+
+    def _run_cmd_summary(self, args, *, app=None):
+        patches = [
+            mock.patch.object(tp, "get_client", return_value=_FakeClient()),
+            (mock.patch.object(tp, "_make_app", return_value=app)
+             if app is not None else mock.patch.object(
+                 tp, "PLAN_FILE", Path(tempfile.mkdtemp()) / "plan.json")),
+        ]
+        buf = io.StringIO()
+        with patches[0], patches[1]:
+            with contextlib.redirect_stdout(buf):
+                tp.cmd_summary(args)
+        return buf.getvalue()
+
+    def _main_summary(self, *extra):
+        with mock.patch.object(tp, "get_client", return_value=_FakeClient()), \
+             mock.patch.object(tp, "PLAN_FILE",
+                               Path(tempfile.mkdtemp()) / "plan.json"):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                tp.main(["summary", *extra])
+        return buf.getvalue()
+
+    # -- 1. periodo vazio + export ------------------------------------
+    def test_cmd_summary_export_com_periodo_vazio_gera_o_arquivo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "vazio.html")
+            out = self._run_cmd_summary(types.SimpleNamespace(
+                period="day", date=date(2026, 10, 7), chart="none",
+                export=path, start=None, end=None))
+            self.assertIn("=== RESUMO DO DIA (2026-10-07 a 2026-10-07)", out)
+            self.assertIn("Nenhum treino feito no periodo.", out)
+            self.assertIn(f"Exportado: {path}", out)
+            self.assertTrue(os.path.exists(path))
+            with open(path, encoding="utf-8") as f:
+                html = f.read()
+        self.assertIn("<!doctype html>", html)
+        self.assertIn("Nenhum treino foi realizado neste período.", html)
+        # o hero nao tem mais KPI/status (PROMPT 37 §7): o RESUMO continua
+        # existindo no relatorio de periodo vazio.
+        self.assertIn('data-report-section="summary"', html)
+        self.assertIn('data-report-group="resumo"', html)
+        self.assertNotIn("<tbody></tbody>", html)
+
+    def test_cmd_summary_export_vazio_renderiza_treino_planejado_e_prontidao(self):
+        class _Readiness:
+            def to_dict(self):
+                return {
+                    "target_day": date.today().isoformat(),
+                    "model_axis_count": 7, "implemented_axis_count": 3,
+                    "available_axis_count": 2, "heuristic_level": "GREEN",
+                    "heuristic_score": .8, "axis_states": [
+                        {"axis": "sleep", "label": "Sono",
+                         "available": True, "implemented": True},
+                        {"axis": "hrv", "label": "HRV",
+                         "available": True, "implemented": True},
+                    ],
+                }
+
+        class _App:
+            def client(self):
+                return _FakeClient()
+
+            def load_plan(self):
+                return [{
+                    "day": date.today().isoformat(), "focus": "zone2",
+                    "planned_duration": 3840,
+                    "name": "2026-10-07 - Treino de Zona 2",
+                    "tss": 51.0, "intensity_factor": .69, "ftp_watts": 183,
+                    "params": {
+                        "warmup_sec": 600, "warmup_power_low": .55,
+                        "warmup_power_high": .75, "repeats": 2,
+                        "on_sec": 1140, "on_power": .75,
+                        "off_sec": 180, "off_power": .55,
+                        "cooldown_sec": 600, "cooldown_power_low": .70,
+                        "cooldown_power_high": .45,
+                    },
+                }]
+
+            def get_readiness_view(self, *, today):
+                return _Readiness()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "vazio.html")
+            out = self._run_cmd_summary(
+                types.SimpleNamespace(period="day", date=date(2026, 10, 7),
+                                      chart="none", export=path,
+                                      start=None, end=None),
+                app=_App())
+            self.assertIn(f"Exportado: {path}", out)
+            with open(path, encoding="utf-8") as f:
+                html = f.read()
+        self.assertIn("Nenhum treino foi realizado neste período.", html)
+        self.assertIn("Treino de Zona 2", html)
+        self.assertIn('class="planned-profile"', html)
+        self.assertIn("Leitura parcial", html)
+        self.assertIn("0,80", html)
+
+    def test_summary_export_periodo_vazio_sem_plano_nem_prontidao_e_valido(self):
+        class _App:
+            def load_plan(self):
+                return []
+
+            def get_readiness_view(self, *, today):
+                return None
+
+        rows = []
+        agg = tp.activity_summary.summarize(rows)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "vazio.html")
+            args = types.SimpleNamespace(export=path, theme=None, period="day")
+            with contextlib.redirect_stdout(io.StringIO()):
+                tp._summary_export(
+                    _App(), _FakeClient(), args,
+                    date(2026, 10, 7), date(2026, 10, 7), rows, agg,
+                    today=date(2026, 10, 7))
+            with open(path, encoding="utf-8") as f:
+                html = f.read()
+        self.assertIn("<!doctype html>", html)
+        self.assertIn("Nenhum treino foi realizado neste período.", html)
+        self.assertIn("Sem dados suficientes", html)
+        self.assertNotIn("<tbody></tbody>", html)
+
+    # -- 1b. forma canonica do relatorio (PROMPT 37) -------------------
+    def test_export_vazio_preserva_ordem_canonica_e_titulo_de_periodo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "vazio.html")
+            self._run_cmd_summary(types.SimpleNamespace(
+                period="day", date=date(2026, 10, 7), chart="none",
+                export=path, start=None, end=None))
+            with open(path, encoding="utf-8") as f:
+                html = f.read()
+        order = ["summary", "readiness", "planned-workout", "pmc",
+                 "weekly-load", "vo2", "ftp", "adherence", "activities"]
+        self.assertEqual(re.findall(r'data-report-section="([^"]+)"', html),
+                         order)
+        self.assertEqual(re.findall(r'data-report-group="([^"]+)"', html),
+                         ["resumo", "hoje", "evolucao", "plano", "detalhes"])
+        self.assertIn("Resumo do dia", html)
+        self.assertIn("07 out 2026", html)
+        self.assertIn("<b>—</b><small>CUMPRIMENTO</small>", html)
+        self.assertIn("Ainda não há sessões concluídas ou perdidas neste "
+                      "período.", html)
+
+    # -- 2. `--date` vira `date` na borda do argparse ------------------
+    def test_main_summary_periodo_day_usa_date_canonico(self):
+        out = self._main_summary("--period", "day", "--date", "2026-10-07")
+        self.assertIn("(2026-10-07 a 2026-10-07)", out)
+
+    def test_main_summary_periodo_week_ancora_7_dias(self):
+        out = self._main_summary("--period", "week", "--date", "2026-10-07")
+        self.assertIn("(2026-10-01 a 2026-10-07)", out)
+
+    def test_main_summary_periodo_month_ancora_30_dias(self):
+        out = self._main_summary("--period", "month", "--date", "2026-10-07")
+        self.assertIn("(2026-09-08 a 2026-10-07)", out)
+
+    def test_main_summary_duracao_livre_45d_ancora_no_dia_pedido(self):
+        out = self._main_summary("--period", "45d", "--date", "2026-10-07")
+        self.assertIn("(2026-08-24 a 2026-10-07)", out)
+
+    def test_main_summary_sem_date_ancora_em_ontem(self):
+        out = self._main_summary("--period", "day")
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        self.assertIn(f"({ontem} a {ontem})", out)
+
+    def test_main_summary_date_invalido_sai_com_erro_de_uso(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                tp.main(["summary", "--date", "2026-13-99"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("YYYY-MM-DD", err.getvalue())
+
+
+class ReportIndicatorsTest(unittest.TestCase):
+    """Fontes dos indicadores do relatório (PROMPT 37, seções 29–40).
+
+    Regras: VO₂ sem fonte real -> `None`; FTP atual só da configuração real
+    (`DEFAULT_FTP` nunca vira medição); série só de `ftp_candidates` com
+    `applied=True`; `ftp_watts` das sessões NÃO é histórico fisiológico.
+    """
+
+    def _indicators(self, plan, *, env_ftp=None, end=date(2026, 10, 7)):
+        plan_path = Path(tempfile.mkdtemp()) / "plan.json"
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        with mock.patch.object(tp, "load_env"), \
+             mock.patch.object(tp, "PLAN_FILE", plan_path), \
+             mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("FTP", None)
+            if env_ftp is not None:
+                os.environ["FTP"] = env_ftp
+            return tp._ftp_indicators(end=end)
+
+    def test_vo2_indicators_e_none_por_faltar_fonte_real(self):
+        self.assertIsNone(tp._vo2_indicators())
+
+    def test_ftp_atual_vem_da_configuracao_real(self):
+        ind = self._indicators({"workouts": []}, env_ftp="182")
+        self.assertEqual(ind["value"], 182)
+        self.assertEqual(ind["source"], ".env FTP")
+        self.assertEqual(ind["unit"], "W")
+
+    def test_sem_configuracao_nao_usa_default_ftp(self):
+        ind = self._indicators({"workouts": [], "ftp_candidates": {}})
+        self.assertIsNone(ind["value"])
+        self.assertIsNone(ind["source"])
+        self.assertEqual(ind["series"], [])
+
+    def test_serie_usa_somente_candidatos_aplicados_e_datados(self):
+        plan = {"workouts": [], "ftp_candidates": {
+            "a-old": {"day": "2026-05-01", "proposed_ftp": 180,
+                      "applied": True},
+            "a-new": {"day": "2026-06-01", "proposed_ftp": 184,
+                      "applied": True},
+            "a-pending": {"day": "2026-07-01", "proposed_ftp": 190,
+                          "applied": False},
+            "a-undated": {"proposed_ftp": 195, "applied": True},
+        }}
+        ind = self._indicators(plan, env_ftp="182")
+        self.assertEqual(ind["series"],
+                         [("2026-05-01", 180), ("2026-06-01", 184)])
+        # o valor do .env nao tem dia de medicao registrada
+        self.assertIsNone(ind["date"])
+
+    def test_ftp_watts_do_workout_nao_vira_serie_fisiologica(self):
+        plan = {"workouts": [{"day": "2026-09-01", "ftp_watts": 200}],
+                "ftp_candidates": {}}
+        ind = self._indicators(plan, env_ftp="182")
+        self.assertEqual(ind["series"], [])
+        self.assertEqual(ind["value"], 182)
+
+    def test_serie_e_recortada_para_12_meses(self):
+        plan = {"workouts": [], "ftp_candidates": {
+            "old": {"day": "2024-01-10", "proposed_ftp": 170,
+                    "applied": True},
+            "recent": {"day": "2026-03-10", "proposed_ftp": 184,
+                       "applied": True},
+        }}
+        ind = self._indicators(plan, env_ftp="182", end=date(2026, 10, 7))
+        self.assertEqual(ind["series"], [("2026-03-10", 184)])
 
 
 class RecoveryCliTest(unittest.TestCase):
@@ -858,6 +1203,27 @@ class CmdModelTest(unittest.TestCase):
             tp.cmd_model(types.SimpleNamespace(days=60))
         text = out.getvalue()
         self.assertIn("aviso: sem metricas validas", text)
+
+
+class SummaryPlanStatusTest(unittest.TestCase):
+    def test_projeta_consistencia_por_lifecycle_sem_inferir_da_descricao(self):
+        class _View:
+            def to_dict(self):
+                return {"workouts": [
+                    {"day": "2026-10-05", "lifecycle_effective": "completed"},
+                    {"day": "2026-10-06", "lifecycle_effective": "missed"},
+                    {"day": "2026-10-07", "lifecycle_effective": "planned"},
+                ]}
+
+        class _App:
+            def plan_view(self, *, today):
+                return _View()
+
+        status = tp._report_plan_status(_App(), date(2026, 10, 6))
+        self.assertEqual(status["summary"], {"done": 1, "missed": 1,
+                                              "pending": 1})
+        self.assertEqual(status["today"]["lifecycle_effective"], "missed")
+        self.assertAlmostEqual(status["weeks"][0]["pct"], 50.0)
 
 
 if __name__ == "__main__":

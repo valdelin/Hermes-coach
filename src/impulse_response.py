@@ -19,6 +19,11 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+try:
+    from provider_fields import field as _field
+except ImportError:  # execucao como pacote (src.impulse_response)
+    from .provider_fields import field as _field  # type: ignore
+
 
 @dataclass(frozen=True)
 class TrainingLoadComponents:
@@ -125,7 +130,7 @@ def daily_load_by_date(events, window_days: int = 60, today=None) -> dict:
     by_day = {}
     for item in events:
         day = _day(item)
-        load = _num(item.get("tss") or item.get("icu_training_load"))
+        load = _num(_field(item, "tss") or _field(item, "training_load"))
         if not day or not load or load <= 0:
             continue
         day = date.fromisoformat(str(day)[:10])
@@ -270,8 +275,7 @@ def forecast_pmc(events, plan, initial_ctl: float = None,
 
 
 def _day(item):
-    return item.get("start_date_local") or item.get("start_time_local") \
-        or item.get("day")
+    return _field(item, "start_date") or _field(item, "day")
 
 
 def _num(value):
