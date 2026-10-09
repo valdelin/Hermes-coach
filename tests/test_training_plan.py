@@ -125,6 +125,28 @@ class ReconcileMetaTest(unittest.TestCase):
                                "ftp_test_date": None, "ftp_candidates": {},
                                "absorbed_ids": []})
 
+    def test_reconcile_show_nao_persiste_plan_json(self):
+        """`--show` e consultivo, inclusive quando reconciliation mudaria o plano."""
+        plan = build_plan([], 0, ftp=182, days=2, goal="ftp-builder",
+                          start=date(2026, 9, 14))
+        with tempfile.TemporaryDirectory() as t:
+            path = Path(t) / "plan.json"
+            save_plan(plan, str(path), goal="ftp-builder", race_date=None,
+                      ftp_test_date="2026-10-22")
+            before = path.read_bytes()
+            orig_plan_file, orig_client, orig_reconcile = (
+                tp.PLAN_FILE, tp.get_client, tp.reconcile)
+            try:
+                tp.PLAN_FILE = path
+                tp.get_client = lambda: _FakeClient()
+                tp.reconcile = _NoopReconcile()
+                tp.cmd_reconcile(types.SimpleNamespace(days=7, show=True))
+            finally:
+                tp.PLAN_FILE, tp.get_client, tp.reconcile = (
+                    orig_plan_file, orig_client, orig_reconcile)
+
+            self.assertEqual(path.read_bytes(), before)
+
     def test_reconcile_nao_reabsorve_falta_apos_salvar_e_recarregar(self):
         """#40: execucoes independentes nao podem compensar a mesma falta duas vezes."""
         fixed_today = date(2026, 10, 1)

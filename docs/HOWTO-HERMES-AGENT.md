@@ -97,10 +97,11 @@ encerra de forma limpa.
 | `model` | PMC (Banister) + zonas Friel + projeção | não |
 | `adherence` | Cumprimento semanal do plano | não |
 | `ftp-check` | Indica se é hora de (re)fazer teste de FTP | não |
-| `ftp-scan` | Examina treinos fora do plano e propõe FTP | não |
+| `ftp-scan` | Registra evidência FTP-H2; pode aplicar FTP com segundo prompt | **externo** |
 | `periodization` | Modelos de periodização | não |
-| `summary` | Resumo dos treinos por período | não |
-| `reconcile` | Plano x treinos feitos (`--show`) | não |
+| `summary` | Resumo dos treinos por período (`--export` grava arquivo) | depende |
+| `reconcile --show` | Plano x treinos feitos sem persistir | não |
+| `reconcile` | Plano x treinos feitos e grava ajustes locais | **local** |
 | `recovery` | Retorno à forma: estimativa + rampa | não |
 | `today` | Prontidão de hoje (dry-run) + reconcile | não |
 | `today --apply` | Grava a prontidão de hoje em `plan.json` | **sim** |
@@ -113,7 +114,7 @@ encerra de forma limpa.
 | `vault-check` | `sync_vault_docs.py --check` | não |
 | `vault-sync DOC` | Atualiza espelhos do vault | **sim** |
 | `tests [TARGET]` | Suíte de testes (focada ou completa) | não |
-| `raw ...` | Encaminha argumentos direto ao CLI | depende |
+| `raw ...` | Encaminha argumentos direto ao CLI, com gate pelo efeito | depende |
 
 ## 7. Exemplos
 
@@ -153,7 +154,10 @@ Respostas aceitas para **sim**: `y`, `yes`, `s`, `sim`. **Qualquer outra
 resposta ou apenas Enter cancela** (default = NÃO).
 
 São mutáveis: `today --apply`, `check --apply`, `build` (sem `--dry-run`),
-`all` (sem `--dry-run`), `push` (sem `--dry-run`), `daily`, `vault-sync`.
+`reconcile` (sem `--show`), `ftp-scan` (registra evidência), `summary --export`,
+`all` (sem `--dry-run`), `push` (sem `--dry-run`), `daily`, `vault-sync` e
+`raw` cujo subcomando tenha efeito persistente. `ftp-confirm` é uma alteração de
+referência fisiológica e mantém sua confirmação explícita no CLI.
 
 ## 9. Uso com `--yes`
 
@@ -176,7 +180,9 @@ python3 scripts/hermes_agent.py raw ftp-check --days 90 --weeks 6
 ```
 
 Ele apenas encaminha o restante para `src/training_plan.py` — **não executa
-comando shell arbitrário**.
+comando shell arbitrário**. Antes do despacho, reaplica a classificação de
+efeitos do orquestrador; comando desconhecido é tratado conservadoramente como
+escrita local e exige confirmação.
 
 ## 11. Testes
 

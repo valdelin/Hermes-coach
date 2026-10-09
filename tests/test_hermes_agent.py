@@ -35,8 +35,9 @@ def patch_run(returncode=0):
         return_value=subprocess.CompletedProcess(args=[], returncode=returncode))
 
 
-def patch_input(return_value="s"):
-    return mock.patch("builtins.input", return_value=return_value)
+def patch_input(return_value="s", side_effect=None):
+    return mock.patch("builtins.input", return_value=return_value,
+                      side_effect=side_effect)
 
 
 class BuildCommandsTest(unittest.TestCase):
@@ -75,8 +76,6 @@ class BuildCommandsTest(unittest.TestCase):
              run_cmd("adherence", "--days", "45")),
             (agent.cmd_ftp_check, agent._ns(days=120, weeks=8),
              run_cmd("ftp-check", "--days", "120", "--weeks", "8")),
-            (agent.cmd_ftp_scan, agent._ns(days=45),
-             run_cmd("ftp-scan", "--days", "45")),
         ]
         for func, args, expected in cases:
             with self.subTest(func=func.__name__):
@@ -105,7 +104,7 @@ class BuildCommandsTest(unittest.TestCase):
 
 
 class RawTest(unittest.TestCase):
-    """§36.2 — raw passthrough direto ao CLI."""
+    """`raw` reaplica o gate de efeito antes do passthrough ao CLI."""
 
     def test_raw_encaminha_argumentos(self):
         args = agent._ns(rest=["ftp-check", "--days", "90", "--weeks", "6"])
@@ -117,6 +116,33 @@ class RawTest(unittest.TestCase):
 
     def test_raw_faz_prefixo_sys_executable(self):
         self.assertTrue(agent.training("x")[0] == sys.executable)
+
+    def test_raw_mutaveis_exigem_confirmacao(self):
+        for rest in (
+                ["push"], ["all"], ["build"], ["reconcile"]):
+            with self.subTest(rest=rest):
+                with patch_run() as run, patch_input("n"):
+                    self.assertEqual(agent.cmd_raw(agent._ns(rest=rest)), 0)
+                run.assert_not_called()
+
+    def test_raw_reconcile_show_e_consultivo(self):
+        args = agent._ns(rest=["reconcile", "--show"])
+        with patch_run() as run, patch_input("n") as inp:
+            self.assertEqual(agent.cmd_raw(args), 0)
+        inp.assert_not_called()
+        run.assert_called_once_with(
+            run_cmd("reconcile", "--show"), cwd=str(agent.ROOT), check=False)
+
+    def test_raw_desconhecido_e_conservador(self):
+        args = agent._ns(rest=["futuro-comando", "--apply"])
+        with patch_run() as run, patch_input("n"):
+            self.assertEqual(agent.cmd_raw(args), 0)
+        run.assert_not_called()
+
+    def test_raw_vazio_nao_despacha(self):
+        with patch_run() as run:
+            self.assertEqual(agent.cmd_raw(agent._ns(rest=[])), 2)
+        run.assert_not_called()
 
 
 class ConfirmationTest(unittest.TestCase):
@@ -146,6 +172,15 @@ class ConfirmationTest(unittest.TestCase):
         call = run.call_args[0][0]
         self.assertEqual(call, run_cmd("push"))
 
+    def test_eof_e_resposta_invalida_cancelam_sem_efeito(self):
+        args = agent._ns(start=None, dry_run=False)
+        for answer, side_effect in (("", EOFError), ("", OSError),
+                                    ("", RuntimeError), ("talvez", None)):
+            with self.subTest(answer=answer), patch_run() as run, \
+                    patch_input(answer, side_effect=side_effect):
+                self.assertEqual(agent.cmd_push(args), 0)
+            run.assert_not_called()
+
     def test_daily_negativo_nao_executa(self):
         with patch_run() as run, patch_input("n"):
             code = agent.cmd_daily(agent._ns())
@@ -157,6 +192,27 @@ class ConfirmationTest(unittest.TestCase):
             self.assertEqual(agent.cmd_daily(agent._ns()), 0)
         run.assert_called_once_with(
             ["bash", agent.DAILY_SCRIPT], cwd=str(agent.ROOT), check=False)
+
+    def test_ftp_scan_exige_confirmacao_para_registrar_evidencia(self):
+        args = agent._ns(days=45)
+        with patch_run() as run, patch_input("n"):
+            self.assertEqual(agent.cmd_ftp_scan(args), 0)
+        run.assert_not_called()
+
+        with patch_run() as run, patch_input("s"):
+            self.assertEqual(agent.cmd_ftp_scan(args), 0)
+        run.assert_called_once_with(
+            run_cmd("ftp-scan", "--days", "45"), cwd=str(agent.ROOT),
+            check=False)
+
+    def test_yes_no_ftp_scan_nao_e_encaminhado_ao_cli(self):
+        args = agent._ns(days=45, yes=True)
+        with patch_run() as run, patch_input("n") as inp:
+            self.assertEqual(agent.cmd_ftp_scan(args), 0)
+        inp.assert_not_called()
+        run.assert_called_once_with(
+            run_cmd("ftp-scan", "--days", "45"), cwd=str(agent.ROOT),
+            check=False)
 
 
 class TodayTest(unittest.TestCase):
@@ -212,6 +268,36 @@ class PushTest(unittest.TestCase):
             self.assertEqual(agent.cmd_push(agent._ns(start=None, dry_run=False)), 0)
         run.assert_called_once_with(run_cmd("push"),
                                     cwd=str(agent.ROOT), check=False)
+
+
+class EffectClassificationTest(unittest.TestCase):
+    def test_ftp_scan_tem_efeito_externo_potencial(self):
+        self.assertIs(agent.training_effect("ftp-scan"),
+                      agent.CommandEffect.EXTERNAL_WRITE)
+
+    def test_ftp_confirm_e_reference_change(self):
+        self.assertIs(agent.training_effect("ftp-confirm", ("scan-a",)),
+                      agent.CommandEffect.REFERENCE_CHANGE)
+
+    def test_summary_export_e_escrita_local(self):
+        self.assertIs(
+            agent.training_effect("summary", ("--export", "resumo.html")),
+            agent.CommandEffect.LOCAL_WRITE)
+        args = agent._ns(period="day", date=None, start=None, end=None,
+                         chart=None, export="resumo.html", theme=None)
+        with patch_run() as run, patch_input("n"):
+            self.assertEqual(agent.cmd_sync_summary(args), 0)
+        run.assert_not_called()
+
+    def test_reconcile_show_e_today_sem_apply_sao_consultivos(self):
+        self.assertIs(agent.training_effect("reconcile", ("--show",)),
+                      agent.CommandEffect.READ_ONLY)
+        self.assertIs(agent.training_effect("check", ("--dry-run",)),
+                      agent.CommandEffect.READ_ONLY)
+
+    def test_comando_desconhecido_e_escrita_local_conservadora(self):
+        self.assertIs(agent.training_effect("futuro-comando"),
+                      agent.CommandEffect.LOCAL_WRITE)
 
 
 class VaultTest(unittest.TestCase):

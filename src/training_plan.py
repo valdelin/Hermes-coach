@@ -1299,10 +1299,13 @@ def cmd_reconcile(args):
         avg_load_fn=avg_load,
     )
     plan, missed, info = result.plan, result.missed, result.info
-    app.save_plan(plan, goal=meta["goal"], race_date=meta["race_date"],
-                  ftp_test_date=meta["ftp_test_date"],
-                  ftp_candidates=meta["ftp_candidates"],
-                  absorbed_ids=info["absorbed_ids"])
+    # `--show` e a fronteira consultiva: calcula e exibe a reconciliacao sem
+    # regravar plan.json. Sem a flag, preserva o fluxo mutavel historico.
+    if not getattr(args, "show", False):
+        app.save_plan(plan, goal=meta["goal"], race_date=meta["race_date"],
+                      ftp_test_date=meta["ftp_test_date"],
+                      ftp_candidates=meta["ftp_candidates"],
+                      absorbed_ids=info["absorbed_ids"])
     print(describe_training_days(env_value=os.environ.get("TRAINING_DAYS", "")))
     if missed:
         print(f"Treinos perdidos detectados: {[m['day'] for m in missed]}")
@@ -1780,7 +1783,8 @@ def main(argv=None):
     p_rec = sub.add_parser("reconcile",
                            help="Compara plano x treinos feitos e ajusta")
     p_rec.add_argument("--days", type=int, default=14)
-    p_rec.add_argument("--show", action="store_true")
+    p_rec.add_argument("--show", action="store_true",
+                       help="mostra a reconciliacao sem gravar plan.json")
     p_rec.set_defaults(func=cmd_reconcile)
 
     p_push = sub.add_parser("push", help="Publica o plano")
