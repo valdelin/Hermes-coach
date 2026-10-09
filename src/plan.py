@@ -2290,18 +2290,27 @@ def manual_duplicate_ids(plan, events, start=None):
             if not e.get("external_id") and e["start_date_local"][:10] in plan_days]
 
 
+_BLOCK_CONTEXT_UNSET = object()
+
+
 def save_plan(plan, path="plan.json", goal=None, race_date=None,
-              ftp_test_date=None, ftp_candidates=None, absorbed_ids=None):
+              ftp_test_date=None, ftp_candidates=None, absorbed_ids=None,
+              block_context=_BLOCK_CONTEXT_UNSET):
     """Salva o plano. Com GOAL configurado, guarda a meta junto
     (plan.json passa a ser {'goal', 'race_date', 'ftp_test_date',
-    'ftp_candidates', 'absorbed_ids', 'workouts'}); sem meta nem estado de
-    reconciliacao, mantem o formato antigo (lista pura) para compatibilidade."""
+    'ftp_candidates', 'absorbed_ids', 'block_context', 'workouts'}); sem meta
+    nem estado de reconciliacao, mantem o formato antigo (lista pura) para
+    compatibilidade."""
+    if block_context is _BLOCK_CONTEXT_UNSET:
+        block_context = load_plan_meta(path)["block_context"]
     data = plan
-    if goal is not None or absorbed_ids:
+    if goal is not None or absorbed_ids or block_context is not None:
         data = {"goal": goal, "race_date": race_date,
                 "ftp_test_date": ftp_test_date,
                 "ftp_candidates": ftp_candidates or {},
                 "absorbed_ids": sorted(set(absorbed_ids or ())),
+                "block_context": (block_context.to_dict()
+                                  if block_context is not None else None),
                 "workouts": plan}
     out = pathlib.Path(path)
     with open(out, "w", encoding="utf-8") as fh:
@@ -2326,11 +2335,17 @@ def load_plan_meta(path="plan.json"):
             data = json.load(fh)
     except (FileNotFoundError, json.JSONDecodeError):
         return {"goal": None, "race_date": None, "ftp_test_date": None,
-                "ftp_candidates": {}, "absorbed_ids": []}
+                "ftp_candidates": {}, "absorbed_ids": [], "block_context": None}
     if isinstance(data, dict) and "workouts" in data:
+        if __package__:
+            from .training_block import BlockContext  # type: ignore
+        else:  # plan carregado top-level pela CLI executada como script direto
+            from training_block import BlockContext
+        block = data.get("block_context")
         return {"goal": data.get("goal"), "race_date": data.get("race_date"),
                 "ftp_test_date": data.get("ftp_test_date"),
                 "ftp_candidates": data.get("ftp_candidates") or {},
-                "absorbed_ids": data.get("absorbed_ids") or []}
+                "absorbed_ids": data.get("absorbed_ids") or [],
+                "block_context": BlockContext.from_dict(block) if block is not None else None}
     return {"goal": None, "race_date": None, "ftp_test_date": None,
-            "ftp_candidates": {}, "absorbed_ids": []}
+            "ftp_candidates": {}, "absorbed_ids": [], "block_context": None}

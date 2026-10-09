@@ -23,6 +23,7 @@ try:
     import lifecycle as _lifecycle
     import pw_hr_decoupling as _pw_hr_decoupling
     import snapshot as _snapshot
+    import training_block as _training_block
     import ui_state as _ui_state
     import workout_identity as _workout_identity
     from provider import (ActivityStream, ActivityStreamProvider, ProviderCapability,
@@ -41,6 +42,7 @@ except ImportError:  # execucao como pacote (src.application)
     from . import lifecycle as _lifecycle  # type: ignore
     from . import pw_hr_decoupling as _pw_hr_decoupling  # type: ignore
     from . import snapshot as _snapshot  # type: ignore
+    from . import training_block as _training_block  # type: ignore
     from . import ui_state as _ui_state  # type: ignore
     from . import workout_identity as _workout_identity  # type: ignore
     from .provider import (ActivityStream, ActivityStreamProvider,  # type: ignore
@@ -52,6 +54,7 @@ except ImportError:  # execucao como pacote (src.application)
                                   is_completed as _is_completed)
 
 Plan = List[Dict[str, Any]]
+_BLOCK_CONTEXT_UNSET = object()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLAN_FILE = PROJECT_ROOT / "plan.json"
@@ -98,12 +101,11 @@ def get_env(key: str, default: Optional[str] = None,
 # ---------------------------------------------------------------------------
 
 def _plan_module():
-    try:
-        import plan  # noqa: F401
-        return plan
-    except Exception:
+    if __package__:
         from . import plan  # type: ignore
-        return plan
+    else:  # application importado pela CLI executada como script direto
+        import plan  # noqa: F401
+    return plan
 
 
 # ---------------------------------------------------------------------------
@@ -283,8 +285,12 @@ class Application:
         ftp_test_date: Optional[str] = None,
         ftp_candidates: Optional[List[Dict[str, Any]]] = None,
         absorbed_ids: Optional[List[str]] = None,
+        block_context: object = _BLOCK_CONTEXT_UNSET,
     ) -> None:
         plan = _plan_module()
+        kwargs = {}
+        if block_context is not _BLOCK_CONTEXT_UNSET:
+            kwargs["block_context"] = block_context
         plan.save_plan(
             self.enrich_plan(workouts),
             self.plan_path,
@@ -293,6 +299,7 @@ class Application:
             ftp_test_date=ftp_test_date,
             ftp_candidates=ftp_candidates,
             absorbed_ids=absorbed_ids,
+            **kwargs,
         )
 
     # -- lifecycle operations (UI-2) -------------------------------------
@@ -368,7 +375,27 @@ class Application:
             goal=meta.get("goal"), race_date=meta.get("race_date"),
             ftp_test_date=meta.get("ftp_test_date"),
             ftp_candidates=meta.get("ftp_candidates"),
-            absorbed_ids=meta.get("absorbed_ids"))
+            absorbed_ids=meta.get("absorbed_ids"),
+            block_context=meta.get("block_context"))
+
+    def start_training_block(
+        self, block: "_training_block.BlockContext", *, replace: bool = False,
+    ) -> "_training_block.BlockContext":
+        """Persiste explicitamente o bloco ativo sem alterar a prescricao.
+
+        A substituicao exige opt-in para nao apagar a identidade do bloco ativo
+        por um save incidental. A policy de quando abrir/fechar blocos e futura.
+        """
+        meta = self.load_plan_meta()
+        current = meta.get("block_context")
+        if current is not None and current != block and not replace:
+            raise ValueError("ja existe block context ativo; use replace explicitamente")
+        self.save_plan(
+            self.load_plan(), goal=meta.get("goal"), race_date=meta.get("race_date"),
+            ftp_test_date=meta.get("ftp_test_date"),
+            ftp_candidates=meta.get("ftp_candidates"),
+            absorbed_ids=meta.get("absorbed_ids"), block_context=block)
+        return block
 
     # -- local completion (UI-4) -----------------------------------------
     def completion_status(self, workout_id: str,

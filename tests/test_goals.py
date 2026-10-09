@@ -174,7 +174,7 @@ class PlanMetaTest(unittest.TestCase):
             self.assertEqual(load_plan_meta(path),
                               {"goal": "ftp-builder", "race_date": None,
                                "ftp_test_date": None, "ftp_candidates": {},
-                               "absorbed_ids": []})
+                               "absorbed_ids": [], "block_context": None})
 
     def test_save_load_com_teste_ftp(self):
         plan = self._sample_plan()
@@ -185,7 +185,7 @@ class PlanMetaTest(unittest.TestCase):
             self.assertEqual(load_plan_meta(path),
                               {"goal": "ftp-builder", "race_date": None,
                                "ftp_test_date": "2026-10-22", "ftp_candidates": {},
-                               "absorbed_ids": []})
+                               "absorbed_ids": [], "block_context": None})
 
     def test_save_load_formato_antigo(self):
         plan = self._sample_plan()
@@ -196,7 +196,7 @@ class PlanMetaTest(unittest.TestCase):
             self.assertEqual(load_plan_meta(path),
                               {"goal": None, "race_date": None,
                                "ftp_test_date": None, "ftp_candidates": {},
-                               "absorbed_ids": []})
+                               "absorbed_ids": [], "block_context": None})
 
     def test_load_meta_arquivo_inexistente(self):
         with tempfile.TemporaryDirectory() as t:
@@ -204,7 +204,7 @@ class PlanMetaTest(unittest.TestCase):
             self.assertEqual(load_plan_meta(path),
                               {"goal": None, "race_date": None,
                                "ftp_test_date": None, "ftp_candidates": {},
-                               "absorbed_ids": []})
+                               "absorbed_ids": [], "block_context": None})
 
 
 class PromptRaceDateTest(unittest.TestCase):

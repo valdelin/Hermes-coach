@@ -102,7 +102,7 @@ class ReconcileMetaTest(unittest.TestCase):
             self.assertEqual(load_plan_meta(str(path)),
                               {"goal": "ftp-builder", "race_date": None,
                                "ftp_test_date": "2026-10-22", "ftp_candidates": {},
-                               "absorbed_ids": []})
+                               "absorbed_ids": [], "block_context": None})
 
     def test_reconcile_formato_antigo_sem_meta_continua_lista_pura(self):
         plan = build_plan([], 0, ftp=182, days=2, start=date(2026, 9, 14))
@@ -123,7 +123,7 @@ class ReconcileMetaTest(unittest.TestCase):
             self.assertEqual(load_plan_meta(str(path)),
                               {"goal": None, "race_date": None,
                                "ftp_test_date": None, "ftp_candidates": {},
-                               "absorbed_ids": []})
+                               "absorbed_ids": [], "block_context": None})
 
     def test_reconcile_show_nao_persiste_plan_json(self):
         """`--show` e consultivo, inclusive quando reconciliation mudaria o plano."""
