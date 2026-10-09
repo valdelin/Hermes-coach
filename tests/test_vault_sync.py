@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "sync_vault_docs.py"
 SPEC = importlib.util.spec_from_file_location("sync_vault_docs", SCRIPT)
@@ -203,17 +204,14 @@ class DuplicationRegressionTest(_Fixture):
                                              where="v").ownership,
                          VAULT_OWNERSHIP)
 
-    def test_ownership_ausente_e_gerado_de_template(self):
+    def test_ownership_ausente_no_destino_e_rejeitado(self):
         self.write_repo(body=BODY_NEW)
         self.write_vault("# Glossario — Hermes Coach\n\n" + BODY_OLD)
 
         result = self.run_plan(write=True)
-        self.assertEqual(result.status, "updated")
-        self.assertTrue(any("ownership block missing" in f
-                            for f in result.findings))
-        parsed = sync.split_document(self.read_vault(), where="v")
-        self.assertEqual(parsed.ownership.count(MARKER), 1)
-        self.assertIn("não um segundo glossário", parsed.ownership)
+        self.assertEqual(result.status, "error")
+        self.assertIn("ownership block missing", result.detail)
+        self.assertEqual(self.read_vault(), "# Glossario — Hermes Coach\n\n" + BODY_OLD)
 
 
 # ---------------------------------------------------------------------------
@@ -232,21 +230,85 @@ class OwnershipCountTest(_Fixture):
         self.write_vault(_doc(BODY_OLD, ownership=VAULT_OWNERSHIP
                               + "\n" + VAULT_OWNERSHIP))
         result = self.run_plan()
-        self.assertTrue(any("2 blocos de ownership" in f
-                            for f in result.findings), result.findings)
+        self.assertEqual(result.status, "error")
+        self.assertIn("2 ownership blocks", result.detail)
 
-    def test_espelho_com_dois_blocos_e_reparado_no_sync(self):
+    def test_espelho_com_dois_blocos_nao_e_reparado_silenciosamente(self):
         self.write_repo(body=BODY_NEW)
-        self.write_vault(_doc(BODY_OLD, ownership=VAULT_OWNERSHIP
-                              + "\n" + VAULT_OWNERSHIP))
-        self.run_plan(write=True)
-        self.assertEqual(len(sync.ownership_blocks(self.read_vault())), 1)
+        original = _doc(BODY_OLD, ownership=VAULT_OWNERSHIP
+                        + "\n" + VAULT_OWNERSHIP)
+        self.write_vault(original)
+        result = self.run_plan(write=True)
+        self.assertEqual(result.status, "error")
+        self.assertEqual(self.read_vault(), original)
+
+
+class OwnershipSemanticTest(_Fixture):
+    def test_origem_repo_incorreta_e_rejeitada(self):
+        bad = REPO_OWNERSHIP.replace("docs/GLOSSARIO.md", "docs/OUTRO.md")
+        self.write_repo(ownership=bad)
+        self.write_vault(_doc(BODY_OLD))
+        result = self.run_plan(write=True)
+        self.assertEqual(result.status, "error")
+        self.assertIn("origem canonica invalida", result.detail)
+        self.assertEqual(self.read_vault(), _doc(BODY_OLD))
+
+    def test_destino_com_origem_incorreta_e_rejeitado(self):
+        self.write_repo()
+        bad = VAULT_OWNERSHIP.replace("docs/GLOSSARIO.md", "docs/OUTRO.md")
+        original = _doc(BODY_OLD, ownership=bad)
+        self.write_vault(original)
+        result = self.run_plan(write=True)
+        self.assertEqual(result.status, "error")
+        self.assertIn("origem canonica invalida", result.detail)
+        self.assertEqual(self.read_vault(), original)
+
+    def test_destino_que_nao_se_declara_espelho_e_rejeitado(self):
+        self.write_repo()
+        bad = (f"{MARKER}\n"
+               "> Fonte canônica: `docs/GLOSSARIO.md` **no repo**\n"
+               "> Este documento e a fonte de verdade.\n")
+        self.write_vault(_doc(BODY_OLD, ownership=bad))
+        result = self.run_plan(write=True)
+        self.assertEqual(result.status, "error")
+        self.assertIn("nao declara espelho", result.detail)
+
+
+class PathSafetyTest(_Fixture):
+    def test_mapping_com_path_traversal_e_rejeitado(self):
+        self.write_repo()
+        result = sync.plan_mirror(
+            sync.Mirror("../fora.md", "GLOSSARIO.md"), self.repo, self.vault,
+            write=True, dry_run=False)
+        self.assertEqual(result.status, "error")
+        self.assertIn("mapping invalido", result.detail)
+
+    def test_mapping_com_path_absoluto_e_rejeitado(self):
+        self.write_repo()
+        result = sync.plan_mirror(
+            sync.Mirror("docs/GLOSSARIO.md", "/tmp/fora.md"), self.repo,
+            self.vault, write=True, dry_run=False)
+        self.assertEqual(result.status, "error")
+        self.assertIn("mapping invalido", result.detail)
+
+    def test_destino_symlink_e_rejeitado(self):
+        self.write_repo()
+        external = Path(self.tmp.name) / "fora.md"
+        external.write_text("nao tocar\n", encoding="utf-8")
+        target = self.vault / "GLOSSARIO.md"
+        target.symlink_to(external)
+        result = self.run_plan(write=True)
+        self.assertEqual(result.status, "error")
+        self.assertIn("symlink recusado", result.detail)
+        self.assertEqual(external.read_text(encoding="utf-8"), "nao tocar\n")
 
     def test_espelho_zerado_sem_ownership_no_espelho(self):
         self.write_repo(body=BODY_NEW)
-        self.write_vault(_doc(BODY_OLD, ownership=""))
-        self.run_plan(write=True)
-        self.assertEqual(len(sync.ownership_blocks(self.read_vault())), 1)
+        original = _doc(BODY_OLD, ownership="")
+        self.write_vault(original)
+        result = self.run_plan(write=True)
+        self.assertEqual(result.status, "error")
+        self.assertEqual(self.read_vault(), original)
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +440,28 @@ class AtomicWriteTest(unittest.TestCase):
         self.assertEqual(alvo.read_text(encoding="utf-8"), "original\n")
         self.assertEqual([p.name for p in self.dir.iterdir()], ["doc.md"])
 
+    def test_falha_ao_criar_backup_preserva_destino(self):
+        alvo = self.dir / "doc.md"
+        backup = self.dir / "backup" / "doc.md.bak"
+        alvo.write_text("original\n", encoding="utf-8")
+        with mock.patch.object(sync.shutil, "copy2", side_effect=OSError("sem disco")):
+            with self.assertRaises(OSError):
+                sync.atomic_write(alvo, "novo\n", backup=backup)
+        self.assertEqual(alvo.read_text(encoding="utf-8"), "original\n")
+        self.assertFalse(backup.exists())
+
+    def test_backup_symlink_e_recusado_sem_escrever_fora(self):
+        alvo = self.dir / "doc.md"
+        externo = self.dir / "externo"
+        externo.mkdir()
+        backup_dir = self.dir / "backup"
+        backup_dir.symlink_to(externo, target_is_directory=True)
+        alvo.write_text("original\n", encoding="utf-8")
+        with self.assertRaises(OSError):
+            sync.atomic_write(alvo, "novo\n", backup=backup_dir / "doc.md.bak")
+        self.assertEqual(alvo.read_text(encoding="utf-8"), "original\n")
+        self.assertEqual(list(externo.iterdir()), [])
+
 
 # ---------------------------------------------------------------------------
 # Mapping (§2, §3, §17)
@@ -387,6 +471,12 @@ class MappingTest(unittest.TestCase):
     def test_todos_os_pares_existem_no_repo(self):
         for m in sync.MIRRORS:
             self.assertTrue((sync.REPO_ROOT / m.repo).exists(), m.repo)
+
+    def test_ownerships_de_origem_reais_sao_semanticamente_validos(self):
+        for m in sync.MIRRORS:
+            text = (sync.REPO_ROOT / m.repo).read_text(encoding="utf-8")
+            with self.subTest(repo=m.repo):
+                sync.validate_ownership(text, m, side="repo")
 
     def test_espelhos_declarados_batem_com_o_vault_real(self):
         for m in sync.MIRRORS:
@@ -469,12 +559,14 @@ class CliTest(_Fixture):
         self._cli_repo()
         self.write_repo(body=BODY_NEW)
         self.write_vault(_doc(BODY_OLD))
+        before = self.read_vault()
 
         code, out, _ = self._run(["--check", "--sync", "GLOSSARIO", "--vault",
-                                  str(self.vault)])
+                                   str(self.vault)])
         self.assertEqual(code, 1)
         self.assertIn("would_update", out)
-        self.assertEqual(self.read_vault(), _doc(BODY_OLD))
+        self.assertEqual(self.read_vault(), before)
+        self.assertFalse((self.vault / ".sync_vault_backups").exists())
 
     def test_check_retorna_zero_quando_em_sincronia(self):
         self._cli_repo()
@@ -485,6 +577,16 @@ class CliTest(_Fixture):
                                   str(self.vault)])
         self.assertEqual(code, 0)
         self.assertIn("in_sync", out)
+
+    def test_check_em_vault_inexistente_nao_cria_diretorios(self):
+        self._cli_repo()
+        self.write_repo(body=BODY_NEW)
+        missing_vault = Path(self.tmp.name) / "vault-ausente"
+        code, out, _ = self._run(["--check", "--sync", "GLOSSARIO", "--vault",
+                                  str(missing_vault)])
+        self.assertEqual(code, 1)
+        self.assertIn("would_update", out)
+        self.assertFalse(missing_vault.exists())
 
     def test_dry_run_nao_escreve(self):
         self._cli_repo()
@@ -521,9 +623,8 @@ class CliTest(_Fixture):
         code, out, err = self._run(["--sync-all", "--vault", str(self.vault)])
         self.assertEqual(code, 1)
         self.assertIn("repo ausente", out)
-        self.assertIn("com erro", err)
-        # o documento presente foi sincronizado mesmo assim
-        self.assertIn(BODY_NEW, self.read_vault())
+        self.assertIn("pre-validacao falhou", err)
+        self.assertEqual(self.read_vault(), _doc(BODY_OLD))
 
     def test_sync_de_um_documento(self):
         self._cli_repo()
@@ -552,7 +653,83 @@ class CliTest(_Fixture):
 
         code, _, err = self._run(["--sync-all", "--vault", str(self.vault)])
         self.assertEqual(code, 1)
-        self.assertIn("com erro", err)
+        self.assertIn("pre-validacao falhou", err)
+
+
+class BatchTest(unittest.TestCase):
+    """`--sync-all` pre-valida antes da primeira escrita, sem rollback global."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.repo = root / "repo"
+        self.vault = root / "vault"
+        (self.repo / "docs").mkdir(parents=True)
+        self.vault.mkdir()
+        self.mirrors = (sync.Mirror("docs/A.md", "A.md"),
+                        sync.Mirror("docs/B.md", "B.md"))
+        self.original = (sync.REPO_ROOT, sync.MIRRORS, sync.MIRRORS_BY_KEY,
+                         sync.MIRRORS_BY_VAULT)
+        sync.REPO_ROOT = self.repo
+        sync.MIRRORS = self.mirrors
+        sync.MIRRORS_BY_KEY = {m.repo: m for m in self.mirrors}
+        sync.MIRRORS_BY_VAULT = {m.vault: m for m in self.mirrors}
+
+    def tearDown(self):
+        (sync.REPO_ROOT, sync.MIRRORS, sync.MIRRORS_BY_KEY,
+         sync.MIRRORS_BY_VAULT) = self.original
+        self.tmp.cleanup()
+
+    def _write(self, name, body, *, vault=False, ownership=None):
+        mirror = next(m for m in self.mirrors if m.vault == f"{name}.md")
+        path = (self.vault / mirror.vault if vault
+                else self.repo / mirror.repo)
+        path.write_text(_doc(body, ownership or sync.render_ownership(
+            mirror.repo, None)), encoding="utf-8")
+
+    def _run(self):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = sync.main(["--sync-all", "--vault", str(self.vault)])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_sync_all_atualiza_lote_prevalidado(self):
+        for name in ("A", "B"):
+            self._write(name, BODY_NEW)
+            self._write(name, BODY_OLD, vault=True)
+        code, _, err = self._run()
+        self.assertEqual(code, 0, err)
+        for name in ("A", "B"):
+            self.assertIn(BODY_NEW, (self.vault / f"{name}.md").read_text())
+
+    def test_prevalidacao_invalida_bloqueia_todo_o_lote(self):
+        self._write("A", BODY_NEW)
+        self._write("B", BODY_NEW,
+                    ownership=sync.render_ownership("docs/OUTRO.md", None))
+        self._write("A", BODY_OLD, vault=True)
+        self._write("B", BODY_OLD, vault=True)
+        code, _, err = self._run()
+        self.assertEqual(code, 1)
+        self.assertIn("pre-validacao falhou", err)
+        self.assertIn(BODY_OLD, (self.vault / "A.md").read_text())
+
+    def test_falha_no_segundo_relata_sync_parcial(self):
+        for name in ("A", "B"):
+            self._write(name, BODY_NEW)
+            self._write(name, BODY_OLD, vault=True)
+        real_atomic_write = sync.atomic_write
+
+        def fail_second(path, content, *, backup=None):
+            if path.name == "B.md":
+                raise OSError("falha simulada")
+            return real_atomic_write(path, content, backup=backup)
+
+        with mock.patch.object(sync, "atomic_write", side_effect=fail_second):
+            code, _, err = self._run()
+        self.assertEqual(code, 1)
+        self.assertIn("sync parcial", err)
+        self.assertIn(BODY_NEW, (self.vault / "A.md").read_text())
+        self.assertIn(BODY_OLD, (self.vault / "B.md").read_text())
 
 
 if __name__ == "__main__":

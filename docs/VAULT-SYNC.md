@@ -14,6 +14,14 @@ Cada documento espelhado declara isso no topo, num callout
 (`Espelho: ~/Documents/...`); o lado do vault aponta para a fonte
 (`Fonte canônica: docs/X.md **no repo**`).
 
+O sync valida o ownership semanticamente: deve haver **exatamente um** bloco,
+ele deve apontar para o path canônico daquele par em `MIRRORS` e, no vault
+existente, deve declarar que o arquivo é cópia/espelho. Marker isolado, origem
+errada, dois blocos ou destino que se declara fonte de verdade são erros. Um
+ownership válido é preservado byte a byte; um inválido nunca é reescrito
+silenciosamente. O único caso em que o template é gerado é o primeiro sync de
+um destino que ainda não existe.
+
 ## Procedimento
 
 Não copie e cole manualmente. Use o utilitário:
@@ -36,6 +44,9 @@ python3 scripts/sync_vault_docs.py --sync PLANO-NOVAS-IMPLEMENTACOES.md
 
 `--check` é read-only por definição e domina qualquer `--sync` na mesma linha:
 com `--check` nada é escrito, mesmo que `--sync-all` esteja presente.
+Ele não cria diretórios, backups ou temporários, e retorna `1` para divergência
+ou documento inválido. `--sync`/`--sync-all` retornam `0` em sucesso, `1` para
+erro de validação/escrita e `2` para seleção inválida.
 
 ## Mapeamento
 
@@ -73,8 +84,8 @@ blocos de ownership originais foram sobrescritos.
   ("não um segundo glossário", "não um segundo deck") — o `mirror_note` de cada
   par fica no mapping e é aplicado só na geração.
 - **Validação antes de escrever.** O conteúdo final é montado em memória e
-  verificado (corpo canônico duplicado, mais de um bloco de ownership). Se a
-  validação falhar, **não escreve**.
+  verificado (ownership semântico, corpo canônico duplicado e paths). Se a
+  validação falhar, **não escreve** naquele espelho.
 - **Escrita atômica com backup.** `tempfile` no mesmo diretório → `fsync` →
   `os.replace`. O conteúdo anterior é copiado para
   `<vault>/.sync_vault_backups/<nome>.bak` antes da troca, para restaurar na
@@ -85,6 +96,24 @@ blocos de ownership originais foram sobrescritos.
   tem opção vault → repo.
 - **Falha fechada.** Documento sem bloco de ownership, ou espelho cujo resultado
   não valida, é erro com exit != 0. Nada é adivinhado.
+- **Paths allowlisted.** Somente pares declarados em `MIRRORS` são selecionáveis;
+  traversal, paths absolutos e destinos ou backups symlink são recusados antes
+  da escrita.
+
+## Lotes e recuperação
+
+`--sync-all` faz uma pré-validação read-only de **todos** os pares antes da
+primeira escrita. Se algum falhar, o lote é rejeitado e nenhum espelho é tocado.
+Antes de cada escrita individual, o documento é validado de novo para reduzir a
+janela contra alterações concorrentes.
+
+Não há transação global nem rollback automático: se uma falha de disco ocorrer
+depois de documentos anteriores terem sido atualizados, o relatório informa
+`sync parcial`, lista os atualizados e retorna `1`. Cada troca continua atômica
+e tem backup em `<vault>/.sync_vault_backups/<arquivo>.bak`; para recuperar um
+espelho parcial, restaure conscientemente o `.bak` correspondente, depois rode
+`--check`. Alterações concorrentes entre pré-validação e escrita ainda podem
+produzir falha parcial, por isso a revalidação por documento é obrigatória.
 
 ## Relatório
 
@@ -109,9 +138,10 @@ python3 -m unittest tests.test_vault_sync
 Os testes usam `tempfile.TemporaryDirectory()` para repo e vault falsos. Nenhum
 teste escreve em `~/Documents/Obsidian Vault/`. A cobertura inclui a regressão
 do bug real (espelho com corpo antigo + repo com corpo novo), a contagem de
-blocos de ownership, idempotência, round-trip lógico, escrita atômica com
-simulação de falha no `os.replace`, e a CLI (`--check`, `--dry-run`,
-`--sync`, `--sync-all`, nome desconhecido).
+blocos de ownership e semântica de origem, idempotência, round-trip lógico,
+traversal/symlink, escrita atômica com simulação de falha em backup e
+`os.replace`, e a CLI (`--check`, `--dry-run`, `--sync`, `--sync-all`, lote
+pré-validado, falha parcial e nome desconhecido).
 
 ## Limitação conhecida
 
