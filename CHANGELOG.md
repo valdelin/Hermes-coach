@@ -17,6 +17,12 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ### Adicionado
 
+- **Relatório HTML: prontidão, sessão e consistência.** `summary --export` agora
+  mostra a sessão planejada, o estado factual do plano e cumprimento por semana,
+  além da classificação de prontidão. A cobertura separa os 7 eixos do modelo,
+  os 3 eixos hoje implementados e os eixos com dado válido na leitura. A página
+  mantém explícito que regras de prontidão e rótulos de PMC são heurísticas do
+  Hermes, não diagnóstico nem escala fisiológica calibrada.
 - **Prontidão no caminho do plano (issue #58, Passo A).** `build` passou a ler
   o wellness do Intervals e a adaptar o plano conforme a avaliação.
   - `assess_readiness_assessment()` (`src/readiness.py`) traduz o wellness bruto
@@ -46,6 +52,26 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ### Corrigido
 
+- **`summary --export` em período sem treinos não gerava o arquivo.**
+  `cmd_summary` retornava antes de `_summary_export`, então um
+  `--export relatorio.html` num dia/semana sem atividades pareadas saía com
+  exit 0, sem HTML e sem aviso. O console mantém
+  `Nenhum treino feito no periodo.` e o relatório passa a ser gerado — com a
+  sessão planejada, a prontidão, o estado do plano e a consistência, que não
+  dependem de ter havido treino feito. "Treinos feitos" mostra
+  `Nenhum treino foi realizado neste período.` em vez de uma tabela vazia.
+- **`summary --date` recebia a âncora como `str` e quebrava o cálculo da
+  janela.** `--date` era o único parâmetro aceito como `str` (explícito) **ou**
+  `date` (default D-1). Dependendo do `--period`, a execução estourava
+  `AttributeError` (`day`), `TypeError` em `period_range()`
+  (`week`/`month`/…) ou `TypeError` em `resolve_period()` (`45d`). `--date`
+  agora é convertido uma única vez na borda do argparse (`type=_iso_date`), o
+  core só vê `date`, e data inválida vira erro de uso com exit 2. Default D-1,
+  semântica de período e `resolve_period()` não mudaram.
+- **Ausência de HRV, RHR ou sono não recebe mais score saudável.** O produtor de
+  readiness agora deixa o eixo como `None` quando o sinal atual está ausente; ele
+  fica fora da média e da cobertura disponível, em vez de virar `0.8`. Zero
+  observado continua distinto de ausência onde o campo aceita zero.
 - O gate de prontidão em `_adapt_session` lia atributos que `ReadinessAssessment`
   não possui, então retornava "sem mudança" para **qualquer** avaliação. O
   caminho estava inerte e nunca adaptou nada.

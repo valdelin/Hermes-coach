@@ -54,7 +54,10 @@ hermes-coach/
   (issues #1–#18) + benchmarks de mercado/ciência (Tredict, Joe Friel,
   Science to Sport) que justificam decisões.
 - [docs/GLOSSARIO.md](docs/GLOSSARIO.md) — acrônimos e decisões (CTL/ATL/TSB,
-  rFTP/LTHR, W′/CP como contexto, etc.).
+  rFTP/LTHR, W′/CP como contexto, etc.). **FCR = frequência cardíaca de
+  repouso = RHR** (*Resting Heart Rate*), o mesmo sinal com nome em português —
+  não confundir com *heart-rate recovery* (queda da FC pós-esforço), que é
+  outro conceito e não está implementado.
 - [docs/PITCH-DECK.md](docs/PITCH-DECK.md) — deck do produto (diferenciais vs
   Tredict, motor e testes).
 - [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — conceito original do agente
@@ -379,6 +382,25 @@ Testes:
 python3 -m unittest discover -s tests -v
 ```
 (803 testes, apenas stdlib — o CI roda a mesma suíte em todo push/PR.)
+
+## Hermes Agent / Orquestrador local
+
+`scripts/hermes_agent.py` é uma **facade determinística** sobre o CLI
+(`src/training_plan.py`): despacha comandos, encadeia workflows conhecidos
+(ex.: `status`), pede confirmação antes de operações mutáveis e oferece modo
+interativo e `raw`. Não é motor de domínio nem gateway de mensagens; guia
+completo em [`docs/HOWTO-HERMES-AGENT.md`](docs/HOWTO-HERMES-AGENT.md).
+
+```bash
+python3 scripts/hermes_agent.py status          # info + model + adherence + ftp-check
+python3 scripts/hermes_agent.py                 # modo interativo (hermes>)
+python3 scripts/hermes_agent.py build --dry-run # gera sem gravar
+python3 scripts/hermes_agent.py push            # pede confirmação antes de publicar
+python3 scripts/hermes_agent.py raw ftp-check --days 90 --weeks 6   # escape hatch
+```
+
+Operações mutáveis (`build`, `push`, `daily`, ...) pedem confirmação; `--yes`
+pula o prompt local (não as torna read-only).
 
 ## Automacao diaria (opcional)
 

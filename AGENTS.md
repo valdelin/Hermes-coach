@@ -3,8 +3,10 @@
 ## Source Of Truth
 
 - Treat the deterministic engine as the source of truth for training decisions.
-- Read `docs/EMBASAMENTO-CIENTIFICO.md` for the algorithmic contract. The complete
-  scientific Z1-Z7 table is canonical in the Obsidian vault path named by that file.
+- Read `docs/EMBASAMENTO-CIENTIFICO.md` for the algorithmic contract. It is the
+  single source for both the algorithmic contract and the zone table
+  (`ZONE_BANDS`, mirrored from `src/coach.py`); the vault copy is a mirror like
+  every other document.
 - Distinguish in prose and code: **scientific evidence**, **system heuristic**, and
   **computational model**. A heuristic or model must not be presented as physiology.
 - FTP is an operational power reference; do not equate it automatically with MLSS,
@@ -12,10 +14,22 @@
 - References must be verifiable. Never invent an author, DOI, PMID, result, or claim.
 - Many documents exist in **both** the repo and the Obsidian vault
   (`~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/`). Default owner is
-  the **repo**; the vault copy is a mirror for reading. Edit the repo, then copy.
-  Each mirrored file states its owner at the top. The one deliberate exception is
-  the scientific Z1-Z7 table, which lives in the vault because `ZoneIntegrityTest`
-  compares both sides. Verify ownership before editing either copy.
+  the **repo**; the vault copy is a mirror for reading. Edit the repo, then
+  synchronize with the official utility — `python3 scripts/sync_vault_docs.py
+  --check`, then `--sync-all` or `--sync DOC`. **Never copy-paste a mirror by
+  hand**: doing so duplicated four mirror bodies and destroyed four ownership
+  blocks (PROMPT 30).
+  Each mirrored file states its owner at the top. Verify ownership before editing
+  either copy. There is no exception to this rule. The tool, the mapping and its
+  guarantees live in `docs/VAULT-SYNC.md`.
+- `docs/EMBASAMENTO-CIENTIFICO.md` used to be exempted, on the claim that a
+  scientific Z1-Z7 table was canonical in the vault because `ZoneIntegrityTest`
+  compared both sides. That claim was wrong on both counts and is not to be
+  reintroduced: `ZoneIntegrityTest` (`tests/test_plan.py`) compares
+  `src/coach.py:ZONE_BANDS` against a literal inside the test and reads no
+  markdown, and no Z1-Z7 table with %FCmax / threshold / RPE columns exists in
+  either location. If such a table is ever written, its authority has to be
+  established from real evidence — not inferred from a mirror rule.
 
 ## Engineering Loop
 
