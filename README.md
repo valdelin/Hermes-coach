@@ -100,6 +100,7 @@ hermes-coach/
    ```
    WEEKLY_HOURS=5   # horas disponiveis por semana; o build ajusta as duracoes
    LONG_DAY=dom     # dia preferido para treinos longos (seg..dom ou mon..sun)
+   MIN_REGULAR_DURATION_MINUTES=60  # minimo opcional das sessoes regulares
    ```
    Com `WEEKLY_HOURS`, o `build` escala a duração dos treinos (mínimo 120s por
    esforço) para a semana caber nas horas disponíveis — o orçamento de TSS
@@ -107,6 +108,8 @@ hermes-coach/
    dia preferido (ou no dia de treino mais próximo, se você não treinar no dia
    preferido). Se você não tem tempo para treinos longos no fim de semana,
    informe o melhor dia — o plano se adapta.
+   O mínimo de duração não supera proteção por readiness, cap diário ou
+   orçamento semanal; Ramp Test e sessões de proteção permanecem isentos.
 
 3. Defina o **tipo de plano** (opcional):
    ```

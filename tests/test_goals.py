@@ -260,11 +260,13 @@ class FtpTestPrepTest(unittest.TestCase):
         # teste na sexta 25/09: D-2 = qua (Recuperacao), D-1 = qui (Spin),
         # D0 = Ramp Test, D+1 = sab (fora da agenda -> descanso natural)
         plan = build_plan([], 4, ftp=182, days=14, start=self.START,
-                          goal="ftp-builder", ftp_test_date="2026-09-25")
+                          goal="ftp-builder", ftp_test_date="2026-09-25",
+                          min_regular_duration_sec=3600)
         by_day = {w["day"]: w for w in plan}
         self.assertEqual(by_day["2026-09-23"]["name"], "2026-09-23 - Recuperacao (pre-teste FTP)")
         self.assertEqual(by_day["2026-09-24"]["name"], "2026-09-24 - Spin facil (pre-teste FTP)")
         self.assertEqual(by_day["2026-09-25"]["name"], "2026-09-25 - Ramp Test (FTP)")
+        self.assertEqual(by_day["2026-09-25"]["planned_duration"], 3000)
         # nenhum treino duro nas 48h antes do teste (focus != limiar/vo2)
         for d in ("2026-09-23", "2026-09-24"):
             self.assertNotIn(by_day[d]["focus"], (FOCUS_THRESHOLD, FOCUS_VO2))

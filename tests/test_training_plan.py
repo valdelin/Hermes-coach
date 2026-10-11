@@ -75,6 +75,38 @@ class _NoopReconcile:
                           "absorbed_ids": list(absorbed_ids or ())}
 
 
+class CheckAdapterTest(unittest.TestCase):
+    def test_cmd_check_encaminha_minimum_duration_do_build(self):
+        captured = {}
+        result = types.SimpleNamespace(
+            metrics=None,
+            avaliacao=None,
+            treino=None,
+            elegibilidade=types.SimpleNamespace(state="publicada", reason="ok"),
+            decisao=types.SimpleNamespace(reason="normal"),
+            trace=types.SimpleNamespace(illness_alert=False),
+            status="not_adaptive")
+        app = types.SimpleNamespace(
+            load_plan=lambda: [], load_plan_meta=lambda: {}, client=lambda: object())
+
+        def fake_assess(provider, **kwargs):
+            captured["provider"] = provider
+            captured.update(kwargs)
+            return result
+
+        with mock.patch.object(tp, "_make_app", return_value=app), \
+             mock.patch.object(tp, "_agora", return_value=None), \
+             mock.patch.object(tp, "get_ftp", return_value=200), \
+             mock.patch.object(tp, "get_training_days", return_value=(0, 1, 2, 3, 4)), \
+             mock.patch.object(tp, "get_weekly_hours", return_value=5.0), \
+             mock.patch.object(tp, "get_min_regular_duration_sec", return_value=3600), \
+             mock.patch.object(tp, "get_long_day", return_value=None), \
+             mock.patch.object(tp, "get_periodization", return_value=None), \
+             mock.patch.object(tp, "assess_daily_readiness", side_effect=fake_assess):
+            tp.cmd_check(types.SimpleNamespace(days=7, apply=False, dry_run=False))
+
+        self.assertEqual(captured["min_regular_duration_sec"], 3600)
+
 class ReconcileMetaTest(unittest.TestCase):
     """BUG #8: cmd_reconcile regravava plan.json com save_plan() sem a meta
     (goal/race_date/ftp_test_date) -> virava lista pura e a meta sumia."""

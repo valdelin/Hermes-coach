@@ -2,11 +2,13 @@ import unittest
 from datetime import date
 
 from src.plan import (build_plan, parse_long_day, parse_weekly_hours,
-                      _place_long_day, _volume_scale, _scale_duration,
-                      WorkoutParams, FOCUS_ZONE2, FOCUS_SWEETSPOT,
-                      FOCUS_THRESHOLD, FOCUS_VO2, ENDURANCE,
-                      DEFAULT_TRAINING_DAYS, VOLUME_SCALE_MIN, VOLUME_SCALE_MAX,
-                      weekly_budget)
+                       parse_min_regular_duration_minutes,
+                       _place_long_day, _volume_scale, _scale_duration,
+                       _enforce_min_regular_duration, estimate_tss,
+                       WorkoutParams, FOCUS_ZONE2, FOCUS_SWEETSPOT,
+                       FOCUS_THRESHOLD, FOCUS_VO2, ENDURANCE,
+                       DEFAULT_TRAINING_DAYS, VOLUME_SCALE_MIN, VOLUME_SCALE_MAX,
+                       MIN_REGULAR_DURATION_SEC, weekly_budget)
 
 
 class ParseWeeklyHoursTest(unittest.TestCase):
@@ -28,6 +30,14 @@ class ParseWeeklyHoursTest(unittest.TestCase):
         self.assertIsNone(parse_weekly_hours("0"))
         self.assertIsNone(parse_weekly_hours("-3"))
         self.assertIsNone(parse_weekly_hours("200"))
+
+
+class ParseMinimumRegularDurationTest(unittest.TestCase):
+    def test_ausente_valido_e_invalido(self):
+        self.assertIsNone(parse_min_regular_duration_minutes(""))
+        self.assertEqual(parse_min_regular_duration_minutes("60"), 3600)
+        self.assertIsNone(parse_min_regular_duration_minutes("60.5"))
+        self.assertIsNone(parse_min_regular_duration_minutes("0"))
 
 
 class ParseLongDayTest(unittest.TestCase):
@@ -118,6 +128,51 @@ class VolumeScaleTest(unittest.TestCase):
         self.assertEqual(_scale_duration(tiny, 0.5).on_sec, 120)
         self.assertIs(_scale_duration(p, None), p)
         self.assertIs(_scale_duration(p, 1.0), p)
+
+
+class MinimumRegularDurationTest(unittest.TestCase):
+    def test_build_aplica_minimo_somente_quando_configurado(self):
+        events = [{"start_date_local": date.today().isoformat(),
+                   "icu_training_load": 150, "paired_activity_id": 1}]
+        base = build_plan(events, 5, ftp=182, days=1,
+                          start=date(2026, 10, 12), training_days=(0,))
+        configured = build_plan(
+            events, 5, ftp=182, days=1, start=date(2026, 10, 12),
+            training_days=(0,),
+            min_regular_duration_sec=MIN_REGULAR_DURATION_SEC)
+        self.assertLess(base[0]["planned_duration"], MIN_REGULAR_DURATION_SEC)
+        self.assertEqual(configured[0]["planned_duration"],
+                         MIN_REGULAR_DURATION_SEC)
+
+    def test_com_folga_regular_chega_a_sessenta_minutos_sem_mudar_zona(self):
+        params = WorkoutParams(focus=FOCUS_VO2, repeats=4, on_sec=180,
+                               off_sec=180, on_power=1.15)
+        tss = estimate_tss(params, 182)
+        out, out_tss = _enforce_min_regular_duration(
+            params, tss, [], budget=999, cap=999, ftp=182,
+            min_duration_sec=MIN_REGULAR_DURATION_SEC,
+            budget_or_readiness_protected=False)
+        self.assertEqual(out.warmup_sec + out.repeats *
+                         (out.on_sec + out.off_sec) + out.cooldown_sec,
+                         MIN_REGULAR_DURATION_SEC)
+        self.assertEqual(out.focus, FOCUS_VO2)
+        self.assertEqual(out.on_power, 1.15)
+        self.assertGreater(out_tss, tss)
+
+    def test_teto_ou_prontidao_preserva_sessao_abaixo_do_minimo(self):
+        params = WorkoutParams(focus=FOCUS_SWEETSPOT, repeats=3, on_sec=480,
+                               off_sec=240, on_power=0.88)
+        tss = estimate_tss(params, 182)
+        by_budget, _ = _enforce_min_regular_duration(
+            params, tss, [], budget=tss, cap=999, ftp=182,
+            min_duration_sec=MIN_REGULAR_DURATION_SEC,
+            budget_or_readiness_protected=False)
+        by_readiness, _ = _enforce_min_regular_duration(
+            params, tss, [], budget=999, cap=999, ftp=182,
+            min_duration_sec=MIN_REGULAR_DURATION_SEC,
+            budget_or_readiness_protected=True)
+        self.assertEqual(by_budget, params)
+        self.assertEqual(by_readiness, params)
 
 
 class LongDayPlacementTest(unittest.TestCase):

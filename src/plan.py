@@ -89,6 +89,19 @@ def parse_weekly_hours(value):
     return hours
 
 
+def parse_min_regular_duration_minutes(value):
+    """Converte preferencia opcional de duracao minima regular em segundos."""
+    if not value:
+        return None
+    try:
+        minutes = int(str(value).strip())
+    except ValueError:
+        return None
+    if minutes <= 0 or minutes > 24 * 60:
+        return None
+    return minutes * 60
+
+
 def parse_long_day(value):
     """Converte LONG_DAY do .env (dia preferido para treinos longos, ex. 'sun'
     ou 'dom') em weekday (date.weekday()) ou None se ausente/invalido."""
@@ -147,6 +160,7 @@ def _block(repeats, on_sec, off_sec, on_power):
 #   build rotaciona o ciclo semanal para esse treino cair no dia escolhido.
 VOLUME_SCALE_MIN = 0.5
 VOLUME_SCALE_MAX = 1.5
+MIN_REGULAR_DURATION_SEC = 3600
 
 
 def _workout_duration(block):
@@ -1061,6 +1075,11 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                       "on_sec": max(120, int(params.on_sec * factor))})
             tss = estimate_tss(params, ftp)
         params, tss = _fit_budget(params, tss, recent, budget, ftp)
+        if taper is None:
+            params, tss = _enforce_min_regular_duration(
+                params, tss, recent, budget, cap, ftp,
+                min_duration_sec=min_regular_duration_sec,
+                budget_or_readiness_protected=readiness_agiu)
         duration = sum((params.warmup_sec,
                         params.repeats * (params.on_sec + params.off_sec),
                         params.cooldown_sec))
@@ -1395,6 +1414,35 @@ def _fit_budget(params, tss, recent, budget, ftp):
         params = _apply_state(params, repeats, on_sec, off_sec, on_power)
         tss = estimate_tss(params, ftp)
     return params, tss
+
+
+def _enforce_min_regular_duration(params, tss, recent, budget, cap, ftp,
+                                  min_duration_sec,
+                                  budget_or_readiness_protected):
+    """Leva sessao regular a 60min quando ha margem de carga.
+
+    O minimo do atleta e uma preferencia de disponibilidade, nao permissao para
+    ultrapassar protecoes. Por isso readiness, cap diario e teto semanal vencem
+    o minimo. A extensao divide volume facil entre aquecimento e desaquecimento,
+    preservando integralmente blocos de trabalho, foco e zona declarada.
+    """
+    if min_duration_sec is None:
+        return params, tss
+    duration = (params.warmup_sec + params.repeats *
+                (params.on_sec + params.off_sec) + params.cooldown_sec)
+    if duration >= min_duration_sec or budget_or_readiness_protected:
+        return params, tss
+    extra = min_duration_sec - duration
+    candidate = WorkoutParams(**{
+        **params.__dict__,
+        "warmup_sec": params.warmup_sec + extra // 2,
+        "cooldown_sec": params.cooldown_sec + extra - extra // 2,
+    })
+    candidate_tss = estimate_tss(candidate, ftp)
+    used = sum(load for _, load in recent)
+    if candidate_tss > cap or used + candidate_tss > budget:
+        return params, tss
+    return candidate, candidate_tss
 
 
 def _params_dict(params):

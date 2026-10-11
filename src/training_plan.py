@@ -23,9 +23,10 @@ try:
                                   forecast_pmc)
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
-                       manual_duplicate_ids,
-                       parse_training_days, parse_goal, parse_weekly_hours,
-                       parse_long_day, parse_fthr, parse_periodization,
+                        manual_duplicate_ids,
+                        parse_training_days, parse_goal, parse_weekly_hours,
+                        parse_min_regular_duration_minutes,
+                        parse_long_day, parse_fthr, parse_periodization,
                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                       GOALS, adherence_report, _tsb_race_verdict,
@@ -50,9 +51,10 @@ except ImportError:
                                    forecast_pmc)
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
-                       manual_duplicate_ids,
-                       parse_training_days, parse_goal, parse_weekly_hours,
-                      parse_long_day, parse_fthr, parse_periodization,
+                        manual_duplicate_ids,
+                        parse_training_days, parse_goal, parse_weekly_hours,
+                       parse_min_regular_duration_minutes,
+                       parse_long_day, parse_fthr, parse_periodization,
                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                       GOALS, adherence_report, _tsb_race_verdict,
@@ -188,6 +190,17 @@ def get_weekly_hours():
     if value.strip() and hours is None:
         print(f"aviso: WEEKLY_HOURS={value!r} invalido; sem ajuste de volume")
     return hours
+
+
+def get_min_regular_duration_sec():
+    """Duracao minima opcional das sessoes regulares, em segundos."""
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("MIN_REGULAR_DURATION_MINUTES", "")
+    duration = parse_min_regular_duration_minutes(value)
+    if value.strip() and duration is None:
+        print("aviso: MIN_REGULAR_DURATION_MINUTES="
+              f"{value!r} invalido; sem minimo de duracao regular")
+    return duration
 
 
 def get_long_day():
@@ -447,6 +460,7 @@ def cmd_check(args):
         ftp=get_ftp(),
         training_days=get_training_days(),
         weekly_hours=get_weekly_hours(),
+        min_regular_duration_sec=get_min_regular_duration_sec(),
         long_day=get_long_day(),
         periodization=get_periodization(),
         tsb_adapt_limit=TSB_ADAPT_LIMIT,
@@ -715,6 +729,7 @@ def cmd_build(args):
     periodization = get_periodization()
     race_date = get_race_date()
     weekly_hours = get_weekly_hours()
+    min_regular_duration_sec = get_min_regular_duration_sec()
     long_day = get_long_day()
     hr_mode = bool(getattr(args, "no_power", False))
     if hr_mode and fthr is None:
@@ -754,6 +769,7 @@ def cmd_build(args):
         periodization=periodization,
         race_date=race_date,
         weekly_hours=weekly_hours,
+        min_regular_duration_sec=min_regular_duration_sec,
         long_day=long_day,
         hr_mode=hr_mode,
         ftp_test_date=ftp_test_date,
