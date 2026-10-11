@@ -67,6 +67,22 @@ def parse_training_days(value):
     return tuple(sorted(set(days))) or DEFAULT_TRAINING_DAYS
 
 
+def parse_active_recovery_days(value, training_days):
+    """Converte ACTIVE_RECOVERY_DAYS e exige que sejam slots de treino."""
+    if not value:
+        return ()
+    days = []
+    for token in str(value).split(","):
+        token = token.strip().lower()
+        if token not in DAY_NAMES:
+            raise ValueError("ACTIVE_RECOVERY_DAYS invalido; use seg..dom ou mon..sun")
+        days.append(DAY_NAMES[token])
+    result = tuple(sorted(set(days)))
+    if not set(result).issubset(training_days):
+        raise ValueError("ACTIVE_RECOVERY_DAYS deve estar contido em TRAINING_DAYS")
+    return result
+
+
 def parse_weekly_hours(value):
     """Converte WEEKLY_HOURS do .env em float (horas disponiveis por semana) ou
     None se ausente/invalido. Aceita '5', '5.5', '5h' ou '300min'."""
@@ -161,6 +177,8 @@ def _block(repeats, on_sec, off_sec, on_power):
 VOLUME_SCALE_MIN = 0.5
 VOLUME_SCALE_MAX = 1.5
 MIN_REGULAR_DURATION_SEC = 3600
+ACTIVE_RECOVERY_POWER = 0.60
+ACTIVE_RECOVERY_ON_SEC = 2400
 
 
 def _workout_duration(block):
@@ -225,6 +243,13 @@ def _scale_duration(params, scale):
         return params
     return WorkoutParams(**{**params.__dict__,
                             "on_sec": max(120, int(params.on_sec * scale))})
+
+
+def _active_recovery_params():
+    """Sessao de 60min em Z2 leve; active recovery e intencao, nao foco Z1."""
+    return WorkoutParams(focus=FOCUS_ZONE2,
+                         **_block(1, ACTIVE_RECOVERY_ON_SEC, 0,
+                                  ACTIVE_RECOVERY_POWER))
 
 
 # Indice = posicao do dia dentro da agenda de treino (build_plan). O template
@@ -1040,6 +1065,10 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         if taper is not None:
             focus, params, phase = taper
             day_name = f"{day.isoformat()} - {RACE_PHASE_LABELS[phase]}"
+        elif day.weekday() in active_recovery_days:
+            focus = FOCUS_ZONE2
+            params = _active_recovery_params()
+            day_name = f"{day.isoformat()} - Recuperacao ativa (Z2)"
         else:
             params = WorkoutParams(focus=focus, **_block_for(focus, i, goal))
             params = _scale_duration(params, volume_scale)
@@ -1055,7 +1084,7 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
         dias_do_plano.add(day.isoformat())
         if params.focus in (FOCUS_SWEETSPOT, FOCUS_THRESHOLD, FOCUS_VO2):
             dias_qualidade.add(day.isoformat())
-        if not adapted:
+        if day.weekday() not in active_recovery_days and not adapted:
             adjusted = _adapt_session(params, state, day.isoformat())
             if adjusted is not params:
                 params = adjusted

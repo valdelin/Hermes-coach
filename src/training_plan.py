@@ -26,6 +26,7 @@ try:
                         manual_duplicate_ids,
                         parse_training_days, parse_goal, parse_weekly_hours,
                         parse_min_regular_duration_minutes,
+                        parse_active_recovery_days,
                         parse_long_day, parse_fthr, parse_periodization,
                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
@@ -54,6 +55,7 @@ except ImportError:
                         manual_duplicate_ids,
                         parse_training_days, parse_goal, parse_weekly_hours,
                        parse_min_regular_duration_minutes,
+                       parse_active_recovery_days,
                        parse_long_day, parse_fthr, parse_periodization,
                       GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
@@ -190,6 +192,12 @@ def get_weekly_hours():
     if value.strip() and hours is None:
         print(f"aviso: WEEKLY_HOURS={value!r} invalido; sem ajuste de volume")
     return hours
+
+
+def get_active_recovery_days():
+    load_env(PROJECT_ROOT / ".env")
+    return parse_active_recovery_days(
+        os.environ.get("ACTIVE_RECOVERY_DAYS", ""), get_training_days())
 
 
 def get_min_regular_duration_sec():
@@ -460,6 +468,7 @@ def cmd_check(args):
         ftp=get_ftp(),
         training_days=get_training_days(),
         weekly_hours=get_weekly_hours(),
+        active_recovery_days=get_active_recovery_days(),
         min_regular_duration_sec=get_min_regular_duration_sec(),
         long_day=get_long_day(),
         periodization=get_periodization(),
@@ -730,6 +739,7 @@ def cmd_build(args):
     race_date = get_race_date()
     weekly_hours = get_weekly_hours()
     min_regular_duration_sec = get_min_regular_duration_sec()
+    active_recovery_days = get_active_recovery_days()
     long_day = get_long_day()
     hr_mode = bool(getattr(args, "no_power", False))
     if hr_mode and fthr is None:
@@ -770,6 +780,7 @@ def cmd_build(args):
         race_date=race_date,
         weekly_hours=weekly_hours,
         min_regular_duration_sec=min_regular_duration_sec,
+        active_recovery_days=active_recovery_days,
         long_day=long_day,
         hr_mode=hr_mode,
         ftp_test_date=ftp_test_date,

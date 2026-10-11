@@ -283,6 +283,14 @@ class FtpTestPrepTest(unittest.TestCase):
         self.assertEqual(by_day["2026-09-25"]["name"], "2026-09-25 - Spin facil (pre-teste FTP)")
         self.assertNotIn("2026-09-27", by_day, "domingo = descanso natural")
 
+    def test_ramp_test_prevalece_sobre_active_recovery_agendada(self):
+        plan = build_plan([], 4, ftp=182, days=7, start=self.START,
+                          training_days=(0, 1, 2, 3, 4),
+                          active_recovery_days=(1, 3),
+                          goal="ftp-builder", ftp_test_date="2026-09-22")
+        self.assertEqual({w["day"]: w for w in plan}["2026-09-22"]["name"],
+                         "2026-09-22 - Ramp Test (FTP)")
+
     def test_teste_fora_do_horizonte_ignorado(self):
         # teste a 30 dias: fora dos 14 dias do plano -> nada muda
         base = build_plan([], 4, ftp=182, days=14, start=self.START, goal="ftp-builder")

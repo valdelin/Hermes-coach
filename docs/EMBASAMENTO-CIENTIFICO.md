@@ -328,6 +328,12 @@ sem foco próprio. Consequência: `_is_active_recovery()` classifica por
 `focus == zone2` **e** `on_power ≤ 0,65`, e o `reconcile` nunca compensa um active
 recovery perdido.
 
+**MODELO COMPUTACIONAL.** `ACTIVE_RECOVERY_DAYS` pode marcar um subconjunto de
+`TRAINING_DAYS` como recuperação ativa recorrente. O motor gera Z2 a 60% do FTP,
+mantém `focus="zone2"` e não compensa uma ausência. Dias de proteção de prova ou
+teste FTP prevalecem sobre essa preferência. A agenda é uma escolha de produto e
+disponibilidade, não uma conclusão fisiológica universal.
+
 **4. Um foco de prescrição pode ser servido por mais de uma zona.**
 
 ```python

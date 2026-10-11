@@ -3,6 +3,7 @@ from datetime import date
 
 from src.plan import (build_plan, parse_long_day, parse_weekly_hours,
                        parse_min_regular_duration_minutes,
+                       parse_active_recovery_days,
                        _place_long_day, _volume_scale, _scale_duration,
                        _enforce_min_regular_duration, estimate_tss,
                        WorkoutParams, FOCUS_ZONE2, FOCUS_SWEETSPOT,
@@ -38,6 +39,27 @@ class ParseMinimumRegularDurationTest(unittest.TestCase):
         self.assertEqual(parse_min_regular_duration_minutes("60"), 3600)
         self.assertIsNone(parse_min_regular_duration_minutes("60.5"))
         self.assertIsNone(parse_min_regular_duration_minutes("0"))
+
+
+class ActiveRecoveryDaysTest(unittest.TestCase):
+    def test_parser_exige_subconjunto_da_agenda(self):
+        self.assertEqual(parse_active_recovery_days("ter,qui", (0, 1, 2, 3, 4)),
+                         (1, 3))
+        with self.assertRaisesRegex(ValueError, "contido"):
+            parse_active_recovery_days("ter", (0, 2, 4))
+
+    def test_dias_configurados_geram_z2_e_dias_normais_preservam_template(self):
+        plan = build_plan([], 5, ftp=182, days=7, start=date(2026, 9, 14),
+                          training_days=(0, 1, 2, 3, 4),
+                          active_recovery_days=(1, 3))
+        by_weekday = {date.fromisoformat(w["day"]).weekday(): w for w in plan}
+        for weekday in (1, 3):
+            workout = by_weekday[weekday]
+            self.assertEqual(workout["focus"], FOCUS_ZONE2)
+            self.assertEqual(workout["params"]["on_power"], 0.60)
+            self.assertEqual(workout["planned_duration"], 3600)
+            self.assertIn("Recuperacao ativa (Z2)", workout["name"])
+        self.assertNotIn("Recuperacao ativa", by_weekday[0]["name"])
 
 
 class ParseLongDayTest(unittest.TestCase):

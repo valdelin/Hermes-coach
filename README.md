@@ -90,10 +90,13 @@ hermes-coach/
 2. Defina sua agenda de treinos no `.env` (opcional):
    ```
    TRAINING_DAYS=seg,ter,qua,qui,sex
+   ACTIVE_RECOVERY_DAYS=ter,qui
    ```
    Aceita nomes em portugues (`seg,ter,...`) ou ingles (`mon,tue,...`).
    Ausente ou invalido -> seg-sex como padrao. Pode ser configurado no chat
    com o agente no primeiro uso.
+   `ACTIVE_RECOVERY_DAYS` deve ser subconjunto da agenda: gera Z2 leve a 60%
+   do FTP, marcada como recuperação ativa e não compensada quando perdida.
 
 2a. (Opcional) **Disponibilidade semanal** — o agente pergunta no primeiro uso
     e grava no `.env`:
