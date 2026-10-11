@@ -949,10 +949,14 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                training_days=DEFAULT_TRAINING_DAYS, goal=None, race_date=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
                hr_mode=False, recovery_ramp=None, periodization=None,
-               readiness=None, readiness_report=None, phase_report=None):
+               readiness=None, readiness_report=None, phase_report=None,
+               min_regular_duration_sec=None, active_recovery_days=()):
     # `readiness_report` e preenchido in-place para o CLI relatar o desfecho da
     # avaliacao sem alterar o retorno (que e a lista de treinos, contrato).
     readiness_report = {} if readiness_report is None else readiness_report
+    active_recovery_days = tuple(sorted(set(active_recovery_days)))
+    if not set(active_recovery_days).issubset(training_days):
+        raise ValueError("active_recovery_days deve estar contido em training_days")
     today = date.today()
     if isinstance(existing, dict) and "workouts" in existing:
         existing = existing["workouts"]
@@ -986,14 +990,16 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                          start=start,
                                          training_days=training_days,
                                          goal=goal, race_date=race_date,
-                                         ftp_test_date=ftp_test_date,
-                                         weekly_hours=weekly_hours,
-                                         long_day=long_day, hr_mode=hr_mode,
-                                         recovery_ramp=recovery_ramp,
-                                         periodization=periodization,
-                                         readiness=readiness,
-                                         readiness_report=readiness_report,
-                                         phase_report=phase_report)
+                                          ftp_test_date=ftp_test_date,
+                                          weekly_hours=weekly_hours,
+                                          long_day=long_day, hr_mode=hr_mode,
+                                          recovery_ramp=recovery_ramp,
+                                          periodization=periodization,
+                                          readiness=readiness,
+                                          readiness_report=readiness_report,
+                                          phase_report=phase_report,
+                                          min_regular_duration_sec=min_regular_duration_sec,
+                                          active_recovery_days=active_recovery_days)
     slots = sorted(training_days)
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
     avg = avg_load(events)

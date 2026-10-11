@@ -1000,6 +1000,8 @@ def build_workouts(
     ramp_pts: int = 9,
     recovery_weeks: int = 12,
     phase_report: Optional[Dict[str, Any]] = None,
+    min_regular_duration_sec: Optional[int] = None,
+    active_recovery_days: Tuple[int, ...] = (),
 ) -> BuildResult:
     """Monta o plano a partir do historico. Nao grava em disco.
 
@@ -1047,7 +1049,9 @@ def build_workouts(
         ftp_test_date=ftp_test_date, weekly_hours=weekly_hours,
         long_day=long_day, hr_mode=hr_mode, recovery_ramp=recovery_ramp,
         periodization=periodization, readiness=decisao,
-        readiness_report=readiness_report, phase_report=phase_report)
+        readiness_report=readiness_report, phase_report=phase_report,
+        min_regular_duration_sec=min_regular_duration_sec,
+        active_recovery_days=active_recovery_days)
     return BuildResult(
         plan=Application.enrich_plan(plan), tsb=tsb, metrics=metrics,
         events=events, decisao=decisao,
@@ -1202,6 +1206,8 @@ def assess_daily_readiness(
     build_plan_fn: Callable[..., Plan],
     readiness_module: Any,
     eligibility_fn: Callable[..., Any],
+    active_recovery_days: Tuple[int, ...] = (),
+    min_regular_duration_sec: Optional[int] = None,
 ) -> ReadinessProposal:
     """Avalia a sessao de HOJE e decide se ha proposta de adaptacao por
     prontidao. Nao grava e nao publica: o adapter decide `--apply`/`--dry-run`.
@@ -1240,10 +1246,12 @@ def assess_daily_readiness(
     comum = dict(ftp=ftp, days=1, start=today, existing=None,
                  training_days=training_days, goal=meta.get("goal"),
                  race_date=meta.get("race_date"),
-                 ftp_test_date=meta.get("ftp_test_date"),
-                 weekly_hours=weekly_hours, long_day=long_day,
-                 hr_mode=bool(treino.get("hr_mode")),
-                 periodization=periodization)
+                  ftp_test_date=meta.get("ftp_test_date"),
+                  weekly_hours=weekly_hours, long_day=long_day,
+                  hr_mode=bool(treino.get("hr_mode")),
+                  periodization=periodization,
+                  active_recovery_days=active_recovery_days,
+                  min_regular_duration_sec=min_regular_duration_sec)
     tsb = result.tsb
     relatorio: Dict[str, Any] = {}
     sem = build_plan_fn(events, tsb, readiness=None, **comum)[0]

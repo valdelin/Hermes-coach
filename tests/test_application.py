@@ -769,6 +769,92 @@ class ReadinessUseCaseTest(unittest.TestCase):
         self.assertEqual(buf.getvalue(), "")
         self.assertEqual(result.status, "tsb_wins")
 
+    def test_check_rebuild_propagates_active_recovery_days(self):
+        module, _, _ = _readiness_stub(is_adaptive=True,
+                                       applies_to_day="2026-10-03")
+        active = {"day": "2026-10-03", "focus": "zone2",
+                  "params": {"on_power": 0.60}, "tss": 21.0,
+                  "name": "Recuperacao ativa (Z2)"}
+        captured = []
+
+        def spy_build(events, tsb, readiness, **kwargs):
+            captured.append(kwargs)
+            if readiness is not None:
+                kwargs["readiness_report"]["aplicada_em"] = ["2026-10-03"]
+            return [active]
+
+        result = _silent(
+            assess_daily_readiness, _Provider(events=[{"id": 1}]),
+            plan=[active], meta={}, today=date(2026, 10, 3), now=None,
+            days=7, ftp=200, training_days=(0, 1, 2, 3, 4),
+            weekly_hours=None, long_day=None, periodization=None,
+            tsb_adapt_limit=0.0,
+            latest_metrics_fn=lambda events: SimpleNamespace(tsb=5.0),
+            build_plan_fn=spy_build, readiness_module=module,
+            eligibility_fn=lambda plan, events, today, now: self._elig(active),
+            active_recovery_days=(1, 3))
+
+        self.assertEqual(len(captured), 2)
+        for kwargs in captured:
+            self.assertEqual(kwargs["active_recovery_days"], (1, 3))
+        self.assertEqual(result.com["name"], "Recuperacao ativa (Z2)")
+
+    def test_check_rebuild_propagates_minimum_regular_duration(self):
+        module, _, _ = _readiness_stub(is_adaptive=True,
+                                       applies_to_day="2026-10-03")
+        regular = {"day": "2026-10-03", "focus": "sweetspot",
+                   "params": {"a": 1}, "tss": 40.0, "name": "base"}
+        captured = []
+
+        def spy_build(events, tsb, readiness, **kwargs):
+            captured.append(kwargs)
+            if readiness is not None:
+                kwargs["readiness_report"]["aplicada_em"] = ["2026-10-03"]
+            return [regular]
+
+        _silent(
+            assess_daily_readiness, _Provider(events=[{"id": 1}]),
+            plan=[regular], meta={}, today=date(2026, 10, 3), now=None,
+            days=7, ftp=200, training_days=(0, 1, 2, 3, 4),
+            weekly_hours=None, long_day=None, periodization=None,
+            tsb_adapt_limit=0.0,
+            latest_metrics_fn=lambda events: SimpleNamespace(tsb=5.0),
+            build_plan_fn=spy_build, readiness_module=module,
+            eligibility_fn=lambda plan, events, today, now: self._elig(regular),
+            min_regular_duration_sec=3600)
+
+        self.assertEqual(len(captured), 2)
+        for kwargs in captured:
+            self.assertEqual(kwargs["min_regular_duration_sec"], 3600)
+
+    def test_check_default_minimum_duration_preserves_legacy_build_arguments(self):
+        module, _, _ = _readiness_stub(is_adaptive=True,
+                                       applies_to_day="2026-10-03")
+        captured = []
+
+        def spy_build(events, tsb, readiness, **kwargs):
+            captured.append(kwargs)
+            if readiness is not None:
+                kwargs["readiness_report"]["aplicada_em"] = ["2026-10-03"]
+            return [{"day": "2026-10-03", "focus": "sweetspot",
+                     "params": {"a": 1}, "tss": 40.0, "name": "base"}]
+
+        _silent(
+            assess_daily_readiness, _Provider(events=[{"id": 1}]),
+            plan=[{"day": "2026-10-03", "focus": "sweetspot",
+                   "params": {"a": 1}, "tss": 40.0, "name": "base"}],
+            meta={}, today=date(2026, 10, 3), now=None, days=7, ftp=200,
+            training_days=(0, 1, 2, 3, 4), weekly_hours=None, long_day=None,
+            periodization=None, tsb_adapt_limit=0.0,
+            latest_metrics_fn=lambda events: SimpleNamespace(tsb=5.0),
+            build_plan_fn=spy_build, readiness_module=module,
+            eligibility_fn=lambda plan, events, today, now: self._elig(
+                {"day": "2026-10-03", "focus": "sweetspot",
+                 "params": {"a": 1}, "tss": 40.0, "name": "base"}))
+        self.assertEqual(len(captured), 2)
+        for kwargs in captured:
+            self.assertIsNone(kwargs["min_regular_duration_sec"])
+
 
 class WorkoutLifecycleApplicationTest(unittest.TestCase):
     """UI-2 — identidade e lifecycle acessiveis/manipulaveis via Application,
