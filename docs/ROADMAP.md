@@ -964,6 +964,12 @@ pode usar qualquer canal, com ou sem agente.
 Ordem recomendada (PROMPT 41): PROG-1 → trainer Q1-Q4 → PROG-2 → PROG-3 →
 PROG-4 → PROG-6 → PROG-5.
 
+## INSIGHT M1 v2 — contrato de apresentação LLM read-only (2026-10-13)
+
+| item | escopo | status |
+|---|---|---|
+| INSIGHT M1 v2 | Origem histórica: `lab/m1-contrato`; auditoria dos cinco commits exclusivos concluída. Não há cherry-pick autorizado: a implementação futura nasce de `master`. O LLM é somente `InsightPresentation` read-only; não altera `Prescription`, readiness, FTP ou progression e não escreve no provider. Sequência planejada: INSIGHT-1..INSIGHT-6. Código ainda não começou. | **SPEC READY / IMPLEMENTATION NOT STARTED** |
+
 - **PROG-1 é contract/documentation DONE; a implementação ainda não começou.**
 - `src/progression.py` e `src/training_decision.py` **permanecem órfãos**; destino
   conceitual documentado na spec (§30-31) — não evoluir como engines concorrentes ao
