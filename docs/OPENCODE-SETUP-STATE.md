@@ -1,8 +1,8 @@
 # Estado do Setup OpenCode
 
-**Reconciliado:** 2026-10-02 (a partir de `git tag` / `git log` / `VERSION`, **não** da memória da sessão)
-**Versão corrente:** `VERSION` = `0.0.35` · tag mais recente `v0.0.35` · 145 commits
-**Próxima entrada:** `/retomar` → **não reinicia prompt nenhum.** Os 14 prompts estão entregues até v0.0.35. O trabalho aberto está na tabela do ROADMAP (itens 40, 41, 58, 59) e resumido em *Trabalho Aberto* abaixo.
+**Snapshot histórico reconciliado:** 2026-10-02 (a partir de `git tag` / `git log` / `VERSION`, **não** da memória da sessão).
+**Estado oficial atual:** `master` e `VERSION`; release atual `0.0.36`. Confirme com `git rev-parse HEAD`, `git describe --tags --always` e `cat VERSION`.
+**Escopo deste arquivo:** os detalhes abaixo são um snapshot de setup de 2026-10-02, não a fonte da versão corrente nem do backlog atual. Para o estado de trabalho, consulte `master`, `VERSION` e `docs/ROADMAP.md`.
 
 > **Como este arquivo é mantido.** Cada afirmação aqui é verificável por comando e foi
 > conferida contra o repositório nesta data. Nenhuma linha depende do que "a sessão

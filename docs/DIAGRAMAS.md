@@ -7,7 +7,7 @@
 > Os `.mmd`/`.png` têm dono próprio: `docs/diagramas/` no repo (ver "Fonte
 > canônica dos assets" abaixo).
 
-Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.35).
+Diagramas em [Mermaid](https://mermaid.js.org) do sistema real (v0.0.36).
 Renderizam nativo no Obsidian (bloco ` ```mermaid `) e no GitHub. Os `.mmd`
 fonte vivem em `docs/diagramas/` (geram os `.png` via mermaid-cli).
 

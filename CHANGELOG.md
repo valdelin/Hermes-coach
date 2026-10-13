@@ -15,6 +15,12 @@ própria — foram agrupadas na tag/release v0.0.7.
 
 ## [Unreleased]
 
+## [0.0.36] - 2026-10-13
+
+Release que integra a foundation de UI/aplicação e os incrementos de domínio,
+segurança e operação entregues desde `v0.0.35`. Mantém explícitos os limites
+abertos de recuperação e FTP; não os promove a comportamento resolvido.
+
 ### Adicionado
 
 - **Relatório HTML: prontidão, sessão e consistência.** `summary --export` agora

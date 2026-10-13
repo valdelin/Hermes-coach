@@ -2,11 +2,18 @@
 
 > **Objetivo deste documento:** colocar um novo colaborador em condições de entender o projeto, preparar o ambiente, trabalhar com segurança e contribuir sem quebrar os contratos arquiteturais, científicos e operacionais do Hermes Coach.
 >
-> **Branch de referência no momento da criação deste onboarding:** `feat/ui-foundation`
+> **Referência oficial:** branch `master`.
 >
-> **HEAD remoto auditado:** `9d3ef1e9af2be1b160d507277e596f97559137d6`
+> **Versão corrente:** consulte `VERSION`.
 >
-> **Status da branch:** 24 commits à frente de `master`, 0 atrás. CI remoto verde.
+> **Release atual:** `0.0.36`.
+>
+> Não trate SHA fixo como verdade permanente. Confirme o checkout com
+> `git rev-parse HEAD` e a referência remota com `git fetch origin`.
+>
+> A branch `feat/ui-foundation` foi integrada na release `0.0.36`; `master` é a
+> linha oficial. Toda branch de feature deve nascer de `master`, e o CI deve
+> passar antes do merge.
 
 ---
 
@@ -231,6 +238,8 @@ Durante o trabalho:
 
 - faça mudanças pequenas;
 - mantenha escopo estreito;
+- crie branches de feature a partir de `master`;
+- só integre em `master` depois do CI verde;
 - adicione regressão reproduzindo o bug;
 - preserve compatibilidade de persistência;
 - evite refactors oportunistas.
@@ -251,7 +260,7 @@ O CI oficial executa:
 python3 -m unittest discover -s tests -v
 ```
 
-No HEAD auditado da branch `feat/ui-foundation`, a suíte local validada tinha:
+O baseline da release `0.0.36`, a ser sempre reconfirmado no checkout atual, é:
 
 ```text
 1531 tests
@@ -260,7 +269,7 @@ No HEAD auditado da branch `feat/ui-foundation`, a suíte local validada tinha:
 3 skips
 ```
 
-O GitHub Actions também passou no mesmo HEAD.
+O GitHub Actions deve passar antes de integrar qualquer mudança em `master`.
 
 ---
 
@@ -469,7 +478,7 @@ Ele:
 
 ## 19. Estado atual da auditoria
 
-A branch `feat/ui-foundation` foi auditada remotamente.
+A auditoria abaixo foi preservada como registro da integração de `feat/ui-foundation` na release `0.0.36`. Ela não declara os achados como corrigidos.
 
 Resultado:
 
