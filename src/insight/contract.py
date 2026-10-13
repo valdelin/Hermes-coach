@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import math
 from typing import Any, Optional
 
 
@@ -42,6 +43,8 @@ class InsightFact:
             raise ValueError("key deve ser texto nao vazio")
         if isinstance(self.value, bool) or not isinstance(self.value, (str, int, float)):
             raise ValueError("value deve ser str, int ou float")
+        if isinstance(self.value, float) and not math.isfinite(self.value):
+            raise ValueError("value float deve ser finito")
         if self.unit is not None and (not isinstance(self.unit, str) or not self.unit.strip()):
             raise ValueError("unit deve ser None ou texto nao vazio")
         try:

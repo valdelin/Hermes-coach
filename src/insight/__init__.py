@@ -16,6 +16,13 @@ from .contract import (
     PrescribedSessionSummary,
     validate_presentation_payload,
 )
+from .render import (
+    InsightPresentationTemplate,
+    InsightRenderError,
+    fallback_presentation,
+    render_presentation,
+    render_template,
+)
 
 __all__ = [
     "FactClassification",
@@ -28,4 +35,9 @@ __all__ = [
     "ObservationAvailability",
     "PrescribedSessionSummary",
     "validate_presentation_payload",
+    "InsightPresentationTemplate",
+    "InsightRenderError",
+    "fallback_presentation",
+    "render_presentation",
+    "render_template",
 ]
