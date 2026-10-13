@@ -43,6 +43,8 @@ class InsightFact:
             raise ValueError("key deve ser texto nao vazio")
         if isinstance(self.value, bool) or not isinstance(self.value, (str, int, float)):
             raise ValueError("value deve ser str, int ou float")
+        if isinstance(self.value, str) and not self.value.strip():
+            raise ValueError("value texto nao pode ser vazio")
         if isinstance(self.value, float) and not math.isfinite(self.value):
             raise ValueError("value float deve ser finito")
         if self.unit is not None and (not isinstance(self.unit, str) or not self.unit.strip()):

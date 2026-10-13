@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
 from pathlib import Path
 import unittest
 
@@ -11,8 +10,6 @@ from src.insight.contract import (
     InsightSource, InsightView, ObservedExecution, ObservationAvailability,
     PrescribedSessionSummary, validate_presentation_payload,
 )
-from src.ftp_evidence import FtpEvidence, FtpEvidenceSource
-from src.ftp_history import FtpReference, FtpReferenceSource
 
 
 VALID_PAYLOAD = {
@@ -36,22 +33,34 @@ class InsightFactTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "value"):
             InsightFact("x", True, FactClassification.OBSERVED)
 
+    def test_fact_rejects_empty_or_whitespace_text_but_preserves_valid_text(self) -> None:
+        for value in ("", "   ", "\t\n"):
+            with self.subTest(value=repr(value)):
+                with self.assertRaisesRegex(ValueError, "texto nao pode ser vazio"):
+                    InsightFact("x", value, FactClassification.OBSERVED)
+        fact = InsightFact("x", " 45 min ", FactClassification.OBSERVED)
+        self.assertEqual(fact.value, " 45 min ")
+        with self.assertRaisesRegex(ValueError, "unit"):
+            InsightFact("x", "valid", FactClassification.OBSERVED, " \t")
+
     def test_fact_rejects_non_finite_floats(self) -> None:
         for value in (float("nan"), float("inf"), float("-inf")):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "finito"):
                     InsightFact("x", value, FactClassification.OBSERVED)
 
-    def test_ftp_evidence_and_confirmed_reference_remain_distinct_facts(self) -> None:
-        now = datetime(2026, 10, 13, tzinfo=timezone.utc)
-        evidence = FtpEvidence("evidence-1", 210, now, now, FtpEvidenceSource.PROVIDER_FTP)
-        reference = FtpReference("reference-1", 205, now, now, FtpReferenceSource.COACH_DEFINED)
-        evidence_fact = InsightFact("ftp_evidence", evidence.value_watts, FactClassification.OBSERVED, "W")
-        reference_fact = InsightFact("confirmed_ftp_reference", reference.value_watts, FactClassification.DERIVED, "W")
-        self.assertNotEqual(type(evidence), type(reference))
-        self.assertNotEqual(evidence_fact.key, reference_fact.key)
-        self.assertNotEqual(evidence_fact.value, reference_fact.value)
-        self.assertNotEqual(evidence_fact.classification, FactClassification.PRESCRIPTION)
+    def test_ftp_semantic_mapping_is_deferred_to_insight_5(self) -> None:
+        """INSIGHT-5 deve preservar FtpEvidence vs FtpReference na Application seam.
+
+        INSIGHT-2 continua generico: nao adapta tipos FTP, nao canoniza evidence
+        e nao promove nenhum fato a referencia confirmada automaticamente.
+        """
+        contract = (Path(__file__).resolve().parent.parent / "src/insight/contract.py").read_text(encoding="utf-8")
+        self.assertNotIn("ftp_history", contract)
+        self.assertNotIn("ftp_evidence", contract)
+        self.assertNotIn("FtpReference", contract)
+        self.assertNotIn("FtpEvidence", contract)
+        self.assertNotIn("DEFAULT_FTP", contract)
 
 
 class InsightViewTest(unittest.TestCase):

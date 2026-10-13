@@ -43,6 +43,10 @@ class PlaceholderRendererTest(unittest.TestCase):
         with self.assertRaises(InsightRenderError):
             render_template("{{unavailable}}", view())
 
+    def test_empty_fact_text_is_rejected_before_rendering(self) -> None:
+        with self.assertRaises(ValueError):
+            InsightFact("missing", "", FactClassification.OBSERVED)
+
 
 class PresentationRenderTest(unittest.TestCase):
     def test_complete_template_produces_valid_presentation_and_preserves_view(self) -> None:
