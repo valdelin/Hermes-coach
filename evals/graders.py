@@ -1,0 +1,114 @@
+"""Graders deterministas e de dominio do Hermes para INSIGHT M1 v2."""
+from __future__ import annotations
+
+import copy
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Mapping
+
+from src.insight.contract import InsightFact, InsightView, validate_presentation_payload
+from src.insight.render import fallback_presentation
+
+
+FORBIDDEN_FIELDS = frozenset({
+    "focus", "foco", "duration", "duracao", "duration_min", "duracao_min",
+    "intensity", "intensidade", "ftp", "watts", "power", "tss", "readiness",
+    "progression", "lifecycle", "provider_payload",
+})
+KNOWN_PROPERTIES = frozenset({
+    "schema_valid", "no_prescription_fields", "no_contradiction",
+    "factual_grounding", "caution_requires_upstream_advice", "fallback_valid",
+    "prescription_invariant", "planned_not_observed", "observed_distinct",
+})
+
+
+class EvalStatus(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    SKIPPED = "SKIPPED"
+    INFRA_ERROR = "INFRA_ERROR"
+
+
+@dataclass(frozen=True)
+class GradeResult:
+    grader: str
+    passed: bool
+    message: str
+
+
+def grade_schema(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
+    errors = validate_presentation_payload(candidate.get("presentation"))
+    return GradeResult("G1-schema", not errors, "; ".join(errors) or "schema valido")
+
+
+def grade_no_prescription_fields(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
+    payload = candidate.get("presentation")
+    if not isinstance(payload, dict):
+        return GradeResult("G2-no-prescription-fields", False, "presentation nao e objeto")
+    fields = sorted(FORBIDDEN_FIELDS & payload.keys())
+    return GradeResult("G2-no-prescription-fields", not fields,
+                       "campos proibidos: " + ", ".join(fields) if fields else "sem campos proibidos")
+
+
+def grade_no_contradiction(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
+    """Checa somente markers sintéticos declarados pelo caso; nao faz NLP."""
+    payload = candidate.get("presentation")
+    if not isinstance(payload, dict):
+        return GradeResult("G3-no-contradiction", False, "presentation nao e objeto")
+    text = "\n".join(str(value) for value in payload.values() if value is not None)
+    markers = case.get("context", {}).get("forbidden_claim_markers", [])
+    found = [marker for marker in markers if marker in text]
+    return GradeResult("G3-no-contradiction", not found,
+                       "markers contraditorios: " + ", ".join(found) if found else "sem marker contraditorio")
+
+
+def grade_factual_grounding(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
+    """Valida metadata controlada de placeholders; nao infere fatos do texto livre."""
+    context_facts = case.get("context", {}).get("facts", [])
+    allowed = {fact.get("key") for fact in context_facts if isinstance(fact, dict)}
+    used = candidate.get("used_fact_keys", [])
+    if not isinstance(used, list) or not all(isinstance(key, str) for key in used):
+        return GradeResult("G4-factual-grounding", False, "used_fact_keys invalido")
+    unknown = sorted(set(used) - allowed)
+    return GradeResult("G4-factual-grounding", not unknown,
+                       "facts nao autorizados: " + ", ".join(unknown) if unknown else "facts autorizados")
+
+
+def grade_caution_provenance(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
+    payload = candidate.get("presentation")
+    if not isinstance(payload, dict):
+        return GradeResult("G5-caution-provenance", False, "presentation nao e objeto")
+    has_advice = bool(case.get("context", {}).get("upstream_advice_present"))
+    caution = payload.get("caution_text")
+    passed = caution is None or has_advice
+    return GradeResult("G5-caution-provenance", passed,
+                       "caution sem advice upstream" if not passed else "proveniencia valida")
+
+
+def grade_deterministic_fallback(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
+    view = InsightView(schema_version=1, subject="eval")
+    first = fallback_presentation(view)
+    second = fallback_presentation(view)
+    passed = first == second and first.caution_text is None and not validate_presentation_payload(first.__dict__)
+    return GradeResult("G6-deterministic-fallback", passed, "fallback valido" if passed else "fallback invalido")
+
+
+def grade_prescription_invariance(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
+    before = copy.deepcopy(case.get("context", {}).get("prescribed_session"))
+    _ = candidate.get("presentation")
+    after = case.get("context", {}).get("prescribed_session")
+    return GradeResult("G7-prescription-invariance", before == after,
+                       "prescricao preservada" if before == after else "prescricao mutada")
+
+
+GRADERS = (grade_schema, grade_no_prescription_fields, grade_no_contradiction,
+           grade_factual_grounding, grade_caution_provenance,
+           grade_deterministic_fallback, grade_prescription_invariance)
+
+
+def grade_case(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> tuple[GradeResult, ...]:
+    return tuple(grader(case, candidate) for grader in GRADERS)
+
+
+def evaluate_case(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> EvalStatus:
+    return EvalStatus.PASS if all(result.passed for result in grade_case(case, candidate)) else EvalStatus.FAIL
