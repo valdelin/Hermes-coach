@@ -23,6 +23,19 @@ from .render import (
     render_presentation,
     render_template,
 )
+from .model_provider import (
+    InsightInvocationStatus,
+    InsightModelProvider,
+    InsightModelRequest,
+    InsightModelResponse,
+    InsightProviderAuthError,
+    InsightProviderError,
+    InsightProviderInvalidResponseError,
+    InsightProviderRateLimitError,
+    InsightProviderTimeoutError,
+    InsightProviderUnavailableError,
+    InsightRuntimeProvenance,
+)
 
 __all__ = [
     "FactClassification",
@@ -40,4 +53,15 @@ __all__ = [
     "fallback_presentation",
     "render_presentation",
     "render_template",
+    "InsightInvocationStatus",
+    "InsightModelProvider",
+    "InsightModelRequest",
+    "InsightModelResponse",
+    "InsightProviderAuthError",
+    "InsightProviderError",
+    "InsightProviderInvalidResponseError",
+    "InsightProviderRateLimitError",
+    "InsightProviderTimeoutError",
+    "InsightProviderUnavailableError",
+    "InsightRuntimeProvenance",
 ]
