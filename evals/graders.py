@@ -1,12 +1,15 @@
 """Graders deterministas e de dominio do Hermes para INSIGHT M1 v2."""
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
 
-from src.insight.contract import InsightFact, InsightView, validate_presentation_payload
+from src.insight.contract import (
+    FactClassification, InsightAdvisory, InsightFact, InsightView,
+    ObservedExecution, ObservationAvailability, PrescribedSessionSummary,
+    validate_presentation_payload,
+)
 from src.insight.render import fallback_presentation
 
 
@@ -34,6 +37,10 @@ class GradeResult:
     grader: str
     passed: bool
     message: str
+
+    def __post_init__(self) -> None:
+        if type(self.passed) is not bool:
+            raise ValueError("passed deve ser bool")
 
 
 def grade_schema(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
@@ -93,12 +100,40 @@ def grade_deterministic_fallback(case: Mapping[str, Any], candidate: Mapping[str
     return GradeResult("G6-deterministic-fallback", passed, "fallback valido" if passed else "fallback invalido")
 
 
+def _build_eval_view(context: Mapping[str, Any]) -> InsightView:
+    """View sintética mínima para provar imutabilidade da camada de eval.
+
+    Isto não é Application seam nem faz mapeamento de domínio; usa somente
+    fixtures já declarados para construir os tipos read-only reais.
+    """
+    facts = tuple(
+        InsightFact(item["key"], item["value"], FactClassification(item["classification"]))
+        for item in context.get("facts", ())
+    )
+    advisory = (InsightAdvisory("upstream advisory fixture")
+                if context.get("upstream_advice_present") else None)
+    prescribed = context.get("prescribed_session")
+    prescribed_session = (PrescribedSessionSummary(prescribed)
+                          if isinstance(prescribed, str) and prescribed else None)
+    observed_execution = (ObservedExecution(ObservationAvailability.OBSERVED, "observed fixture")
+                          if context.get("observed_execution") == "observed" else None)
+    return InsightView(schema_version=1, subject="eval", facts=facts,
+                       advisory=advisory, prescribed_session=prescribed_session,
+                       observed_execution=observed_execution)
+
+
 def grade_prescription_invariance(case: Mapping[str, Any], candidate: Mapping[str, Any]) -> GradeResult:
-    before = copy.deepcopy(case.get("context", {}).get("prescribed_session"))
+    view = _build_eval_view(case.get("context", {}))
+    before = view
+    prescribed_before = view.prescribed_session
     _ = candidate.get("presentation")
-    after = case.get("context", {}).get("prescribed_session")
-    return GradeResult("G7-prescription-invariance", before == after,
-                       "prescricao preservada" if before == after else "prescricao mutada")
+    after = view
+    passed = (before == after and prescribed_before == after.prescribed_session
+              and before.facts == after.facts and before.advisory == after.advisory
+              and before.observed_execution == after.observed_execution
+              and before.provenance == after.provenance)
+    return GradeResult("G7-prescription-invariance", passed,
+                       "eval preserva InsightView fornecida" if passed else "view mutada")
 
 
 GRADERS = (grade_schema, grade_no_prescription_fields, grade_no_contradiction,

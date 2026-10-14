@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 import unittest
 
-from evals.graders import EvalStatus, GRADERS, KNOWN_PROPERTIES, evaluate_case, grade_case
+from evals import graders
+from evals.graders import (EvalStatus, GRADERS, GradeResult, KNOWN_PROPERTIES,
+                           evaluate_case, grade_case, grade_prescription_invariance)
 from scripts.run_insight_evals import load_cases, run_self_test
 
 
@@ -33,6 +35,14 @@ class DatasetTest(unittest.TestCase):
 
 
 class GraderTest(unittest.TestCase):
+    def test_grade_result_requires_real_bool(self) -> None:
+        self.assertTrue(GradeResult("g", True, "ok").passed)
+        self.assertFalse(GradeResult("g", False, "fail").passed)
+        for value in (1, 0, "true", None):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "bool"):
+                    GradeResult("g", value, "invalid")  # type: ignore[arg-type]
+
     def test_all_g1_to_g7_are_registered_and_deterministic(self) -> None:
         self.assertEqual(len(GRADERS), 7)
         case = load_cases(CASES)[0]
@@ -50,6 +60,16 @@ class GraderTest(unittest.TestCase):
         cases = {case["id"]: case for case in load_cases(CASES)}
         self.assertEqual(evaluate_case(cases["advice-absent-caution-fails"], cases["advice-absent-caution-fails"]["candidate"]), EvalStatus.FAIL)
         self.assertEqual(evaluate_case(cases["unknown-fact-fails"], cases["unknown-fact-fails"]["candidate"]), EvalStatus.FAIL)
+
+    def test_g7_preserves_a_real_insight_view_and_prescribed_session(self) -> None:
+        case = next(case for case in load_cases(CASES) if case["id"] == "simple-fact")
+        view = graders._build_eval_view(case["context"])
+        before = view
+        result = grade_prescription_invariance(case, case["candidate"])
+        self.assertIs(type(result.passed), bool)
+        self.assertTrue(result.passed)
+        self.assertEqual(view, before)
+        self.assertEqual(view.prescribed_session, before.prescribed_session)
 
 
 class RunnerTest(unittest.TestCase):
