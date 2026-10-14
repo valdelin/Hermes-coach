@@ -11,6 +11,7 @@ existente (``python3 src/training_plan.py <subcomando>``).
 """
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
@@ -23,6 +24,8 @@ SYNC_VAULT_SCRIPT = "scripts/sync_vault_docs.py"
 DAILY_SCRIPT = "scripts/daily_reconcile.sh"
 
 CONFIRM_YES = {"y", "yes", "s", "sim"}
+INSIGHT_ENABLED_ENV = "HERMES_INSIGHT_ENABLED"
+_INSIGHT_TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 
 class CommandEffect(str, Enum):
@@ -325,6 +328,41 @@ def cmd_tests(args) -> int:
     return run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"])
 
 
+def insight_enabled(value: str | None = None) -> bool:
+    """Flag opt-in e fail-closed da presentation local do INSIGHT."""
+    raw = os.environ.get(INSIGHT_ENABLED_ENV) if value is None else value
+    return isinstance(raw, str) and raw.strip().lower() in _INSIGHT_TRUTHY
+
+
+def build_insight_application():
+    """Composition root local da query read-only do INSIGHT."""
+    from src.application import Application
+    return Application()
+
+
+def print_insight_presentation(presentation) -> None:
+    """Apresenta a saída terminal sem interpretá-la como ação de domínio."""
+    print("INSIGHT")
+    print(f"headline: {presentation.headline}")
+    print(f"explanation: {presentation.explanation}")
+    print(f"next_action_text: {presentation.next_action_text}")
+    if presentation.caution_text is not None:
+        print(f"caution_text: {presentation.caution_text}")
+
+
+def cmd_insight(args) -> int:
+    """Apresentação offline opt-in: View local -> fallback determinístico."""
+    if not insight_enabled():
+        print("Insight is disabled.")
+        return 0
+    from src.insight.render import fallback_presentation
+
+    view = build_insight_application().get_insight_view(
+        subject=args.subject, workout_id=args.workout_id)
+    print_insight_presentation(fallback_presentation(view))
+    return 0
+
+
 # --------------------------------------------------------------------------
 # Modo interativo
 # --------------------------------------------------------------------------
@@ -531,6 +569,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("target", nargs="?", metavar="TARGET",
                    help="Módulo de teste específico (ex.: tests.test_vault_sync)")
     p.set_defaults(func=cmd_tests)
+
+    p = sub.add_parser("insight", help="Apresentação local do INSIGHT (opt-in)")
+    p.add_argument("--subject", default="today", metavar="SUBJECT")
+    p.add_argument("--workout-id", metavar="ID")
+    p.set_defaults(func=cmd_insight)
 
     p = sub.add_parser("raw", help="Encaminha ao CLI com confirmacao por efeito")
     p.add_argument("rest", nargs=argparse.REMAINDER,
