@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 import os
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta, timezone
@@ -20,6 +21,7 @@ try:
     import form_advisory as _form_advisory
     import ftp_evidence as _ftp_evidence
     import ftp_history as _ftp_history
+    import insight.contract as _insight
     import lifecycle as _lifecycle
     import pw_hr_decoupling as _pw_hr_decoupling
     import snapshot as _snapshot
@@ -39,6 +41,7 @@ except ImportError:  # execucao como pacote (src.application)
     from . import form_advisory as _form_advisory  # type: ignore
     from . import ftp_evidence as _ftp_evidence  # type: ignore
     from . import ftp_history as _ftp_history  # type: ignore
+    from .insight import contract as _insight  # type: ignore
     from . import lifecycle as _lifecycle  # type: ignore
     from . import pw_hr_decoupling as _pw_hr_decoupling  # type: ignore
     from . import snapshot as _snapshot  # type: ignore
@@ -106,6 +109,32 @@ def _plan_module():
     else:  # application importado pela CLI executada como script direto
         import plan  # noqa: F401
     return plan
+
+
+def _append_insight_fact(
+    facts: list["_insight.InsightFact"], key: str, value: Any,
+    classification: "_insight.FactClassification", unit: Optional[str] = None,
+) -> None:
+    """Anexa um fato permitido, omitindo ausência e valores inválidos."""
+    if value is None or isinstance(value, bool):
+        return
+    if isinstance(value, float) and not math.isfinite(value):
+        return
+    if not isinstance(value, (str, int, float)):
+        return
+    if isinstance(value, str) and not value.strip():
+        return
+    if any(fact.key == key for fact in facts):
+        raise ValueError(f"chave de insight duplicada: {key}")
+    facts.append(_insight.InsightFact(key, value, classification, unit))
+
+
+def _insight_summary_text(primary: Any, fallback: Any) -> Optional[str]:
+    """Retorna somente texto planned já existente, sem criar linguagem nova."""
+    for candidate in (primary, fallback):
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -661,6 +690,92 @@ class Application:
         snapshot = _ui_state.build_snapshot_view(
             self.load_training_snapshot(), now=now)
         return _ui_state.build_readiness_view(snapshot, today=target)
+
+    def get_insight_view(
+        self, *, subject: str, workout_id: Optional[str] = None,
+        today: Optional[date] = None, now: Optional[datetime] = None,
+    ) -> "_insight.InsightView":
+        """Compõe o input local e read-only do INSIGHT M1 v2.
+
+        Esta seam transporta somente fatos já resolvidos pelas Views locais. Não
+        consulta provider, ambiente ou estado FTP; também não executa policy,
+        renderer, modelo ou qualquer persistência.
+        """
+        if not isinstance(subject, str) or not subject.strip():
+            raise ValueError("subject deve ser texto nao vazio")
+
+        facts: list[_insight.InsightFact] = []
+        provenance: list[_insight.InsightSource] = []
+
+        readiness = self.get_readiness_view(today=today, now=now)
+        readiness_fact_count = len(facts)
+        pmc = readiness.pmc
+        if pmc is not None:
+            _append_insight_fact(facts, "ctl", pmc.ctl,
+                                 _insight.FactClassification.OBSERVED)
+            _append_insight_fact(facts, "atl", pmc.atl,
+                                 _insight.FactClassification.OBSERVED)
+            _append_insight_fact(facts, "tsb", pmc.tsb,
+                                 _insight.FactClassification.OBSERVED)
+            _append_insight_fact(facts, "form_pct", pmc.form_pct,
+                                 _insight.FactClassification.DERIVED, "%")
+        wellness = readiness.wellness
+        if wellness is not None:
+            _append_insight_fact(facts, "hrv", wellness.hrv,
+                                 _insight.FactClassification.OBSERVED)
+            _append_insight_fact(facts, "rhr", wellness.resting_hr,
+                                 _insight.FactClassification.OBSERVED, "bpm")
+            _append_insight_fact(facts, "sleep_secs", wellness.sleep_secs,
+                                 _insight.FactClassification.OBSERVED, "s")
+        if readiness.heuristic_level is not None:
+            _append_insight_fact(facts, "heuristic_level", readiness.heuristic_level,
+                                 _insight.FactClassification.HEURISTIC)
+            _append_insight_fact(facts, "heuristic_score", readiness.heuristic_score,
+                                 _insight.FactClassification.HEURISTIC)
+            _append_insight_fact(
+                facts, "heuristic_confidence", readiness.heuristic_confidence,
+                _insight.FactClassification.HEURISTIC)
+        if len(facts) > readiness_fact_count:
+            provenance.append(_insight.InsightSource("readiness_view"))
+
+        prescribed_session = None
+        observed_execution = None
+        if workout_id is not None:
+            execution = self.get_workout_execution_view(
+                workout_id, today=today, now=now)
+            if execution is None:
+                raise KeyError(workout_id)
+            provenance.append(_insight.InsightSource("workout_execution_view"))
+
+            workout = self.get_workout(workout_id)
+            summary = _insight_summary_text(
+                workout.get("name") if workout is not None else None,
+                execution.planned.focus)
+            if summary is not None:
+                prescribed_session = _insight.PrescribedSessionSummary(summary)
+
+            planned_fact_count = len(facts)
+            _append_insight_fact(
+                facts, "planned_duration_sec", execution.planned.duration_sec,
+                _insight.FactClassification.PRESCRIPTION, "s")
+            _append_insight_fact(facts, "planned_tss", execution.planned.tss,
+                                 _insight.FactClassification.PRESCRIPTION, "TSS")
+            _append_insight_fact(
+                facts, "planned_ftp_watts", getattr(execution.planned, "ftp_watts"),
+                _insight.FactClassification.PRESCRIPTION, "W")
+            if prescribed_session is not None or len(facts) > planned_fact_count:
+                provenance.append(_insight.InsightSource("local_plan"))
+
+            availability = (_insight.ObservationAvailability.OBSERVED
+                            if execution.observed_activity is not None
+                            else _insight.ObservationAvailability.UNAVAILABLE)
+            observed_execution = _insight.ObservedExecution(availability)
+
+        return _insight.InsightView(
+            schema_version=1, subject=subject, facts=tuple(facts), advisory=None,
+            prescribed_session=prescribed_session,
+            observed_execution=observed_execution,
+            provenance=tuple(provenance))
 
     def get_form_advisory(
         self, *,
