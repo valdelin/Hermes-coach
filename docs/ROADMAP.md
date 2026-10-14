@@ -970,6 +970,78 @@ PROG-4 → PROG-6 → PROG-5.
 |---|---|---|
 | INSIGHT M1 v2 | Origem histórica: `lab/m1-contrato`; implementação limpa incorporada em `master` no commit `6b4a9791dfca5e562261b2c4c64c75de4e9b2e0c` via `FAST_FORWARD_ONLY`, com CI de master verde (run `38578649393`). Não houve release; Hermes permanece 0.0.36. INSIGHT-1..6: contrato read-only; renderer grounded + fallback determinístico; boundary de provider; harness offline G1–G7; seam `Application.get_insight_view`; e apresentação CLI segura. O LLM continua somente `InsightPresentation` read-only: flag `HERMES_INSIGHT_ENABLED` default OFF, sem provider/model concreto, invocação online, Presentation→action, promoção de FTP evidence ou alteração de `Prescription`; FTP canônico é omitido fail-closed. P3 não bloqueantes abertos: `INSIGHT2-AUD-03` (limites globais de tamanho de fact/input/output) e `INSIGHT3-AUD-01` (consistência request/provenance em futuro runtime de invocação). Fora do M1 implementado: integração de harness externo, workflow dedicado de eval, chat autônomo, tool calling e memory. | **MERGED TO MASTER** |
 
+### INSIGHT M1.1 — hardening antes de runtime online
+
+**Status: PLANNED.** Pré-requisito técnico obrigatório do M2; não introduz
+provider, modelo, rede ou mudança de `Prescription`. Mantém
+`HERMES_INSIGHT_ENABLED` default OFF e o fallback determinístico.
+
+| ID | Escopo | Critério de saída |
+|---|---|---|
+| INSIGHT2-AUD-03 | Limites explícitos para quantidade de facts; tamanho de key/value/unit; `InsightView` serializado; input/prompt; raw response; e `InsightPresentation`. Excesso falha fechado, emite status observável equivalente a `SIZE_LIMIT_EXCEEDED` e usa fallback, sem truncamento silencioso ou alteração de Prescription. Valores numéricos serão definidos em SPEC/implementação posterior, com testes de boundary/off-by-one. | **CLOSED**; limites, fallback e testes determinísticos aprovados. |
+| INSIGHT3-AUD-01 | Unificar a fonte de verdade por invocation para `InsightModelRequest` e `RuntimeProvenance`: prompt version/hash, provider, requested/resolved model, runtime/harness version, commit/build e `executed_at`. Mismatch falha fechado; requested e resolved continuam distintos; alias não é identidade imutável; timestamp permanece injetável; domínio não lê env. | **CLOSED**; provenance deriva da execução efetiva e não aceita metadata contraditória. |
+
+**Saída de M1.1:** ambos P3 fechados; invariância de Prescription preservada;
+suíte e evals offline verdes; core sem provider/rede obrigatórios; documentação
+atualizada. Nenhum runtime online pode iniciar antes dessa saída.
+
+### INSIGHT M2 — runtime online de explicação
+
+**Status: PLANNED / DESIGN REQUIRED.** Objetivo: gerar somente uma apresentação
+explicativa a partir de `InsightView` estruturado. Fluxo permitido:
+
+```text
+Application → InsightView → invocation runtime → InsightModelProvider concreto
+→ raw response → validação de schema/grounding → InsightPresentation → UI/CLI
+```
+
+Toda falha resulta em fallback determinístico. Nunca há retorno de
+`InsightPresentation` para Advice, Policy, Prescription, lifecycle, confirmação
+de FTP ou sync de provider.
+
+**Segurança:** input mínimo e allowlisted; output de schema fechado; sem execução
+de shell, acesso arbitrário ao filesystem, ferramentas mutáveis, writes no
+provider, tool/function calling, segredos no prompt, memory ou agent loop.
+
+| ID | Etapa | Guardrails / decisão pendente |
+|---|---|---|
+| INSIGHT-M2-1 | Provider adapter concreto | Isolado atrás de `InsightModelProvider`; config/auth no runtime/composition boundary; sem imports de SDK no domínio; taxonomia normalizada; sem auto-retry, tools, function calling, memory ou agent loop. `FIRST_PROVIDER: OPEN`. |
+| INSIGHT-M2-2 | Seleção e pinning de modelo | Registrar requested e resolved model por invocation; alias não é pin imutável; custo/latência observáveis separadamente; toda troca exige revisão. `FIRST_MODEL: OPEN`. |
+| INSIGHT-M2-3 | Invocation runtime | Construir request a partir de `InsightView`; prompt version/hash e provenance consistentes; timeout e timestamp injetável; falhas de provider, modelo, schema, grounding ou tamanho caem em fallback; sem writes de plan/readiness/FTP. |
+| INSIGHT-M2-4 | Data egress allowlist | Definir facts permitidos antes de qualquer chamada externa. Proibir raw provider payload, IDs externos de atleta/atividade, segredos, tokens, arquivos e provenance desnecessária. Subject é texto controlado; planned e observed seguem distintos; FTP canônico/evidence permanecem fail-closed. `ALLOWED_FACTS_FOR_EXTERNAL_PROVIDER: OPEN`. |
+| INSIGHT-M2-5 | Prompt versionado | Camada de implementação, não domínio; version/hash determinísticos; mudança semântica revisada; fixtures/injeção em testes; sem thresholds fisiológicos, lógica de readiness/progressão/FTP ou decisões novas. |
+| INSIGHT-M2-6 | Validação de resposta | `raw → closed schema → no prescription fields → grounding → caution provenance → contradiction guards → InsightPresentation`; sem silent repair; qualquer falha usa fallback. |
+| INSIGHT-M2-7 | Gate de eval online/offline | Preservar G1–G7; core tests continuam offline; workflow online separado com `PASS`/`FAIL`/`SKIPPED`/`INFRA_ERROR` (`SKIPPED`/`INFRA_ERROR` ≠ `PASS`). Dataset é Hermes-owned; runner externo só pinado por tag/SHA/release, nunca branch flutuante. `ONLINE_EVAL_PROVIDER` e `ONLINE_EVAL_SCHEDULING: OPEN`. |
+| INSIGHT-M2-8 | Observabilidade | Por invocation, sem secrets: provider, requested/resolved model, prompt version/hash, runtime/harness version, commit/build, executed_at, latência, status, fallback, grader/eval e custo separado. Não registrar keys, tokens ou raw sensitive payloads sem política futura explícita. |
+| INSIGHT-M2-9 | Rollout controlado | Permanece OFF até M1.1, provider/model, egress, evals, observabilidade, fallback e invariância aprovados. Mesmo ON, continua presentation-only. `TIMEOUT_POLICY`, `COST_BUDGET`, `RETRY_POLICY`, `INITIAL_ROLLOUT_SURFACE` e disclosure/fallback UX: OPEN. |
+| INSIGHT-M2-10 | Integração de apresentação | UI/CLI mantém estado estruturado separado; nunca parseia texto em ação, botão, mutação ou workflow de domínio. |
+
+**Guardrails de autoridade e ciência:** `observed > derived > heuristic > advice
+> prescription > InsightPresentation`. O runtime só verbaliza state/advice
+existente: não recalcula readiness, progression, form/CTL-ramp advisory,
+recovery, deload ou training-load thresholds; não infere illness; não transforma
+planned em observed ou missing em zero/healthy; não confirma FTP nem promove
+estimate/evidence. `FtpReference` só é canônico quando confirmado;
+`PlannedWorkout.ftp_watts` continua snapshot `PRESCRIPTION`; `DEFAULT_FTP` nunca
+é fisiologia; não há sync automático de FTP.
+
+**Ordem obrigatória:** M1.1 primeiro (size limits, depois unificação
+request/provenance); somente então M2: provider selection/design, adapter
+concreto, seleção/pinning de modelo, allowlist de egress, invocation runtime,
+contrato de prompt, validação de resposta, observabilidade, eval online e rollout
+controlado/UI. Runtime online antes da conclusão de M1.1 é proibido.
+
+**Decisões abertas:** `FIRST_PROVIDER`, `FIRST_MODEL`,
+`ALLOWED_EXTERNAL_FACTS`, `TIMEOUT_POLICY`, `COST_BUDGET`,
+`ONLINE_EVAL_PROVIDER`, `ONLINE_EVAL_SCHEDULING`, `RETRY_POLICY`,
+`INITIAL_ROLLOUT_SURFACE` e user-facing disclosure/fallback UX.
+
+**Critérios de conclusão de M2:** M1.1 fechado; provider/model e allowlist
+aprovados; adapter e runtime provenance consistentes; prompt version/hash,
+schema/grounding/fallback e no-domain-mutation cobertos; invariância de
+Prescription comprovada; core offline independente de rede; workflow de eval
+online separado; rollout decidido explicitamente; docs e CI/evals atualizados.
+
 - **PROG-1 é contract/documentation DONE; a implementação ainda não começou.**
 - `src/progression.py` e `src/training_decision.py` **permanecem órfãos**; destino
   conceitual documentado na spec (§30-31) — não evoluir como engines concorrentes ao
