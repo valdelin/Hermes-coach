@@ -1,6 +1,9 @@
 # SPEC — INSIGHT M1 v2: camada LLM read-only de apresentação
 
-Status: **DRAFT / CONTRACT ONLY** — implementação ainda **NÃO iniciada**.
+Status: **IMPLEMENTED ON FEATURE / READY FOR MERGE** — implementação concluída em
+`feat/insight-m1-v2` no commit
+`adfe05ace97bda2831d7eb1098510c4ff59b51ca`, com CI verde; ainda não mergeada em
+`master` nem released.
 Versão de referência: **Hermes Coach 0.0.36**.
 Branch canônica: **`master`**.
 
@@ -846,33 +849,31 @@ Depois, remoção pode ser decidida em tarefa separada.
 
 ## 43. Sequência recomendada
 
-### INSIGHT-1 — contrato
+### INSIGHT-1 — contrato (**DONE**)
 - `InsightView`;
 - `InsightPresentation`;
 - schema;
 - testes offline.
 
-### INSIGHT-2 — renderer/fallback
+### INSIGHT-2 — renderer/fallback (**DONE**)
 - fallback determinístico;
 - grounding strategy.
 
-### INSIGHT-3 — provider boundary
-- protocol;
-- adapter inicial;
-- error taxonomy;
-- sem integração no build.
+### INSIGHT-3 — provider boundary (**DONE**)
+- protocol e error taxonomy;
+- sem provider/adaptador concreto e sem integração no build.
 
-### INSIGHT-4 — eval harness
+### INSIGHT-4 — eval harness (**DONE**)
 - dataset;
 - graders;
-- pin do ai-lab;
-- workflow separado.
+- harness offline no repositório;
+- integração/pin do ai-lab e workflow dedicado permanecem não criados.
 
-### INSIGHT-5 — Application seam
+### INSIGHT-5 — Application seam (**DONE**)
 - `Application.get_insight_view`;
 - geração opcional read-only.
 
-### INSIGHT-6 — UI/CLI presentation
+### INSIGHT-6 — UI/CLI presentation (**DONE**)
 - apresentar insight;
 - nunca parsear texto para ação.
 
@@ -880,7 +881,28 @@ Cada etapa deve ser commit/review separado.
 
 ---
 
-## 44. Decisões abertas antes da implementação
+### Status da implementação na feature
+
+INSIGHT-1..6 estão implementados em `feat/insight-m1-v2`
+(`adfe05ace97bda2831d7eb1098510c4ff59b51ca`) e a feature está pronta para
+merge, mas ainda não foi mergeada em `master` nem released.
+
+- O contrato, renderer/fallback, boundary de provider, harness offline G1–G7,
+  seam read-only da `Application` e apresentação CLI foram implementados.
+- `HERMES_INSIGHT_ENABLED` permanece default OFF; flag ON usa somente o
+  fallback determinístico e não altera Prescription.
+- Não há provider concreto, modelo selecionado, invocação LLM online, integração
+  de harness externo, workflow dedicado de eval, chat autônomo, tool calling ou
+  memory.
+- `FtpReference` canônico permanece omitido fail-closed; `FtpEvidence` não é
+  promovido; FTP planejado permanece Prescription.
+- Permanecem abertos, sem bloquear merge: `INSIGHT2-AUD-03` (limites globais de
+  tamanho de fact/input/output) e `INSIGHT3-AUD-01` (consistência entre request
+  e provenance quando existir runtime de invocação).
+
+---
+
+## 44. Decisões abertas para evolução posterior
 
 1. Grounding:
    - A: zero números livres;
@@ -950,16 +972,12 @@ Nunca aceitar porque “parece razoável”.
 
 ## 47. Status de saída
 
-Esta SPEC:
-- formaliza a auditoria de `lab/m1-contrato`;
-- não modifica código;
-- não altera prescrição;
-- não adiciona threshold;
-- não integra LLM;
-- define a fronteira segura para implementação futura.
+Esta SPEC formalizou a auditoria de `lab/m1-contrato` e definiu a fronteira
+segura agora implementada na feature. A implementação não altera Prescription,
+não adiciona threshold e não integra um LLM online.
 
 Status recomendado no ROADMAP:
 
 ```text
-INSIGHT M1 v2 — SPEC READY / IMPLEMENTATION NOT STARTED
+INSIGHT M1 v2 — IMPLEMENTATION COMPLETE ON FEATURE / READY FOR MERGE
 ```

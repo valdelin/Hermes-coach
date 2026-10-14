@@ -968,7 +968,7 @@ PROG-4 → PROG-6 → PROG-5.
 
 | item | escopo | status |
 |---|---|---|
-| INSIGHT M1 v2 | Origem histórica: `lab/m1-contrato`; auditoria dos cinco commits exclusivos concluída. Não há cherry-pick autorizado: a implementação futura nasce de `master`. O LLM é somente `InsightPresentation` read-only; não altera `Prescription`, readiness, FTP ou progression e não escreve no provider. Sequência planejada: INSIGHT-1..INSIGHT-6. Código ainda não começou. | **SPEC READY / IMPLEMENTATION NOT STARTED** |
+| INSIGHT M1 v2 | Origem histórica: `lab/m1-contrato`; implementação limpa concluída na feature `feat/insight-m1-v2` (`adfe05ace97bda2831d7eb1098510c4ff59b51ca`, CI verde), ainda não mergeada em `master` nem released. INSIGHT-1..6: contrato read-only; renderer grounded + fallback determinístico; boundary de provider; harness offline G1–G7; seam `Application.get_insight_view`; e apresentação CLI segura. O LLM continua somente `InsightPresentation` read-only: flag `HERMES_INSIGHT_ENABLED` default OFF, sem provider/model concreto, invocação online, Presentation→action, promoção de FTP evidence ou alteração de `Prescription`; FTP canônico é omitido fail-closed. P3 não bloqueantes abertos: `INSIGHT2-AUD-03` (limites globais de tamanho de fact/input/output) e `INSIGHT3-AUD-01` (consistência request/provenance em futuro runtime de invocação). Fora do M1 implementado: integração de harness externo, workflow dedicado de eval, chat autônomo, tool calling e memory. | **IMPLEMENTATION COMPLETE ON FEATURE / READY FOR MERGE** |
 
 - **PROG-1 é contract/documentation DONE; a implementação ainda não começou.**
 - `src/progression.py` e `src/training_decision.py` **permanecem órfãos**; destino
