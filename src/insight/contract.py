@@ -11,6 +11,14 @@ from enum import Enum
 import math
 from typing import Any, Optional
 
+from .limits import (MAX_CAUTION_TEXT_CHARS, MAX_EXPLANATION_CHARS,
+                     MAX_FACT_COUNT, MAX_FACT_KEY_BYTES,
+                     MAX_FACT_STRING_VALUE_BYTES, MAX_FACT_UNIT_BYTES,
+                     MAX_HEADLINE_CHARS, MAX_NEXT_ACTION_TEXT_CHARS,
+                     MAX_PRESENTATION_TOTAL_BYTES, MAX_PROVENANCE_COUNT,
+                     presentation_bytes, require_max_size,
+                     require_max_utf8_bytes)
+
 
 class FactClassification(str, Enum):
     """Autoridade declarada de um fato recebido pelo insight."""
@@ -41,14 +49,20 @@ class InsightFact:
     def __post_init__(self) -> None:
         if not isinstance(self.key, str) or not self.key.strip():
             raise ValueError("key deve ser texto nao vazio")
+        require_max_utf8_bytes(self.key, "fact_key_bytes", MAX_FACT_KEY_BYTES)
         if isinstance(self.value, bool) or not isinstance(self.value, (str, int, float)):
             raise ValueError("value deve ser str, int ou float")
         if isinstance(self.value, str) and not self.value.strip():
             raise ValueError("value texto nao pode ser vazio")
+        if isinstance(self.value, str):
+            require_max_utf8_bytes(
+                self.value, "fact_string_value_bytes", MAX_FACT_STRING_VALUE_BYTES)
         if isinstance(self.value, float) and not math.isfinite(self.value):
             raise ValueError("value float deve ser finito")
         if self.unit is not None and (not isinstance(self.unit, str) or not self.unit.strip()):
             raise ValueError("unit deve ser None ou texto nao vazio")
+        if self.unit is not None:
+            require_max_utf8_bytes(self.unit, "fact_unit_bytes", MAX_FACT_UNIT_BYTES)
         try:
             object.__setattr__(self, "classification", FactClassification(self.classification))
         except (TypeError, ValueError) as exc:
@@ -121,6 +135,7 @@ class InsightView:
         _require_text(self.subject, "subject", 1, 200)
         if not isinstance(self.facts, tuple) or not all(isinstance(item, InsightFact) for item in self.facts):
             raise ValueError("facts deve ser tuple de InsightFact")
+        require_max_size(len(self.facts), "fact_count", MAX_FACT_COUNT)
         if self.advisory is not None and not isinstance(self.advisory, InsightAdvisory):
             raise ValueError("advisory deve ser InsightAdvisory ou None")
         if self.prescribed_session is not None and not isinstance(self.prescribed_session, PrescribedSessionSummary):
@@ -129,6 +144,7 @@ class InsightView:
             raise ValueError("observed_execution invalida")
         if not isinstance(self.provenance, tuple) or not all(isinstance(item, InsightSource) for item in self.provenance):
             raise ValueError("provenance deve ser tuple de InsightSource")
+        require_max_size(len(self.provenance), "provenance_count", MAX_PROVENANCE_COUNT)
 
 
 @dataclass(frozen=True)
@@ -174,17 +190,32 @@ def _validate_presentation_values(
         headline: Any, explanation: Any, next_action_text: Any,
         caution_text: Any,
 ) -> None:
-    _require_text(headline, "headline", 1, 240)
-    _require_text(explanation, "explanation", 1, 2000)
-    _require_text(next_action_text, "next_action_text", 1, 1000)
+    _require_text(headline, "headline", 1, MAX_HEADLINE_CHARS,
+                  "presentation_headline_characters")
+    _require_text(explanation, "explanation", 1, MAX_EXPLANATION_CHARS,
+                  "presentation_explanation_characters")
+    _require_text(next_action_text, "next_action_text", 1, MAX_NEXT_ACTION_TEXT_CHARS,
+                  "presentation_next_action_characters")
     if caution_text is not None:
-        _require_text(caution_text, "caution_text", 1, 1000)
+        _require_text(caution_text, "caution_text", 1, MAX_CAUTION_TEXT_CHARS,
+                      "presentation_caution_characters")
+    require_max_size(
+        len(presentation_bytes(headline, explanation, next_action_text, caution_text)),
+        "presentation_total_bytes", MAX_PRESENTATION_TOTAL_BYTES)
 
 
-def _require_text(value: Any, name: str, minimum: int, maximum: int) -> None:
+def _require_text(
+        value: Any, name: str, minimum: int, maximum: int,
+        limit_name: Optional[str] = None,
+) -> None:
     if not isinstance(value, str):
         raise ValueError(f"{name} deve ser texto")
     if not value.strip():
         raise ValueError(f"{name} nao pode ser vazio")
-    if not minimum <= len(value) <= maximum:
-        raise ValueError(f"{name} deve ter entre {minimum} e {maximum} caracteres")
+    if len(value) < minimum:
+        raise ValueError(f"{name} deve ter ao menos {minimum} caracteres")
+    if limit_name is None:
+        if len(value) > maximum:
+            raise ValueError(f"{name} deve ter entre {minimum} e {maximum} caracteres")
+        return
+    require_max_size(len(value), limit_name, maximum)

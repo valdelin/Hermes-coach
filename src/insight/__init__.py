@@ -36,6 +36,8 @@ from .model_provider import (
     InsightProviderUnavailableError,
     InsightRuntimeProvenance,
 )
+from .limits import InsightSizeLimitError
+from .serialization import serialize_insight_view
 
 __all__ = [
     "FactClassification",
@@ -64,4 +66,6 @@ __all__ = [
     "InsightProviderTimeoutError",
     "InsightProviderUnavailableError",
     "InsightRuntimeProvenance",
+    "InsightSizeLimitError",
+    "serialize_insight_view",
 ]

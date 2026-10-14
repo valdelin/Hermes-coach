@@ -6,13 +6,13 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-from .contract import InsightFact, InsightPresentation, InsightView, validate_presentation_payload
+from .contract import InsightFact, InsightPresentation, InsightView
+from .limits import InsightSizeLimitError, MAX_TEMPLATE_CHARS
 
 
 _IDENTIFIER = r"[a-z][a-z0-9_]*"
 _PLACEHOLDER = re.compile(r"\{\{(" + _IDENTIFIER + r")\}\}")
 _TEMPLATE = re.compile(r"(?:[^{}]|\{\{" + _IDENTIFIER + r"\}\})*")
-_MAX_TEMPLATE_LENGTH = 2000
 
 
 class InsightRenderError(ValueError):
@@ -60,10 +60,12 @@ def render_presentation(
         "caution_text": (render_template(template.caution_text, view)
                          if template.caution_text is not None else None),
     }
-    errors = validate_presentation_payload(payload)
-    if errors:
-        raise InsightRenderError("invalid_presentation", "; ".join(errors))
-    return InsightPresentation(**payload)
+    try:
+        return InsightPresentation(**payload)
+    except InsightSizeLimitError:
+        raise
+    except ValueError as exc:
+        raise InsightRenderError("invalid_presentation", str(exc)) from exc
 
 
 def fallback_presentation(view: InsightView) -> InsightPresentation:
@@ -83,7 +85,7 @@ def _validate_template(template: object) -> None:
         raise InsightRenderError("invalid_template", "template deve ser texto")
     if not template.strip():
         raise InsightRenderError("invalid_template", "template nao pode ser vazio")
-    if len(template) > _MAX_TEMPLATE_LENGTH:
+    if len(template) > MAX_TEMPLATE_CHARS:
         raise InsightRenderError("invalid_template", "template excede tamanho maximo")
     if _TEMPLATE.fullmatch(template) is None:
         raise InsightRenderError("invalid_template", "sintaxe de placeholder invalida")

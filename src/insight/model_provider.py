@@ -7,6 +7,9 @@ from enum import Enum
 import re
 from typing import Optional, Protocol, runtime_checkable
 
+from .limits import (MAX_MODEL_INPUT_BYTES, MAX_PROVIDER_RESPONSE_BYTES,
+                     require_max_utf8_bytes)
+
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _HARNESS_COMMIT = re.compile(r"[0-9a-f]{7,64}")
@@ -35,6 +38,7 @@ class InsightModelRequest:
         _text(self.prompt_version, "prompt_version")
         _sha256(self.prompt_sha256, "prompt_sha256")
         _text(self.input_text, "input_text")
+        require_max_utf8_bytes(self.input_text, "model_input_bytes", MAX_MODEL_INPUT_BYTES)
         if (not isinstance(self.schema_version, int)
                 or isinstance(self.schema_version, bool)
                 or self.schema_version < 1):
@@ -53,6 +57,8 @@ class InsightModelResponse:
 
     def __post_init__(self) -> None:
         _text(self.text, "text")
+        require_max_utf8_bytes(
+            self.text, "provider_response_bytes", MAX_PROVIDER_RESPONSE_BYTES)
         _text(self.provider, "provider")
         _text(self.requested_model, "requested_model")
         if self.resolved_model is not None:
