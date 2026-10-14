@@ -1,9 +1,8 @@
 # SPEC — INSIGHT M1 v2: camada LLM read-only de apresentação
 
-Status: **IMPLEMENTED ON FEATURE / READY FOR MERGE** — implementação concluída em
-`feat/insight-m1-v2` no commit
-`adfe05ace97bda2831d7eb1098510c4ff59b51ca`, com CI verde; ainda não mergeada em
-`master` nem released.
+Status: **MERGED TO MASTER** — implementação integrada via `FAST_FORWARD_ONLY` no
+commit `6b4a9791dfca5e562261b2c4c64c75de4e9b2e0c`, com CI de master verde (run
+`38578649393`); ainda não released.
 Versão de referência: **Hermes Coach 0.0.36**.
 Branch canônica: **`master`**.
 
@@ -881,11 +880,11 @@ Cada etapa deve ser commit/review separado.
 
 ---
 
-### Status da implementação na feature
+### Status da implementação no master
 
-INSIGHT-1..6 estão implementados em `feat/insight-m1-v2`
-(`adfe05ace97bda2831d7eb1098510c4ff59b51ca`) e a feature está pronta para
-merge, mas ainda não foi mergeada em `master` nem released.
+INSIGHT-1..6 foram integrados em `master` via `FAST_FORWARD_ONLY` no commit
+`6b4a9791dfca5e562261b2c4c64c75de4e9b2e0c`, com CI de master verde (run
+`38578649393`), e ainda não houve release.
 
 - O contrato, renderer/fallback, boundary de provider, harness offline G1–G7,
   seam read-only da `Application` e apresentação CLI foram implementados.
@@ -979,5 +978,5 @@ não adiciona threshold e não integra um LLM online.
 Status recomendado no ROADMAP:
 
 ```text
-INSIGHT M1 v2 — IMPLEMENTATION COMPLETE ON FEATURE / READY FOR MERGE
+INSIGHT M1 v2 — MERGED TO MASTER
 ```
