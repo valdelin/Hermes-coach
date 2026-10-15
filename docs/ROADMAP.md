@@ -969,19 +969,19 @@ PROG-4 → PROG-6 → PROG-5.
 
 | item | escopo | status |
 |---|---|---|
-| INSIGHT M1 v2 | Origem histórica: `lab/m1-contrato`; implementação limpa incorporada em `master` no commit `6b4a9791dfca5e562261b2c4c64c75de4e9b2e0c` via `FAST_FORWARD_ONLY`, com CI de master verde (run `38578649393`). Não houve release; Hermes permanece 0.0.36. INSIGHT-1..6: contrato read-only; renderer grounded + fallback determinístico; boundary de provider; harness offline G1–G7; seam `Application.get_insight_view`; e apresentação CLI segura. O LLM continua somente `InsightPresentation` read-only: flag `HERMES_INSIGHT_ENABLED` default OFF, sem provider/model concreto, invocação online, Presentation→action, promoção de FTP evidence ou alteração de `Prescription`; FTP canônico é omitido fail-closed. P3 não bloqueantes abertos: `INSIGHT2-AUD-03` (limites globais de tamanho de fact/input/output) e `INSIGHT3-AUD-01` (consistência request/provenance em futuro runtime de invocação). Fora do M1 implementado: integração de harness externo, workflow dedicado de eval, chat autônomo, tool calling e memory. | **MERGED TO MASTER** |
+| INSIGHT M1 v2 | Origem histórica: `lab/m1-contrato`; implementação limpa incorporada em `master` no commit `6b4a9791dfca5e562261b2c4c64c75de4e9b2e0c` via `FAST_FORWARD_ONLY`, com CI de master verde (run `38578649393`). Não houve release; Hermes permanece 0.0.36. INSIGHT-1..6: contrato read-only; renderer grounded + fallback determinístico; boundary de provider; harness offline G1–G7; seam `Application.get_insight_view`; e apresentação CLI segura. O LLM continua somente `InsightPresentation` read-only: flag `HERMES_INSIGHT_ENABLED` default OFF, sem provider/model concreto, invocação online, Presentation→action, promoção de FTP evidence ou alteração de `Prescription`; FTP canônico é omitido fail-closed. Os P3 `INSIGHT2-AUD-03` (limites globais de tamanho) e `INSIGHT3-AUD-01` (consistência request/provenance) foram fechados por M1.1. Fora do M1 implementado: integração de harness externo, workflow dedicado de eval, chat autônomo, tool calling e memory. | **MERGED TO MASTER** |
 
 ### INSIGHT M1.1 — hardening antes de runtime online
 
-**Status: IN PROGRESS.** M1.1-A está concluído; M1.1-B é o próximo gate de
-implementação. Pré-requisito técnico obrigatório do M2; não introduz provider,
-modelo, rede ou mudança de `Prescription`. Mantém
+**Status: DONE.** M1.1-A e M1.1-B estão concluídos, publicados e com CI verde.
+Pré-requisito técnico obrigatório do M2; não introduziu provider, modelo, rede
+ou mudança de `Prescription`. Mantém
 `HERMES_INSIGHT_ENABLED` default OFF e o fallback determinístico.
 
 | ID | Escopo | Critério de saída |
 |---|---|---|
 | INSIGHT2-AUD-03 | Limites explícitos para quantidade de facts; tamanho de key/value/unit; `InsightView` serializado; input/prompt; raw response; e `InsightPresentation`. Excesso falha fechado, emite status observável equivalente a `SIZE_LIMIT_EXCEEDED` e usa fallback, sem truncamento silencioso ou alteração de Prescription. Valores numéricos serão definidos em SPEC/implementação posterior, com testes de boundary/off-by-one. | **CLOSED**; M1.1-A publicado em `07f7529d82ecfd050bdc744843dea42dbbfd6229`; follow-up de invariância em `fb18b18a7d9656b691e298ac5b8db595988befa7`; CI final de master: run `38801992928`, `tests`/`unittest`, success. Nenhum finding P0/P1/P2/P3 restante neste gate. |
-| INSIGHT3-AUD-01 | Unificar a fonte de verdade por invocation para `InsightModelRequest` e `RuntimeProvenance`: prompt version/hash, provider, requested/resolved model, runtime/harness version, commit/build e `executed_at`. Mismatch falha fechado; requested e resolved continuam distintos; alias não é identidade imutável; timestamp permanece injetável; domínio não lê env. | **OPEN**; M1.1-B — `REQUEST_PROVENANCE` é o próximo gate de implementação. |
+| INSIGHT3-AUD-01 | Unificar a fonte de verdade por invocation para `InsightModelRequest` e `RuntimeProvenance`: prompt version/hash, provider, requested/resolved model, runtime/harness version, commit/build e `executed_at`. Mismatch falha fechado; requested e resolved continuam distintos; alias não é identidade imutável; timestamp permanece injetável; domínio não lê env. | **CLOSED**; M1.1-B publicado em `02fe2ceeb634335f002f0b31566ea33fed750495`; CI de master: run `38806075695`, `tests`/`unittest`, success. `requested_model` é obrigatório; requested/resolved permanecem distintos; echo divergente falha fechado com `InsightProvenanceError`; a factory deriva metadata do request/response; `request_id` fica fora de `RuntimeProvenance`; `executed_at` é injetado e timezone-aware; metadata de harness é preservada. |
 
 **M1.1-A fechado:** bounds de count para facts/provenance; budgets UTF-8 de
 key/value/unit; serializer canônico e budget de `InsightView`; budgets de input
@@ -990,10 +990,10 @@ de request, response de provider, Presentation agregada e expansão do renderer;
 boundary/off-by-one e Unicode; composição determinística de fallback; e teste de
 não-mutação/invariância.
 
-**Saída de M1.1:** ambos P3 fechados; invariância de Prescription preservada;
-suíte e evals offline verdes; core sem provider/rede obrigatórios; documentação
-atualizada. M2 permanece bloqueado até M1.1-B/`INSIGHT3-AUD-01` concluir;
-nenhum runtime online pode iniciar antes dessa saída.
+**Saída de M1.1: concluída.** Ambos P3 estão fechados; invariância de
+Prescription preservada; suíte e evals offline verdes; core sem provider/rede
+obrigatórios; documentação atualizada. M2 é o próximo milestone, ainda planejado
+e com design obrigatório; nenhum runtime online foi iniciado.
 
 ### INSIGHT M2 — runtime online de explicação
 

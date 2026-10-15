@@ -1,8 +1,9 @@
 # INSIGHT M1.1 — Runtime Hardening Contract
 
-**Status: SPEC READY / M1.1 IMPLEMENTATION IN PROGRESS.** M1.1-A —
-`SIZE_LIMITS` está implementado, publicado e fechado; M1.1-B —
-`REQUEST_PROVENANCE` permanece não iniciado.
+**Status: SPEC READY / M1.1 IMPLEMENTATION COMPLETE / CLOSED.** M1.1-A —
+`SIZE_LIMITS` e M1.1-B — `REQUEST_PROVENANCE` estão implementados, publicados e
+fechados. M2 permanece milestone separado, sem provider/model selecionado,
+runtime online ou feature habilitada.
 
 M1.1 fecha exclusivamente `INSIGHT2-AUD-03` (limites de tamanho) e
 `INSIGHT3-AUD-01` (consistência request/provenance). É pré-requisito de qualquer
@@ -335,6 +336,10 @@ compartilhada é derivada pela factory, mismatch não é silencioso,
 requested/resolved permanecem distintos, timestamp é injetado, não há env/SDK/
 clock oculto, os testes acima e a suíte completa estão verdes.
 
+**Status de implementação (2026-10-15): CLOSED.** M1.1-B foi publicado em
+`02fe2ceeb634335f002f0b31566ea33fed750495`. A CI de master foi o run
+`38806075695` (`tests` / `unittest`), com conclusão `success`.
+
 ## 8. Gates de implementação
 
 ### M1.1-A — SIZE_LIMITS
@@ -363,8 +368,8 @@ modificar tests/test_insight_model_provider.py
 Começa somente após review, audit, push e CI de A. Fecha somente
 `INSIGHT3-AUD-01`.
 
-**Status: NOT STARTED.** É o próximo gate de implementação; `INSIGHT3-AUD-01`
-permanece OPEN.
+**Status: IMPLEMENTED / PUBLISHED / CI GREEN / CLOSED.** `INSIGHT3-AUD-01` está
+fechado; a evidência de implementação e CI está registrada na seção 7.
 
 ```text
 modificar src/insight/model_provider.py
