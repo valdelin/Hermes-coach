@@ -895,9 +895,9 @@ INSIGHT-1..6 foram integrados em `master` via `FAST_FORWARD_ONLY` no commit
   memory.
 - `FtpReference` canônico permanece omitido fail-closed; `FtpEvidence` não é
   promovido; FTP planejado permanece Prescription.
-- Permanecem abertos, sem bloquear merge: `INSIGHT2-AUD-03` (limites globais de
-  tamanho de fact/input/output) e `INSIGHT3-AUD-01` (consistência entre request
-  e provenance quando existir runtime de invocação).
+- `INSIGHT2-AUD-03` foi fechado por M1.1-A (size limits) e
+  `INSIGHT3-AUD-01` por M1.1-B (request/provenance), ambos publicados e com CI
+  verde; a evidência canônica está em `docs/SPEC-insight-m1.1.md`.
 
 ---
 

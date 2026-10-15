@@ -1015,16 +1015,16 @@ provider, tool/function calling, segredos no prompt, memory ou agent loop.
 
 | ID | Etapa | Guardrails / decisão pendente |
 |---|---|---|
-| INSIGHT-M2-1 | Provider adapter concreto | Isolado atrás de `InsightModelProvider`; config/auth no runtime/composition boundary; sem imports de SDK no domínio; taxonomia normalizada; sem auto-retry, tools, function calling, memory ou agent loop. `FIRST_PROVIDER: OPEN`. |
-| INSIGHT-M2-2 | Seleção e pinning de modelo | Registrar requested e resolved model por invocation; alias não é pin imutável; custo/latência observáveis separadamente; toda troca exige revisão. `FIRST_MODEL: OPEN`. |
-| INSIGHT-M2-3 | Invocation runtime | Construir request a partir de `InsightView`; prompt version/hash e provenance consistentes; timeout e timestamp injetável; falhas de provider, modelo, schema, grounding ou tamanho caem em fallback; sem writes de plan/readiness/FTP. |
-| INSIGHT-M2-4 | Data egress allowlist | Definir facts permitidos antes de qualquer chamada externa. Proibir raw provider payload, IDs externos de atleta/atividade, segredos, tokens, arquivos e provenance desnecessária. Subject é texto controlado; planned e observed seguem distintos; FTP canônico/evidence permanecem fail-closed. `ALLOWED_FACTS_FOR_EXTERNAL_PROVIDER: OPEN`. |
-| INSIGHT-M2-5 | Prompt versionado | Camada de implementação, não domínio; version/hash determinísticos; mudança semântica revisada; fixtures/injeção em testes; sem thresholds fisiológicos, lógica de readiness/progressão/FTP ou decisões novas. |
-| INSIGHT-M2-6 | Validação de resposta | `raw → closed schema → no prescription fields → grounding → caution provenance → contradiction guards → InsightPresentation`; sem silent repair; qualquer falha usa fallback. |
-| INSIGHT-M2-7 | Gate de eval online/offline | Preservar G1–G7; core tests continuam offline; workflow online separado com `PASS`/`FAIL`/`SKIPPED`/`INFRA_ERROR` (`SKIPPED`/`INFRA_ERROR` ≠ `PASS`). Dataset é Hermes-owned; runner externo só pinado por tag/SHA/release, nunca branch flutuante. `ONLINE_EVAL_PROVIDER` e `ONLINE_EVAL_SCHEDULING: OPEN`. |
-| INSIGHT-M2-8 | Observabilidade | Por invocation, sem secrets: provider, requested/resolved model, prompt version/hash, runtime/harness version, commit/build, executed_at, latência, status, fallback, grader/eval e custo separado. Não registrar keys, tokens ou raw sensitive payloads sem política futura explícita. |
-| INSIGHT-M2-9 | Rollout controlado | Permanece OFF até M1.1, provider/model, egress, evals, observabilidade, fallback e invariância aprovados. Mesmo ON, continua presentation-only. `TIMEOUT_POLICY`, `COST_BUDGET`, `RETRY_POLICY`, `INITIAL_ROLLOUT_SURFACE` e disclosure/fallback UX: OPEN. |
-| INSIGHT-M2-10 | Integração de apresentação | UI/CLI mantém estado estruturado separado; nunca parseia texto em ação, botão, mutação ou workflow de domínio. |
+| INSIGHT-M2-0 | SPEC e decisões de design | **DONE / SPEC READY.** Grounding por placeholders estruturados, egress mínimo sem subject/provenance/facts externos, flag online separada e OFF, uma tentativa com timeout finito explícito e sem retry, `InsightRuntimeResult`/telemetria sanitizada, sem shadow egress. Provider/model permanecem OPEN; M2-1 é o próximo gate. |
+| INSIGHT-M2-1 | Prompt/request puro | Projeção de egress minimizada e determinística, subject/provenance excluídos, hash do input final e budgets M1.1; sem rede/env/provider concreto. |
+| INSIGHT-M2-2 | Decoder e validators | JSON fechado → template de placeholders → grounding/caution → render local; sem repair nem fatos numéricos livres. |
+| INSIGHT-M2-3 | Runtime provider-neutral | Fake provider, uma tentativa, fallback, provenance de sucesso, contenção sanitizada, invariância/no-write; sem rede. |
+| INSIGHT-M2-4 | Decisão provider/model | Selecionar provider/model, SDK/HTTP, segredo, retenção, timeout e resolved-model após M2-1..3 verdes. `FIRST_PROVIDER`/`FIRST_MODEL`: OPEN. |
+| INSIGHT-M2-5 | Adapter concreto | Único local de rede/auth; timeout finito; sem retry, tools, streaming, memory ou tipos de SDK fora do adapter. |
+| INSIGHT-M2-6 | Telemetria/custo | Eventos sanitizados, latência, request ID operacional e custo separado de provenance; sem payload raw. |
+| INSIGHT-M2-7 | Eval online | Workflow secret-gated separado; G1–G7 preservados; `PASS`/`FAIL`/`SKIPPED`/`INFRA_ERROR` distintos; harness externo somente pinado. |
+| INSIGHT-M2-8 | CLI e rollout | Ambas as flags necessárias, OFF por default, sem shadow egress, developer/limited opt-in e fallback invariável. |
+| INSIGHT-M2-9 | Closure | Auditoria, CI, evidências e docs; sem release implícito. |
 
 **Guardrails de autoridade e ciência:** `observed > derived > heuristic > advice
 > prescription > InsightPresentation`. O runtime só verbaliza state/advice
