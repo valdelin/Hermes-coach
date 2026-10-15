@@ -1,6 +1,8 @@
 # INSIGHT M1.1 — Runtime Hardening Contract
 
-**Status: SPEC READY / IMPLEMENTATION NOT STARTED.**
+**Status: SPEC READY / M1.1 IMPLEMENTATION IN PROGRESS.** M1.1-A —
+`SIZE_LIMITS` está implementado, publicado e fechado; M1.1-B —
+`REQUEST_PROVENANCE` permanece não iniciado.
 
 M1.1 fecha exclusivamente `INSIGHT2-AUD-03` (limites de tamanho) e
 `INSIGHT3-AUD-01` (consistência request/provenance). É pré-requisito de qualquer
@@ -211,6 +213,11 @@ Limites em bytes exigem Unicode multibyte.
 enforcement em todos os boundaries, ausência de truncamento, erro tipado, testes
 off-by-one/Unicode/fallback/invariância e suíte completa verde.
 
+**Status de implementação (2026-10-15): CLOSED.** M1.1-A foi publicado em
+`07f7529d82ecfd050bdc744843dea42dbbfd6229`; o follow-up de invariância foi
+publicado em `fb18b18a7d9656b691e298ac5b8db595988befa7`. A CI final de master
+foi o run `38801992928` (`tests` / `unittest`), com conclusão `success`.
+
 ## 6. Request e provenance: uma fonte por invocation
 
 ### 6.1 Novo request e compatibilidade
@@ -334,6 +341,10 @@ clock oculto, os testes acima e a suíte completa estão verdes.
 
 Fecha somente `INSIGHT2-AUD-03`.
 
+**Status: IMPLEMENTED / PUBLISHED / CI GREEN / CLOSED.** A implementação e a
+evidência de CI estão registradas na seção 5; o teste de invariância confirma que
+uma falha de serialização por tamanho não altera a `InsightView` estruturada.
+
 ```text
 novo      src/insight/limits.py
 novo      src/insight/serialization.py
@@ -351,6 +362,9 @@ modificar tests/test_insight_model_provider.py
 
 Começa somente após review, audit, push e CI de A. Fecha somente
 `INSIGHT3-AUD-01`.
+
+**Status: NOT STARTED.** É o próximo gate de implementação; `INSIGHT3-AUD-01`
+permanece OPEN.
 
 ```text
 modificar src/insight/model_provider.py

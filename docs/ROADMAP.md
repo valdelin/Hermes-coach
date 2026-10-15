@@ -972,18 +972,27 @@ PROG-4 → PROG-6 → PROG-5.
 
 ### INSIGHT M1.1 — hardening antes de runtime online
 
-**Status: PLANNED.** Pré-requisito técnico obrigatório do M2; não introduz
-provider, modelo, rede ou mudança de `Prescription`. Mantém
+**Status: IN PROGRESS.** M1.1-A está concluído; M1.1-B é o próximo gate de
+implementação. Pré-requisito técnico obrigatório do M2; não introduz provider,
+modelo, rede ou mudança de `Prescription`. Mantém
 `HERMES_INSIGHT_ENABLED` default OFF e o fallback determinístico.
 
 | ID | Escopo | Critério de saída |
 |---|---|---|
-| INSIGHT2-AUD-03 | Limites explícitos para quantidade de facts; tamanho de key/value/unit; `InsightView` serializado; input/prompt; raw response; e `InsightPresentation`. Excesso falha fechado, emite status observável equivalente a `SIZE_LIMIT_EXCEEDED` e usa fallback, sem truncamento silencioso ou alteração de Prescription. Valores numéricos serão definidos em SPEC/implementação posterior, com testes de boundary/off-by-one. | **CLOSED**; limites, fallback e testes determinísticos aprovados. |
-| INSIGHT3-AUD-01 | Unificar a fonte de verdade por invocation para `InsightModelRequest` e `RuntimeProvenance`: prompt version/hash, provider, requested/resolved model, runtime/harness version, commit/build e `executed_at`. Mismatch falha fechado; requested e resolved continuam distintos; alias não é identidade imutável; timestamp permanece injetável; domínio não lê env. | **CLOSED**; provenance deriva da execução efetiva e não aceita metadata contraditória. |
+| INSIGHT2-AUD-03 | Limites explícitos para quantidade de facts; tamanho de key/value/unit; `InsightView` serializado; input/prompt; raw response; e `InsightPresentation`. Excesso falha fechado, emite status observável equivalente a `SIZE_LIMIT_EXCEEDED` e usa fallback, sem truncamento silencioso ou alteração de Prescription. Valores numéricos serão definidos em SPEC/implementação posterior, com testes de boundary/off-by-one. | **CLOSED**; M1.1-A publicado em `07f7529d82ecfd050bdc744843dea42dbbfd6229`; follow-up de invariância em `fb18b18a7d9656b691e298ac5b8db595988befa7`; CI final de master: run `38801992928`, `tests`/`unittest`, success. Nenhum finding P0/P1/P2/P3 restante neste gate. |
+| INSIGHT3-AUD-01 | Unificar a fonte de verdade por invocation para `InsightModelRequest` e `RuntimeProvenance`: prompt version/hash, provider, requested/resolved model, runtime/harness version, commit/build e `executed_at`. Mismatch falha fechado; requested e resolved continuam distintos; alias não é identidade imutável; timestamp permanece injetável; domínio não lê env. | **OPEN**; M1.1-B — `REQUEST_PROVENANCE` é o próximo gate de implementação. |
+
+**M1.1-A fechado:** bounds de count para facts/provenance; budgets UTF-8 de
+key/value/unit; serializer canônico e budget de `InsightView`; budgets de input
+de request, response de provider, Presentation agregada e expansão do renderer;
+`InsightSizeLimitError` tipado, fail-closed sem truncamento silencioso; testes de
+boundary/off-by-one e Unicode; composição determinística de fallback; e teste de
+não-mutação/invariância.
 
 **Saída de M1.1:** ambos P3 fechados; invariância de Prescription preservada;
 suíte e evals offline verdes; core sem provider/rede obrigatórios; documentação
-atualizada. Nenhum runtime online pode iniciar antes dessa saída.
+atualizada. M2 permanece bloqueado até M1.1-B/`INSIGHT3-AUD-01` concluir;
+nenhum runtime online pode iniciar antes dessa saída.
 
 ### INSIGHT M2 — runtime online de explicação
 
