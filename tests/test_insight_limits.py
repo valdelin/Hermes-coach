@@ -180,12 +180,27 @@ class SerializationLimitTest(unittest.TestCase):
                 view = view_with_serialized_size(size)
                 self.assertEqual(len(serialize_insight_view(view)), size)
         oversized = view_with_serialized_size(MAX_INSIGHT_VIEW_BYTES + 1)
-        before = oversized
+        before = (
+            oversized.facts,
+            oversized.provenance,
+            oversized.subject,
+            oversized.advisory,
+            oversized.prescribed_session,
+            oversized.observed_execution,
+        )
         with self.assertRaises(InsightSizeLimitError) as caught:
             serialize_insight_view(oversized)
         self.assertEqual(caught.exception.limit_name, "serialized_view_bytes")
         self.assertEqual(caught.exception.actual_size, MAX_INSIGHT_VIEW_BYTES + 1)
-        self.assertEqual(oversized, before)
+        after = (
+            oversized.facts,
+            oversized.provenance,
+            oversized.subject,
+            oversized.advisory,
+            oversized.prescribed_session,
+            oversized.observed_execution,
+        )
+        self.assertEqual(before, after)
 
 
 class ModelBoundaryLimitTest(unittest.TestCase):
