@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+from datetime import datetime, timezone
 from pathlib import Path
 import unittest
 
@@ -10,36 +11,41 @@ from src.insight.model_provider import (
     InsightModelResponse, InsightProviderAuthError, InsightProviderError,
     InsightProviderInvalidResponseError, InsightProviderRateLimitError,
     InsightProviderTimeoutError, InsightProviderUnavailableError,
-    InsightRuntimeProvenance,
+    InsightProvenanceError, InsightRuntimeProvenance,
 )
 
 
 SHA = "a" * 64
-TIMESTAMP = "2026-10-13T12:00:00+00:00"
+TIMESTAMP = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
 
 
 class FakeProvider:
     def generate(self, request: InsightModelRequest) -> InsightModelResponse:
-        return InsightModelResponse("{}", "fake", "requested")
+        return InsightModelResponse("{}", "fake", request.requested_model)
 
 
 class RequestTest(unittest.TestCase):
     def test_valid_request_is_frozen(self) -> None:
-        request = InsightModelRequest("v1", SHA, "prepared input", 1)
+        request = InsightModelRequest("v1", SHA, "model-alias", "prepared input", 1)
         self.assertEqual(request.schema_version, 1)
+        self.assertEqual(request.requested_model, "model-alias")
         with self.assertRaises(dataclasses.FrozenInstanceError):
             request.input_text = "other"  # type: ignore[misc]
 
     def test_request_rejects_invalid_fields(self) -> None:
         cases = (
-            (" ", SHA, "input", 1), ("v1", "A" * 64, "input", 1),
-            ("v1", SHA, " ", 1), ("v1", SHA, "input", True),
-            ("v1", SHA, "input", 0),
+            (" ", SHA, "model", "input", 1), ("v1", "A" * 64, "model", "input", 1),
+            ("v1", SHA, " ", "input", 1), ("v1", SHA, "model", " ", 1),
+            ("v1", SHA, "model", "input", True), ("v1", SHA, "model", "input", 0),
         )
         for case in cases:
             with self.subTest(case=case):
                 with self.assertRaises(ValueError):
                     InsightModelRequest(*case)  # type: ignore[arg-type]
+
+    def test_requested_model_is_required_without_default(self) -> None:
+        with self.assertRaises(TypeError):
+            InsightModelRequest("v1", SHA, "input", 1)  # type: ignore[call-arg]
 
 
 class ResponseAndProvenanceTest(unittest.TestCase):
@@ -55,14 +61,64 @@ class ResponseAndProvenanceTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     InsightModelResponse(*args)
 
-    def test_provenance_is_frozen_and_caller_supplies_aware_timestamp(self) -> None:
-        provenance = InsightRuntimeProvenance("future-provider", "model", None, "v1", SHA, TIMESTAMP, "h1", "abcdef0")
+    def test_provenance_is_derived_frozen_and_deterministic(self) -> None:
+        request = InsightModelRequest("v1", SHA, "model-alias", "prepared input", 1)
+        response = InsightModelResponse("raw text", "future-provider", "model-alias", "model-version")
+        provenance = InsightRuntimeProvenance.from_execution(
+            request, response, executed_at=TIMESTAMP, harness_version="h1", harness_commit="abcdef0")
         with self.assertRaises(dataclasses.FrozenInstanceError):
             provenance.provider = "other"  # type: ignore[misc]
-        for timestamp in ("", "not-a-time", "2026-10-13T12:00:00"):
-            with self.subTest(timestamp=timestamp):
+        self.assertEqual(provenance.prompt_version, request.prompt_version)
+        self.assertEqual(provenance.prompt_sha256, request.prompt_sha256)
+        self.assertEqual(provenance.requested_model, "model-alias")
+        self.assertEqual(provenance.provider, "future-provider")
+        self.assertEqual(provenance.resolved_model, "model-version")
+        self.assertEqual(provenance.executed_at, TIMESTAMP)
+        self.assertEqual(
+            provenance,
+            InsightRuntimeProvenance.from_execution(
+                request, response, executed_at=TIMESTAMP, harness_version="h1", harness_commit="abcdef0"),
+        )
+
+    def test_provenance_rejects_naive_timestamp_and_direct_construction(self) -> None:
+        request = InsightModelRequest("v1", SHA, "model", "input", 1)
+        response = InsightModelResponse("text", "provider", "model")
+        with self.assertRaises(ValueError):
+            InsightRuntimeProvenance.from_execution(
+                request, response, executed_at=datetime(2026, 10, 13, 12))
+        with self.assertRaises(TypeError):
+            InsightRuntimeProvenance()
+
+    def test_provenance_rejects_requested_model_mismatch_without_payload(self) -> None:
+        sentinel = "SECRET_SENTINEL_DO_NOT_EXPOSE"
+        request = InsightModelRequest("v1", SHA, "alias-a", sentinel, 1)
+        response = InsightModelResponse(sentinel, "provider", "alias-b")
+        with self.assertRaises(InsightProvenanceError) as caught:
+            InsightRuntimeProvenance.from_execution(request, response, executed_at=TIMESTAMP)
+        error = caught.exception
+        self.assertEqual(error.code, "requested_model_mismatch")
+        self.assertNotIn(sentinel, str(error))
+        self.assertNotIn(sentinel, repr(error))
+        self.assertNotIn(sentinel, repr(vars(error)))
+
+    def test_request_id_remains_outside_provenance(self) -> None:
+        request = InsightModelRequest("v1", SHA, "alias", "input", 1)
+        response = InsightModelResponse("text", "provider", "alias", request_id="request-123")
+        provenance = InsightRuntimeProvenance.from_execution(request, response, executed_at=TIMESTAMP)
+        self.assertNotIn("request_id", {field.name for field in dataclasses.fields(provenance)})
+
+    def test_harness_commit_bounds_remain_validated(self) -> None:
+        request = InsightModelRequest("v1", SHA, "model", "input", 1)
+        response = InsightModelResponse("text", "provider", "model")
+        for value in ("a" * 7, "a" * 64):
+            with self.subTest(value=value):
+                InsightRuntimeProvenance.from_execution(
+                    request, response, executed_at=TIMESTAMP, harness_commit=value)
+        for value in ("a" * 6, "a" * 65, "G" * 7):
+            with self.subTest(value=value):
                 with self.assertRaises(ValueError):
-                    InsightRuntimeProvenance("p", "m", None, "v1", SHA, timestamp)
+                    InsightRuntimeProvenance.from_execution(
+                        request, response, executed_at=TIMESTAMP, harness_commit=value)
 
 
 class ErrorAndProtocolTest(unittest.TestCase):
@@ -84,7 +140,10 @@ class ErrorAndProtocolTest(unittest.TestCase):
     def test_fake_provider_satisfies_protocol_and_returns_typed_response(self) -> None:
         provider = FakeProvider()
         self.assertIsInstance(provider, InsightModelProvider)
-        self.assertIsInstance(provider.generate(InsightModelRequest("v1", SHA, "input", 1)), InsightModelResponse)
+        self.assertIsInstance(
+            provider.generate(InsightModelRequest("v1", SHA, "requested", "input", 1)),
+            InsightModelResponse,
+        )
 
     def test_status_is_closed(self) -> None:
         self.assertEqual(InsightInvocationStatus.SUCCESS.value, "success")

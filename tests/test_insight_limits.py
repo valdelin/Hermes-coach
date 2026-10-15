@@ -207,12 +207,12 @@ class ModelBoundaryLimitTest(unittest.TestCase):
     def test_request_and_response_utf8_boundaries(self) -> None:
         for size in (MAX_MODEL_INPUT_BYTES - 1, MAX_MODEL_INPUT_BYTES):
             with self.subTest(request=size):
-                InsightModelRequest("v1", SHA, "x" * size, 1)
+                InsightModelRequest("v1", SHA, "requested", "x" * size, 1)
         with self.assertRaisesRegex(InsightSizeLimitError, "model_input_bytes"):
-            InsightModelRequest("v1", SHA, "x" * (MAX_MODEL_INPUT_BYTES + 1), 1)
-        InsightModelRequest("v1", SHA, "é" * (MAX_MODEL_INPUT_BYTES // 2), 1)
+            InsightModelRequest("v1", SHA, "requested", "x" * (MAX_MODEL_INPUT_BYTES + 1), 1)
+        InsightModelRequest("v1", SHA, "requested", "é" * (MAX_MODEL_INPUT_BYTES // 2), 1)
         with self.assertRaisesRegex(InsightSizeLimitError, "model_input_bytes"):
-            InsightModelRequest("v1", SHA, "é" * (MAX_MODEL_INPUT_BYTES // 2 + 1), 1)
+            InsightModelRequest("v1", SHA, "requested", "é" * (MAX_MODEL_INPUT_BYTES // 2 + 1), 1)
 
         for size in (MAX_PROVIDER_RESPONSE_BYTES - 1, MAX_PROVIDER_RESPONSE_BYTES):
             with self.subTest(response=size):
@@ -227,7 +227,7 @@ class ModelBoundaryLimitTest(unittest.TestCase):
         secret = "SECRET_SENTINEL_DO_NOT_EXPOSE"
         text = secret + "x" * MAX_MODEL_INPUT_BYTES
         with self.assertRaises(InsightSizeLimitError) as caught:
-            InsightModelRequest("v1", SHA, text, 1)
+            InsightModelRequest("v1", SHA, "requested", text, 1)
         self.assertNotIn(secret, str(caught.exception))
         self.assertNotIn(secret, repr(caught.exception))
         self.assertNotIn(secret, repr(vars(caught.exception)))
