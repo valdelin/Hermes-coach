@@ -25,6 +25,7 @@ diretamente aqui.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from datetime import datetime
 from enum import Enum
 from typing import Callable, Optional
@@ -32,12 +33,13 @@ from typing import Callable, Optional
 from .contract import InsightPresentation, InsightView
 from .limits import InsightSizeLimitError
 from .model_provider import (InsightModelProvider, InsightModelRequest,
+                              InsightModelResponse,
                              InsightProvenanceError, InsightProviderError,
                              InsightRuntimeProvenance)
 from .render import InsightRenderError, fallback_presentation
 from .request_builder import build_insight_model_request
 from .response_validation import (InsightResponseError,
-                                  parse_validate_render_insight_response)
+                                   parse_validate_render_insight_response)
 
 
 class InsightRuntimeStatus(str, Enum):
@@ -49,6 +51,10 @@ class InsightRuntimeStatus(str, Enum):
     FALLBACK_PROVIDER = "fallback_provider"
     FALLBACK_INVALID_RESPONSE = "fallback_invalid_response"
     FALLBACK_INTERNAL = "fallback_internal"
+
+
+from .telemetry import (InsightTelemetrySink, record_insight_runtime_telemetry,
+                        sample_telemetry_clock)
 
 
 @dataclass(frozen=True)
@@ -81,6 +87,8 @@ def run_insight_runtime(
     builder: _RequestBuilder = build_insight_model_request,
     decoder: _ResponseDecoder = parse_validate_render_insight_response,
     fallback: _FallbackRenderer = fallback_presentation,
+    telemetry: Optional[InsightTelemetrySink] = None,
+    telemetry_clock: Optional[Callable[[], Decimal]] = None,
 ) -> InsightRuntimeResult:
     """Executa no maximo uma tentativa e devolve sempre um resultado fechado.
 
@@ -89,6 +97,9 @@ def run_insight_runtime(
     secundario, sleep ou reparo silencioso. O texto do provider passa somente por
     ``decoder`` (default: ``parse_validate_render_insight_response``).
     """
+    response = None
+    telemetry_started_at = (
+        sample_telemetry_clock(telemetry_clock) if telemetry is not None else None)
     try:
         request = builder(
             view,
@@ -99,19 +110,26 @@ def run_insight_runtime(
             response = provider.generate(request)
         except InsightProviderError:
             return _fallback_result(
-                view, InsightRuntimeStatus.FALLBACK_PROVIDER, fallback)
+                view, InsightRuntimeStatus.FALLBACK_PROVIDER, fallback,
+                telemetry=telemetry, telemetry_started_at=telemetry_started_at,
+                telemetry_clock=telemetry_clock)
         except InsightSizeLimitError:
             # Resposta do provider rejeitada pelo proprio contrato de response
             # antes de virar texto: e resposta invalida, nunca truncada.
             return _fallback_result(
-                view, InsightRuntimeStatus.FALLBACK_INVALID_RESPONSE, fallback)
+                view, InsightRuntimeStatus.FALLBACK_INVALID_RESPONSE, fallback,
+                telemetry=telemetry, telemetry_started_at=telemetry_started_at,
+                telemetry_clock=telemetry_clock)
 
         try:
             presentation = decoder(response.text, view=view)
         except (InsightResponseError, InsightRenderError,
                 InsightSizeLimitError):
             return _fallback_result(
-                view, InsightRuntimeStatus.FALLBACK_INVALID_RESPONSE, fallback)
+                view, InsightRuntimeStatus.FALLBACK_INVALID_RESPONSE, fallback,
+                response=response, telemetry=telemetry,
+                telemetry_started_at=telemetry_started_at,
+                telemetry_clock=telemetry_clock)
 
         try:
             provenance = InsightRuntimeProvenance.from_execution(
@@ -124,26 +142,45 @@ def run_insight_runtime(
         except InsightProvenanceError:
             # Echo de requested_model inconsistente: a resposta e invalida.
             return _fallback_result(
-                view, InsightRuntimeStatus.FALLBACK_INVALID_RESPONSE, fallback)
+                view, InsightRuntimeStatus.FALLBACK_INVALID_RESPONSE, fallback,
+                response=response, telemetry=telemetry,
+                telemetry_started_at=telemetry_started_at,
+                telemetry_clock=telemetry_clock)
 
-        return InsightRuntimeResult(
+        result = InsightRuntimeResult(
             presentation=presentation,
             status=InsightRuntimeStatus.SUCCESS,
             provenance=provenance,
         )
+        record_insight_runtime_telemetry(
+            telemetry, status=result.status, response=response,
+            started_at=telemetry_started_at, clock=telemetry_clock)
+        return result
     except Exception:
         # Unica contencao externa ampla: builder/decoder/provider/provenance com
         # erro inesperado (inclusive executed_at/harness invalidos) viram
         # FALLBACK_INTERNAL, sem reter nem exibir payload ou excecao bruta.
         return _fallback_result(
-            view, InsightRuntimeStatus.FALLBACK_INTERNAL, fallback)
+            view, InsightRuntimeStatus.FALLBACK_INTERNAL, fallback,
+            response=response, telemetry=telemetry,
+            telemetry_started_at=telemetry_started_at,
+            telemetry_clock=telemetry_clock)
 
 
 def _fallback_result(
-    view: InsightView,
-    status: InsightRuntimeStatus,
-    fallback: _FallbackRenderer,
+        view: InsightView,
+        status: InsightRuntimeStatus,
+        fallback: _FallbackRenderer,
+        *,
+        response: Optional[InsightModelResponse] = None,
+        telemetry: Optional[InsightTelemetrySink] = None,
+        telemetry_started_at: Optional[Decimal] = None,
+        telemetry_clock: Optional[Callable[[], Decimal]] = None,
 ) -> InsightRuntimeResult:
     """Monta um resultado deterministico de fallback, sem provenance."""
-    return InsightRuntimeResult(
+    result = InsightRuntimeResult(
         presentation=fallback(view), status=status, provenance=None)
+    record_insight_runtime_telemetry(
+        telemetry, status=result.status, response=response,
+        started_at=telemetry_started_at, clock=telemetry_clock)
+    return result

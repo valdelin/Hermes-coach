@@ -35,6 +35,7 @@ from .model_provider import (
     InsightModelProvider,
     InsightModelRequest,
     InsightModelResponse,
+    InsightModelUsage,
     InsightProvenanceError,
     InsightProviderAuthError,
     InsightProviderConfigError,
@@ -57,6 +58,13 @@ from .runtime import (
 )
 from .serialization import serialize_insight_view
 from .openai_provider import OpenAIInsightModelProvider
+from .cost import InsightCostEstimate, estimate_insight_model_cost
+from .telemetry import (
+    InMemoryInsightTelemetrySink,
+    InsightRuntimeTelemetry,
+    InsightTelemetrySink,
+    build_insight_runtime_telemetry,
+)
 
 __all__ = [
     "FactClassification",
@@ -83,6 +91,7 @@ __all__ = [
     "InsightModelProvider",
     "InsightModelRequest",
     "InsightModelResponse",
+    "InsightModelUsage",
     "InsightProvenanceError",
     "InsightProviderAuthError",
     "InsightProviderConfigError",
@@ -100,4 +109,10 @@ __all__ = [
     "run_insight_runtime",
     "serialize_insight_view",
     "OpenAIInsightModelProvider",
+    "InsightCostEstimate",
+    "estimate_insight_model_cost",
+    "InsightRuntimeTelemetry",
+    "InsightTelemetrySink",
+    "InMemoryInsightTelemetrySink",
+    "build_insight_runtime_telemetry",
 ]

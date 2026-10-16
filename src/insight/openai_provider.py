@@ -17,6 +17,7 @@ from .model_provider import (
     InsightModelProvider,
     InsightModelRequest,
     InsightModelResponse,
+    InsightModelUsage,
     InsightProviderAuthError,
     InsightProviderConfigError,
     InsightProviderError,
@@ -193,6 +194,7 @@ class OpenAIInsightModelProvider(InsightModelProvider):
         request_id = getattr(response, "id", None)
         if request_id is not None and not isinstance(request_id, str):
             request_id = None
+        usage = self._extract_usage(response)
 
         return InsightModelResponse(
             text=text,
@@ -200,6 +202,7 @@ class OpenAIInsightModelProvider(InsightModelProvider):
             requested_model=request.requested_model,
             resolved_model=resolved_model,
             request_id=request_id,
+            usage=usage,
         )
 
     @staticmethod
@@ -228,3 +231,25 @@ class OpenAIInsightModelProvider(InsightModelProvider):
             return resp_text
 
         return ""
+
+    @staticmethod
+    def _extract_usage(response: object) -> Optional[InsightModelUsage]:
+        """Traduz usage documentado para contrato neutro, sem coercoes."""
+        raw_usage = getattr(response, "usage", None)
+        if raw_usage is None:
+            return None
+        input_tokens = getattr(raw_usage, "input_tokens", None)
+        output_tokens = getattr(raw_usage, "output_tokens", None)
+        details = getattr(raw_usage, "input_tokens_details", None)
+        cached_input_tokens = getattr(details, "cached_tokens", None)
+        values = (input_tokens, output_tokens, cached_input_tokens)
+        if all(value is None for value in values):
+            return None
+        if any(not isinstance(value, int) or isinstance(value, bool) or value < 0
+               for value in values if value is not None):
+            return None
+        return InsightModelUsage(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cached_input_tokens=cached_input_tokens,
+        )

@@ -8,7 +8,7 @@ import unittest
 
 from src.insight.model_provider import (
     InsightInvocationStatus, InsightModelProvider, InsightModelRequest,
-    InsightModelResponse, InsightProviderAuthError, InsightProviderError,
+    InsightModelResponse, InsightModelUsage, InsightProviderAuthError, InsightProviderError,
     InsightProviderInvalidResponseError, InsightProviderRateLimitError,
     InsightProviderTimeoutError, InsightProviderUnavailableError,
     InsightProvenanceError, InsightRuntimeProvenance,
@@ -60,6 +60,17 @@ class ResponseAndProvenanceTest(unittest.TestCase):
             with self.subTest(args=args):
                 with self.assertRaises(ValueError):
                     InsightModelResponse(*args)
+
+    def test_usage_is_frozen_and_rejects_invalid_counts_without_coercion(self) -> None:
+        usage = InsightModelUsage(input_tokens=0, output_tokens=3,
+                                  cached_input_tokens=None)
+        self.assertEqual(usage.input_tokens, 0)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            usage.output_tokens = 4  # type: ignore[misc]
+        for value in (-1, 1.5, "1", True):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    InsightModelUsage(input_tokens=value)  # type: ignore[arg-type]
 
     def test_provenance_is_derived_frozen_and_deterministic(self) -> None:
         request = InsightModelRequest("v1", SHA, "model-alias", "prepared input", 1)

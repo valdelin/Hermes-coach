@@ -48,6 +48,25 @@ class InsightModelRequest:
 
 
 @dataclass(frozen=True)
+class InsightModelUsage:
+    """Uso observado do provider, sem semantica ou tipo especifico de vendor."""
+
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    cached_input_tokens: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        for value, name in (
+                (self.input_tokens, "input_tokens"),
+                (self.output_tokens, "output_tokens"),
+                (self.cached_input_tokens, "cached_input_tokens")):
+            if (value is not None
+                    and (not isinstance(value, int) or isinstance(value, bool)
+                         or value < 0)):
+                raise ValueError(f"{name} deve ser inteiro nao negativo ou None")
+
+
+@dataclass(frozen=True)
 class InsightModelResponse:
     """Resposta bruta controlada do provider; ainda nao e InsightPresentation."""
 
@@ -56,6 +75,7 @@ class InsightModelResponse:
     requested_model: str
     resolved_model: Optional[str] = None
     request_id: Optional[str] = None
+    usage: Optional[InsightModelUsage] = None
 
     def __post_init__(self) -> None:
         _text(self.text, "text")
@@ -67,6 +87,8 @@ class InsightModelResponse:
             _text(self.resolved_model, "resolved_model")
         if self.request_id is not None:
             _text(self.request_id, "request_id")
+        if self.usage is not None and not isinstance(self.usage, InsightModelUsage):
+            raise ValueError("usage deve ser InsightModelUsage ou None")
 
 
 @dataclass(frozen=True, init=False)

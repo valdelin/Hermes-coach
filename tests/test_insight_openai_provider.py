@@ -33,10 +33,11 @@ VALID_TEXT = (
 
 class _FakeResponse:
     def __init__(self, text: str = VALID_TEXT, model: Any = REQUESTED,
-                 request_id: Any = "req_123") -> None:
+                 request_id: Any = "req_123", usage: Any = None) -> None:
         self.output_text = text
         self.model = model
         self.id = request_id
+        self.usage = usage
 
 
 class _FakeResponses:
@@ -246,6 +247,30 @@ class OpenAIProviderTests(unittest.TestCase):
         provider, _ = self._provider([_FakeResponse(request_id=None)])
         result = provider.generate(self._make_request())
         self.assertIsNone(result.request_id)
+
+    def test_usage_is_extracted_without_vendor_object(self) -> None:
+        usage = types.SimpleNamespace(
+            input_tokens=100,
+            output_tokens=20,
+            input_tokens_details=types.SimpleNamespace(cached_tokens=0),
+        )
+        provider, _ = self._provider([_FakeResponse(usage=usage)])
+        result = provider.generate(self._make_request())
+        self.assertEqual(result.usage.input_tokens, 100)
+        self.assertEqual(result.usage.output_tokens, 20)
+        self.assertEqual(result.usage.cached_input_tokens, 0)
+        self.assertFalse(result.usage is usage)
+
+    def test_missing_or_invalid_usage_is_omitted_not_zero_or_coerced(self) -> None:
+        invalid = types.SimpleNamespace(
+            input_tokens=-1,
+            output_tokens=20,
+            input_tokens_details=types.SimpleNamespace(cached_tokens=0),
+        )
+        provider, _ = self._provider([
+            _FakeResponse(usage=None), _FakeResponse(usage=invalid)])
+        self.assertIsNone(provider.generate(self._make_request()).usage)
+        self.assertIsNone(provider.generate(self._make_request()).usage)
 
     # ---- error mapping --------------------------------------------------
 
