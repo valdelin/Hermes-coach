@@ -8,20 +8,20 @@
 
 O M2-3 publicou o runtime provider-neutral (`1d478f0`) com seam composto M2-2 obrigatório, uma única tentativa, fallback determinístico e provenance somente em SUCCESS. Os gates M2-4/M2-5 exigem decidir e depois implementar o adapter concreto sem violar o contrato M2.
 
-Requisitos (SPEC M2 §6–§11): provider/model abertos até M2-4; runtime não seleciona provider/model; `provider.generate` síncrono; non-streaming; retry automático zero; timeout explícito e finito; identidade de modelo resolvível; `requested_model` vs `resolved_model` observáveis; `request_id` fora de `RuntimeProvenance`; tamanho de resposta controlado localmente (Hermes `MAX_PROVIDER_RESPONSE_BYTES=8192`); validação M2-2 **obrigatória** e local; sem tools/memória/escrita; egress minimizado (subject/provenance/FTP/IDs externos não saem). 
+Requisitos (SPEC M2 §6–§11): provider/model abertos até M2-4; runtime não seleciona provider/model; `provider.generate` síncrono; non-streaming; retry automático zero; timeout explícito e finito; identidade de modelo resolvível; `requested_model` vs `resolved_model` observáveis; `request_id` fora de `RuntimeProvenance`; tamanho de resposta controlado localmente (Hermes `MAX_PROVIDER_RESPONSE_BYTES=8192`); validação M2-2 **obrigatória** e local; sem tools/memória/escrita; egress minimizado (subject/provenance/FTP/IDs externos não saem).
 
 O payload é mínimo: JSON de transporte com 4 campos (`headline`, `explanation`, `next_action_text`, `caution_text|null`) gerado a partir de View projetada (M2-1). Prioriza **seguimento estrito de instrução + JSON estrito**, baixo custo/latência, simplicidade e reversibilidade.
 
 ## Drivers de decisão
 
-1. **Compatibilidade com contrato Hermes**: `InsightModelProvider` + `InsightModelResponse` (text, provider, requested_model, resolved_model, request_id). `RuntimeProvenance.from_execution` exige que `response.requested_model == request.requested_model` (echo). 
+1. **Compatibilidade com contrato Hermes**: `InsightModelProvider` + `InsightModelResponse` (text, provider, requested_model, resolved_model, request_id). `RuntimeProvenance.from_execution` exige que `response.requested_model == request.requested_model` (echo).
 2. **Structured output estrito**: precisa emitir JSON estrito com schema fechado; `additionalProperties:false` preferencial. Validação **local M2-2** permanece mandatória (não substitui grounding/`Nd`).
 3. **Sem tools / non-streaming / single attempt**: fácil de garantir; `tool_choice:none`/omitir tools; `stream:false` (default). Retry automático SDK = 0.
 4. **Timeout explícito e finito**: SDK deve permitir timeout por request (float/Timeout). Default SDK não é autoridade.
 5. **Identidade de modelo**: preferir **snapshot versionado** (datado/pinned) para reprodutibilidade; `model`/`modelVersion` devem expor resolved model quando possível.
 6. **Privacidade/retention**: API data training **não usado por padrão** (pelo menos em tier comercial/API relevante), retention mínima; `store:false` desejável para reduzir retenção de estado de resposta.
 7. **Custo/latência**: modelo pequeno/barato (nano/lite) suficiente para 4 campos curtos; sem pagar por reasoning não necessário.
-8. **Contenção de vendor types**: SDK vs HTTP — SDK aceitável se tipos vendor não escapam do adapter M2-5 (boundary único). 
+8. **Contenção de vendor types**: SDK vs HTTP — SDK aceitável se tipos vendor não escapam do adapter M2-5 (boundary único).
 
 ## Candidatos pesquisados (fontes oficiais)
 
@@ -46,12 +46,12 @@ Foram consultados documentos oficiais (2026-10-16): OpenAI (platform.openai.com/
 
 ## Decisão
 
-**Provedor selecionado:** `openai`  
-**Provider internal id:** `openai`  
-**Requested model (exato, versionado/pinned):** `gpt-5.4-nano-2026-03-17`  
+**Provedor selecionado:** `openai`
+**Provider internal id:** `openai`
+**Requested model (exato, versionado/pinned):** `gpt-5.4-nano-2026-03-17`
 **Model family:** GPT-5.4 Nano (snapshot datado)
 
-**SDK vs HTTP:** **SDK** (`openai-python`, oficial). O SDK cobre timeout/retries, headers `x-request-id`, tipos de erro normalizáveis e `text.format` strict. O adapter M2-5 irá **conter** quaisquer tipos de vendor dentro do boundary (não atravessar Protocol). 
+**SDK vs HTTP:** **SDK** (`openai-python`, oficial). O SDK cobre timeout/retries, headers `x-request-id`, tipos de erro normalizáveis e `text.format` strict. O adapter M2-5 irá **conter** quaisquer tipos de vendor dentro do boundary (não atravessar Protocol).
 
 **Parâmetros operacionais (M2-5):**
 - `streaming`: `false` (não-streaming)
