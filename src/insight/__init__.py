@@ -23,6 +23,13 @@ from .render import (
     render_presentation,
     render_template,
 )
+from .response_validation import (
+    InsightResponseError,
+    decode_insight_presentation_template,
+    parse_validate_render_insight_response,
+    render_insight_presentation,
+    validate_insight_presentation_template,
+)
 from .model_provider import (
     InsightInvocationStatus,
     InsightModelProvider,
@@ -60,6 +67,11 @@ __all__ = [
     "fallback_presentation",
     "render_presentation",
     "render_template",
+    "InsightResponseError",
+    "decode_insight_presentation_template",
+    "validate_insight_presentation_template",
+    "render_insight_presentation",
+    "parse_validate_render_insight_response",
     "InsightInvocationStatus",
     "InsightModelProvider",
     "InsightModelRequest",
