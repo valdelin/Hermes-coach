@@ -38,6 +38,10 @@ from .model_provider import (
     InsightRuntimeProvenance,
 )
 from .limits import InsightSizeLimitError
+from .request_builder import (
+    INSIGHT_PROMPT_VERSION,
+    build_insight_model_request,
+)
 from .serialization import serialize_insight_view
 
 __all__ = [
@@ -69,5 +73,7 @@ __all__ = [
     "InsightProviderUnavailableError",
     "InsightRuntimeProvenance",
     "InsightSizeLimitError",
+    "INSIGHT_PROMPT_VERSION",
+    "build_insight_model_request",
     "serialize_insight_view",
 ]
