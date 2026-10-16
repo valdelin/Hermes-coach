@@ -49,6 +49,11 @@ from .request_builder import (
     INSIGHT_PROMPT_VERSION,
     build_insight_model_request,
 )
+from .runtime import (
+    InsightRuntimeResult,
+    InsightRuntimeStatus,
+    run_insight_runtime,
+)
 from .serialization import serialize_insight_view
 
 __all__ = [
@@ -87,5 +92,8 @@ __all__ = [
     "InsightSizeLimitError",
     "INSIGHT_PROMPT_VERSION",
     "build_insight_model_request",
+    "InsightRuntimeResult",
+    "InsightRuntimeStatus",
+    "run_insight_runtime",
     "serialize_insight_view",
 ]
