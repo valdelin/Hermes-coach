@@ -279,7 +279,7 @@ SHOULD; metadata rica pode permanecer dentro do adapter.
 | M2-1 | prompt/request puro | projeção minimizada, subject/provenance excluídos, hash do input final, sem I/O/rede/env |
 | M2-2 | decoder/validator | JSON estrito, templates/grounding/caution (inclui a regra `Nd` da §5.1), render local, sem repair |
 | M2-3 | runtime com fake provider | uma tentativa, matriz de fallback, provenance de sucesso, no-write/invariância |
-| M2-4 | decisão provider/model | ADR/record de provider, modelo, SDK/HTTP, segredo, retenção e timeout |
+| M2-4 | decisão provider/model | ADR/record de provider, modelo, SDK/HTTP, segredo, retenção e timeout — **ACEITO**: `ADR-007` (OpenAI `gpt-5.4-nano-2026-03-17`, SDK, timeout finito, `max_retries=0`, non-streaming, `store:false` quando aplicável) |
 | M2-5 | adapter concreto | único local de rede/auth, timeout finito, zero retry/tools/streaming, tipos vendor contidos |
 | M2-6 | telemetria/custo | eventos sanitizados, request ID operacional, custo separado |
 | M2-7 | eval online | workflow separado, secrets, status explícitos, harness pinado se houver |
