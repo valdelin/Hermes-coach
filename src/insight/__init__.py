@@ -37,6 +37,7 @@ from .model_provider import (
     InsightModelResponse,
     InsightProvenanceError,
     InsightProviderAuthError,
+    InsightProviderConfigError,
     InsightProviderError,
     InsightProviderInvalidResponseError,
     InsightProviderRateLimitError,
@@ -55,6 +56,7 @@ from .runtime import (
     run_insight_runtime,
 )
 from .serialization import serialize_insight_view
+from .openai_provider import OpenAIInsightModelProvider
 
 __all__ = [
     "FactClassification",
@@ -83,6 +85,7 @@ __all__ = [
     "InsightModelResponse",
     "InsightProvenanceError",
     "InsightProviderAuthError",
+    "InsightProviderConfigError",
     "InsightProviderError",
     "InsightProviderInvalidResponseError",
     "InsightProviderRateLimitError",
@@ -96,4 +99,5 @@ __all__ = [
     "InsightRuntimeStatus",
     "run_insight_runtime",
     "serialize_insight_view",
+    "OpenAIInsightModelProvider",
 ]

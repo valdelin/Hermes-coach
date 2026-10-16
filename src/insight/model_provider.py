@@ -154,6 +154,17 @@ class InsightProviderError(Exception):
     retryable = False
 
 
+class InsightProviderConfigError(InsightProviderError):
+    """Configuracao local incompleta (ex.: credencial ausente), sem rede.
+
+    Distinta de ``InsightProviderAuthError``: a primeira indica que o adapter
+    nunca foi configurado; a segunda indica rejeicao de credencial pelo
+    provider. Ambas sao contidas pelo runtime como falha de provider.
+    """
+
+    code = "config_error"
+
+
 class InsightProviderAuthError(InsightProviderError):
     code = "auth_error"
 
