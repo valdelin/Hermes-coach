@@ -1,0 +1,31 @@
+name: insight online eval
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  online-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Avaliar snapshot online
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: >-
+          python3 scripts/run_insight_online_eval.py
+          --model gpt-5.4-nano-2026-03-17
+          --output "$RUNNER_TEMP/insight-online-eval.json"
+      - name: Publicar report sanitizado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: insight-online-eval-report
+          path: ${{ runner.temp }}/insight-online-eval.json
