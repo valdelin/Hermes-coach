@@ -43,6 +43,17 @@ REST = "rest"
 DEFAULT_FTP = 182
 EXTERNAL_ID_PREFIX = "hermes-plan"
 
+# FTP-H8: intencao do evento de teste de FTP. Marcador ESTRUTURAL, gravado no
+# `plan.json` e consumido por `event_payload`/`workout_text`. O comportamento
+# nunca e decidido por palavra no titulo.
+#
+# `EXTERNAL_OR_USER_SELECTED_TEST` significa: o Hermes recomenda reavaliar o
+# FTP, mas NAO possui protocolo prescritivo proprio. O dia vira evento
+# informativo (sem passos), para o atleta escolher o metodo/plataforma. Nao
+# existe hoje protocolo Hermes implementado (ver docs/ROADMAP.md, FTP-H8).
+FTP_TEST_INTENT_KEY = "ftp_test_intent"
+FTP_TEST_INTENT_EXTERNAL = "EXTERNAL_OR_USER_SELECTED_TEST"
+
 # Dias de treino padrao (seg-sex). Configuravel via TRAINING_DAYS no .env.
 DEFAULT_TRAINING_DAYS = (0, 1, 2, 3, 4)  # date.weekday(): seg=0 .. sex=4
 
@@ -744,6 +755,10 @@ def rebuild_workout(workout, params, ftp=DEFAULT_FTP):
     recalcula-los aqui e nao no CLI: um segundo lugar que recontaisses volume
     seria um segundo motor de adaptacao, que e o que a SPEC proibe.
     """
+    if workout.get(FTP_TEST_INTENT_KEY):
+        # FTP-H8: dia de teste e evento informativo — nao ha prescricao a
+        # reconstruir. Reconstruir aqui recriaria a sessao Z2 falsa.
+        return dict(workout)
     focus = params.focus
     duration = sum((params.warmup_sec,
                     params.repeats * (params.on_sec + params.off_sec),
@@ -1254,13 +1269,32 @@ def _prep_workout(day, kind, ftp):
     """Workout leve ao redor do teste de FTP (consenso dos treinadores):
     - d-2: recuperacao facil (sem treino duro nas 48h antes do teste)
     - d-1: spin muito facil (<65% FTP) — o dia antes importa mais que o teste
-    - d0 : evento do proprio Ramp Test (app Zwift), so warmup/instrucao
+    - d0 : evento INFORMATIVO do teste (sem passos prescritivos)
     - d+1: recuperacao pos-teste
-    Retorna um PlannedWorkout do dia."""
+    Retorna um PlannedWorkout do dia.
+
+    FTP-H8: o Hermes nao possui protocolo prescritivo de teste de FTP. Por
+    isso D0 nao recebe `params` de sessao nem `tss`: publicar uma sessao Z2
+    continua com o nome de teste fazia o Intervals/Zwift executar recovery no
+    dia do teste. A carga do dia e desconhecida ate a execucao, entao
+    `planned_duration` e `tss` ficam em zero (mesmo criterio do dia de prova,
+    cuja carga real entra pela API depois)."""
+    if kind == "d0":
+        params = WorkoutParams(
+            focus=FOCUS_ZONE2, warmup_sec=0, warmup_power_low=0.0,
+            warmup_power_high=0.0, repeats=0, on_sec=0, off_sec=0,
+            on_power=0.0, off_power=0.0, cooldown_sec=0,
+            cooldown_power_low=0.0, cooldown_power_high=0.0)
+        return PlannedWorkout(
+            day=day.isoformat(), focus=FOCUS_ZONE2, planned_duration=0,
+            name=f"{day.isoformat()} - FTP Test",
+            params=_params_dict(params), tss=0.0,
+            external_id=f"{EXTERNAL_ID_PREFIX}-{day.isoformat()}",
+            ftp_watts=int(ftp))
+
     zones = {
         "d-2": ("Recuperacao (pre-teste FTP)", 2400, 0.55),
         "d-1": ("Spin facil (pre-teste FTP)", 1800, 0.50),
-        "d0": ("Ramp Test (FTP)", 1800, 0.55),
         "d+1": ("Recuperacao (pos-teste FTP)", 1800, 0.55),
     }
     name, on_sec, on_power = zones[kind]
@@ -1303,7 +1337,12 @@ def _protect_ftp_test(plan, ftp_test_date, training_days, start, days, ftp):
             continue
         if d != test and d.weekday() not in training_days:
             continue  # descanso natural do dia fora da agenda: nada a criar
-        kept.append(_as_dict(_prep_workout(d, kind, ftp)))
+        record = _as_dict(_prep_workout(d, kind, ftp))
+        if kind == "d0":
+            # Marcador ESTRUTURAL do teste (FTP-H8). O comportamento do dia
+            # (descricao informativa, sem passos) vem daqui, nunca do titulo.
+            record[FTP_TEST_INTENT_KEY] = FTP_TEST_INTENT_EXTERNAL
+        kept.append(record)
     kept.sort(key=lambda w: w["day"])
     return kept
 
@@ -1738,9 +1777,14 @@ def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None,
                   fthr=None):
     """Evento do calendario. Com `fthr` e o workout marcado `hr_mode` (#3), o
     target vira HR e o texto usa %FTHR + RPE; senao, POWER (%FTP). Nota: o
-    Intervals usa o enum `HR` (nao `HEART_RATE`) no campo `target`."""
+    Intervals usa o enum `HR` (nao `HEART_RATE`) no campo `target`.
+
+    FTP-H8: workout marcado com `ftp_test_intent` recebe a descricao
+    instrucional de `ftp_test_text` (sem passos), nunca o texto de workout."""
     hr = bool(workout.get("hr_mode")) and bool(fthr)
     lang = _normalize_lang(lang)
+    if desc is None and workout.get(FTP_TEST_INTENT_KEY):
+        desc = ftp_test_text(lang)
     return {
         "start_date_local": f"{workout['day']}T{START_TIME}",
         "category": "WORKOUT", "type": "Ride",
@@ -1751,6 +1795,40 @@ def event_payload(workout, ftp=DEFAULT_FTP, desc=None, lang="pt", prev=None,
         "target": "HR" if hr else "POWER",
         "external_id": workout["external_id"],
     }
+
+
+def ftp_test_text(lang="pt"):
+    """Descricao INSTRUCIONAL do dia de teste de FTP, sem passos (FTP-H8).
+
+    O Hermes nao possui protocolo prescritivo de teste, entao o evento apenas
+    orienta o atleta a executar o teste no metodo/plataforma de sua escolha.
+    O texto nao tem linhas de passo (`- ... duracao percentual%`): sem passos,
+    o Intervals nao gera workout estruturado e o Zwift nao executa uma sessao
+    prescrita no lugar do teste."""
+    lang = _normalize_lang(lang)
+    if lang == "en":
+        return "\n".join([
+            "FTP Test",
+            "",
+            "Today is FTP reassessment day. Do an FTP test using the method and "
+            "the platform of your choice (for example, the native test in the "
+            "app you ride on). When you finish, report the result in Hermes so "
+            "the new FTP can be confirmed.",
+            "",
+            "No structured session is sent for this day: the goal is to measure "
+            "FTP, not to complete a prescribed load.",
+        ])
+    return "\n".join([
+        "FTP Test",
+        "",
+        "Hoje e dia de reavaliar seu FTP. Faca o teste de FTP com o metodo e a "
+        "plataforma de sua preferencia (por exemplo, o teste nativo do "
+        "aplicativo que voce usa para pedalar). Ao terminar, informe o "
+        "resultado no Hermes para que o novo FTP seja confirmado.",
+        "",
+        "Nenhuma sessao estruturada e enviada para este dia: o objetivo e "
+        "medir o FTP, nao cumprir uma carga prescrita.",
+    ])
 
 
 def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None, fthr=None):
@@ -1766,6 +1844,9 @@ def workout_text(workout, ftp=DEFAULT_FTP, lang="pt", prev=None, fthr=None):
     Com `fthr` e `hr_mode` no workout: prescricao por FC (#3) — os alvos usam
     %FTHR e cada serie traz o RPE como ancora (sem medidor de potencia)."""
     lang = _normalize_lang(lang)
+    if workout.get(FTP_TEST_INTENT_KEY):
+        # FTP-H8: dia de teste sem protocolo Hermes nao tem passos a renderizar.
+        return ftp_test_text(lang)
     if workout.get("hr_mode") and fthr:
         return _workout_text_hr(workout, fthr, lang=lang, prev=prev)
     params = workout["params"]

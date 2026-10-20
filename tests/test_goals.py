@@ -243,8 +243,9 @@ class PromptRaceDateTest(unittest.TestCase):
 
 class FtpTestPrepTest(unittest.TestCase):
     """Preparacao previa do teste de FTP (consenso dos treinadores): as 48h
-    antes sao protegidas (D-2 facil, D-1 spin), o dia do teste recebe o evento
-    do Ramp Test e o dia seguinte vira recuperacao."""
+    antes sao protegidas (D-2 facil, D-1 spin), o dia do teste recebe um evento
+    informativo (sem passos prescritivos, FTP-H8) e o dia seguinte vira
+    recuperacao."""
 
     START = date(2026, 9, 21)  # segunda; agenda default seg-sex
 
@@ -254,19 +255,24 @@ class FtpTestPrepTest(unittest.TestCase):
     def test_sem_data_de_teste_nao_muda_nada(self):
         base = build_plan([], 4, ftp=182, days=14, start=self.START,
                           goal="ftp-builder")
-        self.assertNotIn("Ramp Test (FTP)", " ".join(w["name"] for w in base))
+        self.assertNotIn("Ramp", " ".join(w["name"] for w in base))
+        self.assertNotIn("FTP Test", " ".join(w["name"] for w in base))
 
     def test_protege_48h_antes_e_cria_evento_do_teste(self):
         # teste na sexta 25/09: D-2 = qua (Recuperacao), D-1 = qui (Spin),
-        # D0 = Ramp Test, D+1 = sab (fora da agenda -> descanso natural)
+        # D0 = FTP Test (informativo, sem passos), D+1 = sab (fora da agenda
+        # -> descanso natural)
         plan = build_plan([], 4, ftp=182, days=14, start=self.START,
                           goal="ftp-builder", ftp_test_date="2026-09-25",
                           min_regular_duration_sec=3600)
         by_day = {w["day"]: w for w in plan}
         self.assertEqual(by_day["2026-09-23"]["name"], "2026-09-23 - Recuperacao (pre-teste FTP)")
         self.assertEqual(by_day["2026-09-24"]["name"], "2026-09-24 - Spin facil (pre-teste FTP)")
-        self.assertEqual(by_day["2026-09-25"]["name"], "2026-09-25 - Ramp Test (FTP)")
-        self.assertEqual(by_day["2026-09-25"]["planned_duration"], 3000)
+        self.assertEqual(by_day["2026-09-25"]["name"], "2026-09-25 - FTP Test")
+        # FTP-H8: o dia do teste nao prescreve carga nem sessao estruturada.
+        self.assertEqual(by_day["2026-09-25"]["planned_duration"], 0)
+        self.assertEqual(by_day["2026-09-25"]["tss"], 0.0)
+        self.assertNotIn("Ramp", by_day["2026-09-25"]["name"])
         # nenhum treino duro nas 48h antes do teste (focus != limiar/vo2)
         for d in ("2026-09-23", "2026-09-24"):
             self.assertNotIn(by_day[d]["focus"], (FOCUS_THRESHOLD, FOCUS_VO2))
@@ -279,17 +285,17 @@ class FtpTestPrepTest(unittest.TestCase):
         plan = build_plan([], 4, ftp=182, days=14, start=self.START,
                           goal="ftp-builder", ftp_test_date="2026-09-26")
         by_day = {w["day"]: w for w in plan}
-        self.assertEqual(by_day["2026-09-26"]["name"], "2026-09-26 - Ramp Test (FTP)")
+        self.assertEqual(by_day["2026-09-26"]["name"], "2026-09-26 - FTP Test")
         self.assertEqual(by_day["2026-09-25"]["name"], "2026-09-25 - Spin facil (pre-teste FTP)")
         self.assertNotIn("2026-09-27", by_day, "domingo = descanso natural")
 
-    def test_ramp_test_prevalece_sobre_active_recovery_agendada(self):
+    def test_evento_de_teste_prevalece_sobre_active_recovery_agendada(self):
         plan = build_plan([], 4, ftp=182, days=7, start=self.START,
                           training_days=(0, 1, 2, 3, 4),
                           active_recovery_days=(1, 3),
                           goal="ftp-builder", ftp_test_date="2026-09-22")
         self.assertEqual({w["day"]: w for w in plan}["2026-09-22"]["name"],
-                         "2026-09-22 - Ramp Test (FTP)")
+                         "2026-09-22 - FTP Test")
 
     def test_teste_fora_do_horizonte_ignorado(self):
         # teste a 30 dias: fora dos 14 dias do plano -> nada muda
@@ -298,12 +304,12 @@ class FtpTestPrepTest(unittest.TestCase):
                           goal="ftp-builder", ftp_test_date="2026-10-21")
         self.assertEqual([w["day"] for w in plan],
                          [w["day"] for w in base])
-        self.assertNotIn("Ramp Test", " ".join(w["name"] for w in plan))
+        self.assertNotIn("FTP Test", " ".join(w["name"] for w in plan))
 
     def test_data_invalida_ignorada(self):
         plan = build_plan([], 4, ftp=182, days=14, start=self.START,
                           goal="ftp-builder", ftp_test_date="nao-e-data")
-        self.assertNotIn("Ramp Test", " ".join(w["name"] for w in plan))
+        self.assertNotIn("FTP Test", " ".join(w["name"] for w in plan))
 
     def test_meta_inclui_data_do_teste(self):
         from unittest import mock

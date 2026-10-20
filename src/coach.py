@@ -302,7 +302,13 @@ def estimate_tss(params: WorkoutParams, ftp: float | None = None) -> float:
     return estimated_tss(params, ftp)
 
 
-FTP_TEST_KEYWORDS = ("ramp", "ftp", "teste", "test", "prova")
+# Titulos que expressam INTENCAO de teste de FTP. A lista anterior
+# ("ramp", "ftp", "teste", "test", "prova") classificava como teste qualquer
+# treino com "FTP" no nome (ex.: "FTP Builder") e ate uma prova — falso
+# positivo de identificacao (divida de FTP-H8). O protocolo NAO e inferido do
+# texto: aqui apenas se reconhece a intencao, para sugerir reteste.
+FTP_TEST_KEYWORDS = ("ftp test", "ftp retest", "ftp teste", "teste de ftp",
+                     "teste ftp", "ramp test")
 DEFAULT_FTP_TEST_WEEKS = 8
 
 # Janela de reteste do FTP conforme o tipo de plano (GOAL): faz mais sentido
@@ -420,7 +426,8 @@ class FtpTestSuggestion:
 
 def last_ftp_test(events):
     """Data (ISO, YYYY-MM-DD) do teste de FTP mais recente detectado nos
-    eventos, ou None. Procura pelo nome do treino (Ramp Test do Zwift, etc)."""
+    eventos, ou None. Reconhece a INTENCAO pelo titulo (ex.: "FTP Test",
+    "Ramp Test"); nao infere protocolo a partir do texto."""
     best = None
     for item in events:
         name = (item.get("name") or "").lower()
@@ -435,8 +442,8 @@ def last_ftp_test(events):
 
 
 def suggest_ftp_test(events, ftp, weeks=DEFAULT_FTP_TEST_WEEKS, today=None, goal=None):
-    """Indica se esta na hora de (re)fazer um teste de FTP (Ramp Test do app
-    Zwift). A janela segue o tipo de plano ativo (`FTP_TEST_WEEKS_BY_GOAL`):
+    """Indica se esta na hora de (re)fazer um teste de FTP. A janela segue o
+    tipo de plano ativo (`FTP_TEST_WEEKS_BY_GOAL`):
     FTP Builder testa ao final de cada bloco (~6 semanas), TT/Climbing a cada
     4 semanas, off-season pode esperar; sem plano, 8 semanas."""
     if goal is not None:

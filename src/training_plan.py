@@ -34,7 +34,7 @@ try:
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
                        BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
                        readiness_eligibility, TSB_ADAPT_LIMIT,
-                       planned_workout_profile)
+                       planned_workout_profile, FTP_TEST_INTENT_KEY)
     import ftp_scan
     import ftp_evidence
     import recovery
@@ -61,7 +61,8 @@ except ImportError:
                       PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
                       GOALS, adherence_report, _tsb_race_verdict,
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
-                       BUDGET_WINDOW_DAYS, planned_workout_profile)
+                       BUDGET_WINDOW_DAYS, planned_workout_profile,
+                       FTP_TEST_INTENT_KEY)
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                       manual_duplicate_ids,
@@ -73,7 +74,7 @@ except ImportError:
                       GOAL_BUDGET_SCALE, weekly_budget, avg_load,
                        BUDGET_WINDOW_DAYS, SITUACOES_READINESS,
                        readiness_eligibility, TSB_ADAPT_LIMIT,
-                       planned_workout_profile)
+                       planned_workout_profile, FTP_TEST_INTENT_KEY)
     from . import ftp_scan
     from . import ftp_evidence
     from . import recovery
@@ -224,7 +225,8 @@ def get_long_day():
 
 def get_ftp_test_date():
     """FTP_TEST_DATE do .env (YYYY-MM-DD, futura) ou None. Quando definida, o
-    build protege as 48h antes do teste e cria o evento do Ramp Test."""
+    build protege as 48h antes do teste e cria o evento informativo do
+    teste de FTP (sem passos prescritivos, ver FTP-H8)."""
     load_env(PROJECT_ROOT / ".env")
     raw = os.environ.get("FTP_TEST_DATE", "").strip()
     if not raw:
@@ -332,7 +334,7 @@ def prompt_ftp_test_date():
     `FTP_TEST_DATE` no .env. Usada quando o ftp-check indica reteste e o
     atleta aceita preparar os dias anteriores."""
     while True:
-        raw = input("Qual a data do Ramp Test (FTP)? (YYYY-MM-DD) ").strip()
+        raw = input("Qual a data do teste de FTP? (YYYY-MM-DD) ").strip()
         try:
             test = date.fromisoformat(raw)
         except ValueError:
@@ -631,7 +633,7 @@ def cmd_ftp_check(args):
           + (f" ({sug.days_since} dias)" if sug.days_since else ""))
     print(f"Reteste devido: {'SIM' if sug.due else 'nao'}  |  {sug.reason}")
     if sug.due:
-        print("Sugestao: agende um Ramp Test no app Zwift em um dia descansado;")
+        print("Sugestao: agende um teste de FTP na plataforma que voce usa em um dia descansado;")
         print("  rode `build --ftp-test YYYY-MM-DD` para proteger as 48h antes")
         print("  (D-2 facil, D-1 spin) e publicar o evento do teste no plano.")
     hint = _pending_ftp_hint()
@@ -827,7 +829,7 @@ def cmd_build(args):
     if periodization:
         plano_label += f" / {PERIODIZATION_LABELS[periodization]}"
     race_info = f" | prova em {race_date}" if goal == "race" and race_date else ""
-    test_info = f" | Ramp Test em {ftp_test_date}" if ftp_test_date else ""
+    test_info = f" | Teste de FTP em {ftp_test_date}" if ftp_test_date else ""
     print(f"Plano: {plano_label}{race_info}{test_info} | TSB atual {result.tsb:.1f} | FTP {ftp}W")
     _print_readiness_decision(result.decisao, result.trace, dry_run,
                               result.readiness_report)
@@ -840,7 +842,8 @@ def cmd_build(args):
     est_tss = sum(w["tss"] for w in plan)
     print(f"Plano gerado: {len(plan)} treinos | TSS estimado {est_tss:.0f}"
           + (" | preparacao p/ teste em " + ftp_test_date
-             if ftp_test_date and any("Ramp Test (FTP)" in w["name"] for w in plan)
+             if ftp_test_date and any(
+                 w.get(FTP_TEST_INTENT_KEY) for w in plan)
              else ""))
     for w in plan:
         print(f"  {w['day']} {w['name']:<30} {w['planned_duration'] // 60:>3}m TSS {w['tss']:.0f}")
@@ -1797,7 +1800,7 @@ def main(argv=None):
     p_build.add_argument("--days-plan", type=int, default=14,
                          help="Quantos dias olhar para frente")
     p_build.add_argument("--ftp-test", metavar="YYYY-MM-DD",
-                         help="Agenda o Ramp Test (FTP) e protege as 48h antes")
+                         help="Agenda o teste de FTP e protege as 48h antes")
     p_build.add_argument("--no-power", action="store_true",
                          help="Prescricao sem medidor de potencia: alvos em "
                               "%%FTHR + RPE (exige FTHR no .env)")
@@ -1824,7 +1827,7 @@ def main(argv=None):
     p_all.add_argument("--days", type=int, default=60)
     p_all.add_argument("--days-plan", type=int, default=14)
     p_all.add_argument("--ftp-test", metavar="YYYY-MM-DD",
-                       help="Agenda o Ramp Test (FTP) e protege as 48h antes")
+                       help="Agenda o teste de FTP e protege as 48h antes")
     p_all.add_argument("--no-power", action="store_true",
                        help="Prescricao sem medidor de potencia (%%FTHR + RPE)")
     p_all.add_argument("--dry-run", action="store_true",
