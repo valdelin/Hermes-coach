@@ -1396,9 +1396,23 @@ def get_cue_lang():
 
 
 def _prev_same_focus(plan, workout):
-    """Treino anterior do mesmo foco no plano (para mensagem de progressao)."""
+    """Treino anterior do mesmo foco no plano (para mensagem de progressao).
+
+    Sessoes com `ftp_test_intent` sao um dia de teste, nao um treino daquele
+    foco: o D0 tem `focus` de dia facil (zone2) mas `on_sec=0`, e compara-lo
+    com um Z2 real produzia "30 minutos a mais que o ultimo treino de Zona 2"
+    no D+1. A exclusao e estrutural (marcador), nunca por titulo/descricao.
+
+    Entrada sem volume prescrito (`on_sec<=0`) tambem nao serve de baseline:
+    cobre plano legado, construido antes do marcador existir, cujo dia de
+    teste ainda chega aqui com `params` zerados.
+    """
     prev = None
     for w in plan:
+        if w.get(FTP_TEST_INTENT_KEY):
+            continue
+        if int(w.get("params", {}).get("on_sec", 0)) <= 0:
+            continue
         if w["focus"] == workout["focus"] and w["day"] < workout["day"]:
             prev = w
     return prev

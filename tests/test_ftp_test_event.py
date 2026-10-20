@@ -147,6 +147,40 @@ class FtpTestEventContractTest(unittest.TestCase):
         # os dias vizinhos continuam sendo sessoes prescritas de verdade
         self.assertGreater(len(_steps(by_day["2026-09-24"]["description"])), 0)
 
+    def test_publicacao_usa_o_marcador_na_comparacao_de_volume(self):
+        """P3 no caminho real: o marcador precisa chegar intacto ao ponto em
+        que `_prev_same_focus` filtra. Com o filtro antigo, o D+1 dizia
+        "30 minutos a mais que o ultimo treino de Zona 2" comparando com o
+        teste (volume zero)."""
+        from src.training_plan import _prev_same_focus
+
+        # Todos os dias sao dias de treino: garante um D+1 real (recuperacao
+        # pos-teste, focus zone2) depois do teste.
+        plan = build_plan([], 0, ftp=182, days=14, start=date(2026, 9, 21),
+                          training_days=tuple(range(7)), goal="ftp-builder",
+                          ftp_test_date="2026-09-23")
+        by_day = {w["day"]: w for w in plan}
+        self.assertEqual(by_day["2026-09-23"].get(FTP_TEST_INTENT_KEY),
+                         FTP_TEST_INTENT_EXTERNAL)
+        self.assertEqual(by_day["2026-09-24"]["focus"], "zone2")
+
+        provider = FakeProvider()
+        push_workouts(
+            provider, plan=plan, start="2026-09-21", ftp=182,
+            fthr=None, lang="pt", event_payload_fn=event_payload,
+            prev_same_focus_fn=_prev_same_focus,
+            orphan_external_ids_fn=lambda *_a, **_k: [],
+            manual_duplicate_ids_fn=lambda *_a, **_k: [],
+            dry_run=False,
+        )
+        after = {p["start_date_local"][:10]: p for p in provider.batch}["2026-09-24"]
+        self.assertNotIn("a mais que o ultimo treino de Zona 2",
+                         after["description"])
+        self.assertNotIn("a menos que o ultimo treino de Zona 2",
+                         after["description"])
+        self.assertIn("Mesma carga do ultimo treino de Zona 2",
+                      after["description"])
+
     def test_publicacao_nao_toca_historico_de_ftp(self):
         provider = FakeProvider()
         cwd = os.getcwd()
@@ -322,3 +356,115 @@ class FtpTestReconcileProtectionTest(unittest.TestCase):
         self.assertEqual(info["ftp_test_preserved"], test_day.isoformat())
         self.assertIsNotNone(info["recovery_day"])
         self.assertNotEqual(info["recovery_day"], test_day.isoformat())
+
+
+class FtpTestPreviousFocusTest(unittest.TestCase):
+    """P3: o dia de teste nao entra na comparacao de volume do mesmo foco.
+
+    O D0 carrega `focus=zone2` (dia facil de proposito), mas prescreve zero
+    volume. Usa-lo como "ultimo treino de Zona 2" gerava no D+1 a frase
+    "30 minutos a mais que o ultimo treino de Zona 2", comparando com um
+    teste que nao tem blocos. A exclusao e estrutural (marcador), nunca por
+    titulo ou descricao.
+    """
+
+    def _zone2(self, day, on_sec=1800, repeats=1, marker=None):
+        return {
+            "day": day,
+            "focus": "zone2",
+            "planned_duration": int(on_sec) * int(repeats) + 1200,
+            "name": f"{day} - Zona 2",
+            "params": {"focus": "zone2", "warmup_sec": 600, "warmup_cadence": 90,
+                       "warmup_power_low": 0.45, "warmup_power_high": 0.75,
+                       "repeats": repeats, "on_sec": on_sec, "off_sec": 0,
+                       "on_power": 0.6, "off_power": 0.5, "cadence": 90,
+                       "cadence_rest": 85, "cooldown_sec": 600,
+                       "cooldown_cadence": 85, "cooldown_power_low": 0.7,
+                       "cooldown_power_high": 0.45},
+            "tss": 40.0,
+            "external_id": f"hermes-plan-{day}",
+            "ftp_watts": 182,
+            **({FTP_TEST_INTENT_KEY: marker} if marker else {}),
+        }
+
+    def _plan_com_teste(self):
+        plan = build_plan([], 0, ftp=182, days=21,
+                          start=date(2026, 10, 19), goal="general",
+                          ftp_test_date="2026-10-22")
+        test = [w for w in plan if w.get(FTP_TEST_INTENT_KEY)][0]
+        after = [w for w in plan
+                 if w["day"] > test["day"] and w["focus"] == "zone2"][0]
+        return plan, test, after
+
+    def test_d0_nao_e_o_z2_anterior_do_d_mais_1(self):
+        from src.training_plan import _prev_same_focus
+        plan, test, after = self._plan_com_teste()
+        prev = _prev_same_focus(plan, after)
+        self.assertIsNotNone(prev, "ha um Z2 legitimo antes do teste")
+        self.assertNotEqual(prev["day"], test["day"],
+                            "o dia de teste nao pode ser o Z2 anterior")
+        self.assertIsNone(prev.get(FTP_TEST_INTENT_KEY))
+        self.assertGreater(int(prev["params"]["on_sec"]), 0)
+
+        payload = event_payload(after, ftp=182, prev=prev)
+        # o defeito era a comparacao com um teste de volume zero ("a mais")
+        self.assertNotIn("a mais que o ultimo treino de Zona 2",
+                         payload["description"])
+        self.assertNotIn("a menos que o ultimo treino de Zona 2",
+                         payload["description"])
+        self.assertIn("Mesma carga do ultimo treino de Zona 2",
+                      payload["description"])
+        # sanidade: o teste continua marcado e sem volume
+        self.assertEqual(test.get(FTP_TEST_INTENT_KEY),
+                         FTP_TEST_INTENT_EXTERNAL)
+
+    def test_teste_entre_dois_z2_encontra_o_z2_valido_anterior(self):
+        from src.training_plan import _prev_same_focus
+        z2_a = self._zone2("2026-10-19")
+        teste = self._zone2("2026-10-20", on_sec=0, repeats=0,
+                            marker=FTP_TEST_INTENT_EXTERNAL)
+        z2_b = self._zone2("2026-10-21", on_sec=2400)
+        plan = [z2_a, teste, z2_b]
+
+        prev = _prev_same_focus(plan, z2_b)
+        self.assertIs(prev, z2_a, "deve pular o teste e achar o Z2 anterior")
+        payload = event_payload(z2_b, ftp=182, prev=prev)
+        self.assertIn("10 minutos a mais que o ultimo treino de Zona 2",
+                      payload["description"])
+
+    def test_sem_z2_valido_antes_nao_gera_comparacao(self):
+        from src.training_plan import _prev_same_focus
+        teste = self._zone2("2026-10-19", on_sec=0, repeats=0,
+                            marker=FTP_TEST_INTENT_EXTERNAL)
+        z2 = self._zone2("2026-10-20")
+        prev = _prev_same_focus([teste, z2], z2)
+        self.assertIsNone(prev)
+        self.assertNotIn("ultimo treino de Zona 2",
+                         event_payload(z2, ftp=182, prev=prev)["description"])
+
+    def test_z2_legitimo_preservado(self):
+        from src.training_plan import _prev_same_focus
+        z2_a = self._zone2("2026-10-19")
+        z2_b = self._zone2("2026-10-20", on_sec=2400)
+        prev = _prev_same_focus([z2_a, z2_b], z2_b)
+        self.assertIs(prev, z2_a)
+        self.assertIn("10 minutos a mais que o ultimo treino de Zona 2",
+                      event_payload(z2_b, ftp=182, prev=prev)["description"])
+
+    def test_teste_zerado_nao_contamina_e_nao_muta_o_plano(self):
+        """Teste sem dados fisiologicos (params zerados / sem medidor) nao
+        serve de baseline, e a filtragem nao altera o plano que a prontidao
+        le (sem efeito colateral)."""
+        from copy import deepcopy
+        from src.training_plan import _prev_same_focus
+        teste = self._zone2("2026-10-19", on_sec=0, repeats=0,
+                            marker=FTP_TEST_INTENT_EXTERNAL)
+        # plano legado: sem marcador, mas sem volume prescrito
+        legado = self._zone2("2026-10-20", on_sec=0, repeats=0)
+        z2 = self._zone2("2026-10-21", on_sec=1800)
+        plan = [teste, legado, z2]
+        antes = deepcopy(plan)
+
+        prev = _prev_same_focus(plan, z2)
+        self.assertIsNone(prev, "entrada sem volume nao e baseline de Zona 2")
+        self.assertEqual(plan, antes, "_prev_same_focus nao pode mutar o plano")
