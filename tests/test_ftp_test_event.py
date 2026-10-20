@@ -15,7 +15,7 @@ Estes testes fixam o contrato:
 import os
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 
 from src import plan as plan_mod
 from src.application import Application, push_workouts
@@ -214,3 +214,111 @@ class FtpTestKeywordTest(unittest.TestCase):
         # estrutural e o marcador do dia D0. Um "Ramp Test" importado do
         # provider nao vira FtpProtocol.RAMP_TEST por causa do nome.
         self.assertFalse(hasattr(plan_mod, "protocol_from_name"))
+
+
+class FtpTestReconcileProtectionTest(unittest.TestCase):
+    """P2: ajuste automatico por carga extra nao pode apagar o dia do teste.
+
+    O dia D0 e uma DATA escolhida pelo atleta (ou externa). Se a recuperacao
+    do treino extra cair nesse dia, o teste seria substituido por
+    "Recuperacao (plano ajustado)" sem aviso -- exatamente o que o gate
+    impede. A recuperacao vai para o proximo dia de treino livre.
+    """
+
+    ALL_DAYS = tuple(range(7))
+
+    def _plan(self):
+        today = date.today()
+        test_day = today + timedelta(days=1)
+        plan = build_plan([], 0, ftp=182, days=10, start=today,
+                          training_days=self.ALL_DAYS, goal="ftp-builder",
+                          ftp_test_date=test_day.isoformat())
+        return plan, today, test_day
+
+    def _plan_without_post_test_recovery(self):
+        """Plano em que o dia seguinte ao teste esta livre (sem a recuperacao
+        pos-teste que o build insere): exercita o desvio da recuperacao."""
+        plan, today, test_day = self._plan()
+        return [w for w in plan if "pos-teste" not in w["name"]], today, test_day
+
+    def _extra_today(self, today, load=200.0):
+        return [{"day": today, "load": load}]
+
+    def test_carga_extra_nao_substitui_o_dia_do_teste(self):
+        plan, today, test_day = self._plan()
+        before = [dict(w) for w in plan if w["day"] == test_day.isoformat()][0]
+        report = {}
+
+        from src.plan import _adjust_for_extra_workouts
+        adjusted = _adjust_for_extra_workouts(
+            plan, self._extra_today(today), ftp=182,
+            training_days=self.ALL_DAYS, report=report)
+
+        after = [dict(w) for w in adjusted if w["day"] == test_day.isoformat()]
+        self.assertEqual(len(after), 1, "o dia do teste nao pode desaparecer")
+        self.assertEqual(after[0]["name"], before["name"])
+        self.assertEqual(after[0].get(FTP_TEST_INTENT_KEY),
+                         FTP_TEST_INTENT_EXTERNAL)
+        self.assertEqual(after[0]["tss"], 0.0)
+        self.assertEqual(after[0]["planned_duration"], 0)
+        self.assertNotIn("Recuperacao", after[0]["name"])
+        # nenhuma recuperacao automatica pode cair no dia do teste
+        self.assertFalse(any(w["day"] == test_day.isoformat()
+                             and "Recuperacao (plano ajustado)" in w["name"]
+                             for w in adjusted))
+
+    def test_recuperacao_vai_para_o_proximo_dia_livre(self):
+        plan, today, test_day = self._plan_without_post_test_recovery()
+        report = {}
+        from src.plan import _adjust_for_extra_workouts
+        adjusted = _adjust_for_extra_workouts(
+            plan, self._extra_today(today), ftp=182,
+            training_days=self.ALL_DAYS, report=report)
+
+        recovery = [w for w in adjusted
+                    if "Recuperacao (plano ajustado)" in w["name"]]
+        self.assertEqual(len(recovery), 1,
+                         "a recuperacao do extra continua sendo programada")
+        self.assertNotEqual(recovery[0]["day"], test_day.isoformat())
+        self.assertEqual(report["ftp_test_preserved"], test_day.isoformat())
+        self.assertEqual(report["recovery_day"], recovery[0]["day"])
+
+    def test_recuperacao_nunca_sobrescreve_dia_marcado(self):
+        from src.plan import _insert_recovery
+        plan, _today, test_day = self._plan()
+        result = _insert_recovery(plan, test_day.isoformat(), ftp=182,
+                                  training_days=self.ALL_DAYS,
+                                  on=test_day.isoformat())
+        self.assertEqual(result, plan,
+                         "_insert_recovery nao pode reescrever o dia do teste")
+
+    def test_sem_marcador_o_ajuste_reage_como_antes(self):
+        """Sem o marcador, a recuperacao volta a ocupar o dia alvo (prova que
+        a autoridade e o marcador estrutural, nao o titulo)."""
+        from src.plan import _adjust_for_extra_workouts
+        plan, today, test_day = self._plan()
+        for w in plan:
+            w.pop(FTP_TEST_INTENT_KEY, None)
+        report = {}
+        adjusted = _adjust_for_extra_workouts(
+            plan, self._extra_today(today), ftp=182,
+            training_days=self.ALL_DAYS, report=report)
+        target = [w for w in adjusted if w["day"] == test_day.isoformat()][0]
+        self.assertIn("Recuperacao (plano ajustado)", target["name"])
+        self.assertEqual(report, {})
+
+    def test_reconcile_preserva_o_marcador_e_anuncia_o_desvio(self):
+        from src.plan import reconcile
+        plan, today, test_day = self._plan_without_post_test_recovery()
+        events = [{"external_id": None, "paired_activity_id": "999",
+                   "start_date_local": f"{today}T10:00:00",
+                   "icu_training_load": 200.0}]
+        adjusted, _missed, info = reconcile(
+            plan, events, ftp=182, training_days=self.ALL_DAYS)
+        test = [w for w in adjusted if w["day"] == test_day.isoformat()][0]
+        self.assertEqual(test.get(FTP_TEST_INTENT_KEY),
+                         FTP_TEST_INTENT_EXTERNAL)
+        self.assertNotIn("Recuperacao", test["name"])
+        self.assertEqual(info["ftp_test_preserved"], test_day.isoformat())
+        self.assertIsNotNone(info["recovery_day"])
+        self.assertNotEqual(info["recovery_day"], test_day.isoformat())

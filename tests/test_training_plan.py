@@ -1280,5 +1280,22 @@ class SummaryPlanStatusTest(unittest.TestCase):
         self.assertAlmostEqual(status["weeks"][0]["pct"], 50.0)
 
 
+class FtpTestReconcileHintTest(unittest.TestCase):
+    """O desvio da recuperacao do dia de teste e anunciado no CLI."""
+
+    def test_sem_desvio_nao_ha_aviso(self):
+        self.assertIsNone(tp._ftp_test_reconcile_hint({}))
+        self.assertIsNone(tp._ftp_test_reconcile_hint(
+            {"ftp_test_preserved": None, "recovery_day": None}))
+
+    def test_desvio_anuncia_teste_preservado_e_dia_da_recuperacao(self):
+        text = tp._ftp_test_reconcile_hint(
+            {"ftp_test_preserved": "2026-10-22",
+             "recovery_day": "2026-10-23"})
+        self.assertIn("2026-10-22", text)
+        self.assertIn("2026-10-23", text)
+        self.assertIn("preservado", text)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -312,6 +312,17 @@ def _hr_mode_hint():
             ".env: prescricao em %FTHR + RPE; configure FTHR para alvos em bpm.")
 
 
+def _ftp_test_reconcile_hint(info):
+    """Aviso curto quando a recuperacao do treino extra desviou do dia de
+    teste de FTP (o dia do teste nunca e substituido). None quando nao houve
+    desvio (nenhuma mudanca silenciosa a relatar)."""
+    if not info.get("ftp_test_preserved"):
+        return None
+    return (f"  Teste de FTP preservado em {info['ftp_test_preserved']}: "
+            f"a recuperacao do treino extra foi para "
+            f"{info.get('recovery_day')}.")
+
+
 def prompt_race_date():
     """GOAL=race exige a data alvo (dia da prova): sempre pergunta — nunca
     assume default nem deixa em branco — e salva no .env."""
@@ -1362,6 +1373,8 @@ def cmd_reconcile(args):
                   f"substitui com mais volume; ficam para o proximo build.)")
     else:
         print("Nenhum treino perdido; plano mantido.")
+    if info.get("ftp_test_preserved"):
+        print(_ftp_test_reconcile_hint(info))
     hr_hint = _hr_mode_hint()
     if hr_hint:
         print(hr_hint)

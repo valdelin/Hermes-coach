@@ -2115,9 +2115,11 @@ def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS
                 w["external_id"] for w in new_missed
                 if _absorbable_tss([w]) > 0
             )
+    extra_report = {}
     plan = _adjust_for_extra_workouts(plan, extras, ftp, training_days,
                                       cap=daily_tss_cap(avg_load(events)),
-                                      reduced_ids=reduced_ids)
+                                      reduced_ids=reduced_ids,
+                                      report=extra_report)
     # Modo FC (#3): treinos reescritos (recuperacao, limiar reduzido) perdem a
     # marca `hr_mode` ao serem reconstruidos; restaura em todos para o plano
     # nao misturar prescricao por FC e por potencia.
@@ -2128,6 +2130,8 @@ def reconcile(plan, events, ftp=DEFAULT_FTP, training_days=DEFAULT_TRAINING_DAYS
             sum(float(w["tss"]) for w in missed) if missed else 0.0,
             "absorbable_tss": absorbable,
             "already_absorbed_tss": _absorbable_tss(already_absorbed),
+            "ftp_test_preserved": extra_report.get("ftp_test_preserved"),
+            "recovery_day": extra_report.get("recovery_day"),
             "absorbed_ids": sorted(absorbed_ids)}
     return plan, missed, info
 
@@ -2209,14 +2213,27 @@ def adherence_report(plan, events, today=None):
             "summary": summary}
 
 
+def _has_ftp_test_intent(plan, day):
+    """True se `day` carrega um teste de FTP escolhido pelo atleta (ou externo).
+
+    O dia do teste e uma DATA escolhida, nao um treino gerado: o ajuste
+    automatico nao pode substitui-lo por recuperacao (FTP-H8/P2)."""
+    return any(w["day"] == day
+               and w.get(FTP_TEST_INTENT_KEY) == FTP_TEST_INTENT_EXTERNAL
+               for w in plan)
+
+
 def _adjust_for_extra_workouts(plan, extras, ftp,
                                training_days=DEFAULT_TRAINING_DAYS,
                                extra_window_days=7, cap=None,
-                               reduced_ids=None):
+                               reduced_ids=None, report=None):
     """Treino feito fora do plano soma carga no atleta. Se a carga extra nos
     ultimos `extra_window_days` dias chegar a um treino cheio (>= cap diario),
     insere recuperacao no proximo dia de treino e reduz o proximo Limiar.
-    Trabalho leve (abaixo do cap) nao mexe no plano."""
+    Trabalho leve (abaixo do cap) nao mexe no plano.
+
+    `report`, quando passado, e preenchido in-place quando a recuperacao
+    precisou desviar do dia de teste de FTP (o desvio e anunciado no CLI)."""
     if not extras:
         return plan
     today = date.today()
@@ -2234,15 +2251,26 @@ def _adjust_for_extra_workouts(plan, extras, ftp,
     target = _next_training_day(anchor.isoformat(), training_days)
     while target < today.isoformat():
         target = _next_training_day(target, training_days)
+    # O dia do teste de FTP e uma data escolhida pelo atleta/externo: nunca
+    # recebe recuperacao automatica (isso apagaria a intencao de teste sem
+    # aviso). A recuperacao do extra vai para o proximo dia de treino livre.
+    natural_target = target
+    while _has_ftp_test_intent(plan, target):
+        target = _next_training_day(target, training_days)
     if any(w["day"] == target and "Recuperacao" in w["name"] for w in plan):
         return plan  # recuperacao ja programada (ex.: treino perdido)
     plan = _insert_recovery(plan, target, ftp, training_days, on=target)
     plan = _reduce_next_hard(plan, target, ftp, reduced_ids)
+    if report is not None and target != natural_target:
+        report["ftp_test_preserved"] = natural_target
+        report["recovery_day"] = target
     return plan
 
 
 def _insert_recovery(plan, day, ftp, training_days=DEFAULT_TRAINING_DAYS, on=None):
     next_day = on or _next_training_day(day, training_days)
+    if _has_ftp_test_intent(plan, next_day):
+        return plan  # dia de teste nao e substituivel por recuperacao
     base = templates()[FOCUS_ZONE2]
     params = WorkoutParams(focus=FOCUS_ZONE2, **dict(base, on_sec=1200, on_power=0.60))
     duration = sum((params.warmup_sec, params.repeats * (params.on_sec + params.off_sec),
