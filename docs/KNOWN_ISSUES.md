@@ -13,8 +13,11 @@ defensiva de `lang` inválida em `workout_text`/`event_payload` também foi
 publicados** os dois defeitos do dia de teste de FTP (FTP-H8): o evento D0
 publicava workout Z2 estruturado (`Ramp Test (FTP)` com 10m 45-75% / 30m 55% /
 10m 70-45%) e o `reconcile` substituía o dia do teste por
-`Recuperacao (plano ajustado)` quando havia carga extra. Segue aberto apenas o
-item #1 (fantasmas do Intervals, bug da plataforma, prioridade baixa e aceita).
+`Recuperacao (plano ajustado)` quando havia carga extra. Segue aberto o
+item #1 (fantasmas do Intervals, bug da plataforma, prioridade baixa e aceita)
+e permanecem abertas as pendências residuais P3 do FTP-H8 explicitadas ao final
+da seção FTP-H8/P2 — os dois defeitos críticos estão corrigidos, mas o conjunto
+FTP-H8 **não** é declarado encerrado enquanto elas existirem.
 
 Pendências de escopo que não são bug estão em `docs/ROADMAP.md` (#58 integração
 dos módulos de P0–P3 ao `build`/`push`, #59 quatro limites de implementação) e
@@ -279,11 +282,26 @@ o alvo apenas por dia de treino, sem considerar a intenção de teste.
 - `tests/test_training_plan.py` → `FtpTestReconcileHintTest` (2 testes).
 - Suíte: 1803 testes, 0 falhas, 0 erros, 1 skip (delta +7).
 
+### P3 corrigida — comparação de volume do mesmo foco
+
+**Corrigido** (2026-10-20, commit local `8c2c15f`, aguardando publicação).
+`_prev_same_focus` escolhia o treino anterior apenas por `focus` e `day`. O D0
+tem `focus=zone2` (dia fácil de propósito) com `params` zerados, então o D+1
+publicava "30 minutos a mais que o ultimo treino de Zona 2" — uma comparação de
+volume contra um teste que não prescreve bloco nenhum.
+
+Correção: a função ignora sessões com `ftp_test_intent` (autoridade
+estrutural — nunca por título ou descrição) e também entradas sem volume
+prescrito (`on_sec<=0`), o que cobre plano legado construído antes do marcador
+existir. A comparação entre dois Z2 legítimos permanece idêntica.
+
+Cobertura: `FtpTestPreviousFocusTest` (5 testes) e um teste de integração via
+`push_workouts` com o filtro real, verificando que o marcador chega intacto ao
+ponto de filtragem; suíte com 1809 testes. Os cinco testes novos falham no
+código anterior e passam com a correção.
+
 ### Pendências residuais (P3, abertas — não bloqueiam)
 
-- `focus: zone2` permanece no D0, então a recuperação D+1 compara com o teste em
-  `_prev_same_focus` ("30 minutos a mais que o ultimo treino de Zona 2").
-  Cosmético; correção natural é excluir dias marcados dessa comparação.
 - `ftp_watts` snapshot permanece no D0 — inerte (nenhum caminho gera steps).
 - Keywords ainda casam por substring "Preparacao para FTP Test"/"Pos FTP Test"
   (afeta só a sugestão de reteste); e
