@@ -1,8 +1,12 @@
 # SPEC — INSIGHT M2: Online Explanation Runtime
 
-**Status: SPEC READY / IMPLEMENTATION NOT STARTED.** M2 é um milestone separado
-de M1/M1.1. Provider, modelo, SDK/HTTP, credenciais, sink de telemetria e harness
-externo permanecem **OPEN**. A invocação online permanece OFF por default.
+**Status: IMPLEMENTED / PUBLISHED / CLOSED.** M2 é um milestone separado de
+M1/M1.1 e foi implementado por M2-0..M2-8 com CI verde; M2-9 é o commit de
+closure documental. Provider, modelo e SDK/HTTP foram decididos em `ADR-007`
+(2026-10-16) — OpenAI `gpt-5.4-nano-2026-03-17`, API Responses, SDK
+`openai-python`. Credenciais ficam no boundary do adapter/CLI; telemetria e
+harness externo seguem como seams opcionais. A invocação online permanece **OFF
+por default**. Isto não implica release, tag ou GA.
 
 ## 1. Objetivo e autoridade
 
@@ -256,13 +260,30 @@ e `INFRA_ERROR` distintos. Harness externo, se adotado, exige SHA/tag/release
 imutável. Hermes mantém dataset, schema, prompt e invariantes; ai-lab, se usado,
 mantém runner genérico, invocation e agregação de custo/latência.
 
-Rollout: estágio 0 provider-neutral offline; estágio 1 developer opt-in online;
-estágio 2 opt-in limitado. Expansão posterior exige decisão nova. A invariância de
-Prescription e a ausência de writes são release-blocking.
+Rollout implementado em M2-8: estágio 0 provider-neutral offline (default);
+estágio 1 developer opt-in online — exige `HERMES_INSIGHT_ENABLED` **e**
+`HERMES_INSIGHT_ONLINE_ENABLED`, ambas OFF por default; valor ausente/inválido
+resolve para OFF; credencial ausente com ambas ON resolve para `FALLBACK_CONFIG`
+com zero inferência. Estágio 2 (opt-in limitado) não foi aberto e exige decisão
+nova. A invariância de Prescription e a ausência de writes são release-blocking
+e foram verificadas em M2-9 (`PASS`, 0 writes).
 
-## 10. Provider/model — OPEN
+Online eval foi implementado em M2-7 como workflow **manual-only**
+(`workflow_dispatch`) e secret-gated, com 0 runs históricos na auditoria de M2-9.
+Nenhuma flag foi ligada pelo closure.
 
-M2-0 não seleciona provider/model. M2-4 decidirá provider, estratégia de modelo
+## 10. Provider/model — DECIDED / see ADR-007
+
+**DECIDED / see `ADR-007`** (2026-10-16): provider `openai`; modelo
+`gpt-5.4-nano-2026-03-17`; API Responses; SDK `openai-python`; credencial
+`OPENAI_API_KEY` no boundary do adapter/CLI; timeout 30.0 s; retries automáticos
+do SDK 0; uma tentativa ao provider; non-streaming; `store: false`;
+`max_output_tokens` 2048; tools/memory não; sampling omitido.
+
+O texto abaixo registra os requisitos que a decisão precisou satisfazer e
+permanece como histórico.
+
+M2-0 não seleciona provider/model. M2-4 decidiu provider, estratégia de modelo
 solicitado, SDK versus HTTP, origem de segredos, retenção/privacidade, timeout
 operacional, retry do vendor desabilitado e estratégia de resolved-model.
 
@@ -284,7 +305,7 @@ SHOULD; metadata rica pode permanecer dentro do adapter.
 | M2-6 | telemetria/custo | eventos sanitizados, request ID operacional, custo separado |
 | M2-7 | eval online | workflow separado, secrets, status explícitos, harness pinado se houver |
 | M2-8 | CLI/rollout | duas flags, OFF por default, developer/limited opt-in, fallback invariável |
-| M2-9 | closure | audit, CI, docs e evidência publicados; sem release implícito |
+| M2-9 | closure | **CLOSURE COMMIT / PENDING PUBLICATION** — auditoria técnica final verde (P0=0, P1=0, P2 técnico=0); docs e evidência neste commit; sem release implícito |
 
 Critérios de saída de M2-2 exigem testes que cubram, no mínimo: rejeição de
 dígito literal ASCII; rejeição de `Nd` Unicode não ASCII em literal; aceitação
@@ -297,8 +318,25 @@ integração CLI online pode pular esses gates.
 
 ## 12. Critérios de aceite M2
 
-M2 só fecha com provider/model e allowlist aprovados; adapter e provenance
-consistentes; prompt/hash, schema, grounding, caution, fallback e invariância
-cobertos; core offline; eval online separado; rollout explícito; telemetria segura;
-e nenhum retorno ao estado de treino. Não implica release, GA ou flag ON por
-default.
+**Atendidos** (ver §13). M2 só fecha com provider/model e allowlist aprovados;
+adapter e provenance consistentes; prompt/hash, schema, grounding, caution,
+fallback e invariância cobertos; core offline; eval online separado; rollout
+explícito; telemetria segura; e nenhum retorno ao estado de treino. Não implica
+release, GA ou flag ON por default.
+
+## 13. Closure M2-9
+
+M2 foi implementado por M2-0..M2-8, cada gate publicado com CI verde (runs
+`38841007669`, `38842621182`, `38847852079`, `38915257810`, `38922504778`,
+`38935882413`, `39312837865`, `39451275264`, `39461160953`; ver `ROADMAP.md`
+para a cadeia de commits). A auditoria técnica final de M2-9 passou: suíte
+completa 1781/0/0/1 skip, focal 250/0/0/1 skip, invariância de Prescription
+`PASS`, 0 writes em plan/provider/lifecycle, sem chamada real ao provider,
+eval online manual-only com 0 runs históricos. Este commit é a closure
+documental e permanece **PENDING PUBLICATION** até chegar a `master` com CI
+verde.
+
+O core CI permanece offline e independente de provider; a eval online permanece
+manual e secret-gated; smoke test real ao provider **não** é exigido por M2-9.
+Nenhum release, tag, versão ou GA é implicado, e nenhuma flag foi ligada. Dívidas
+P3 remanescentes são manutenção não bloqueante.

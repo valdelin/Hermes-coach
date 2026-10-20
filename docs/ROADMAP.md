@@ -992,12 +992,15 @@ não-mutação/invariância.
 
 **Saída de M1.1: concluída.** Ambos P3 estão fechados; invariância de
 Prescription preservada; suíte e evals offline verdes; core sem provider/rede
-obrigatórios; documentação atualizada. M2 é o próximo milestone, ainda planejado
-e com design obrigatório; nenhum runtime online foi iniciado.
+obrigatórios; documentação atualizada. M2 foi implementado e publicado na
+sequência (ver seção seguinte); o runtime online existe somente atrás das duas
+flags, OFF por default.
 
 ### INSIGHT M2 — runtime online de explicação
 
-**Status: PLANNED / DESIGN REQUIRED.** Objetivo: gerar somente uma apresentação
+**Status: CLOSED / PUBLISHED** (M2-0…M2-8 publicados com CI verde; M2-9 é o
+commit de closure documental). Sem release, sem GA; ambas as flags online
+permanecem OFF por default. Objetivo: gerar somente uma apresentação
 explicativa a partir de `InsightView` estruturado. Fluxo permitido:
 
 ```text
@@ -1013,18 +1016,18 @@ de FTP ou sync de provider.
 de shell, acesso arbitrário ao filesystem, ferramentas mutáveis, writes no
 provider, tool/function calling, segredos no prompt, memory ou agent loop.
 
-| ID | Etapa | Guardrails / decisão pendente |
+| ID | Etapa | Guardrails / decisão |
 |---|---|---|
-| INSIGHT-M2-0 | SPEC e decisões de design | **DONE / SPEC READY.** Grounding por placeholders estruturados, egress mínimo sem subject/provenance/facts externos, flag online separada e OFF, uma tentativa com timeout finito explícito e sem retry, `InsightRuntimeResult`/telemetria sanitizada, sem shadow egress. Provider/model permanecem OPEN; M2-1 é o próximo gate. |
-| INSIGHT-M2-1 | Prompt/request puro | Projeção de egress minimizada e determinística, subject/provenance excluídos, hash do input final e budgets M1.1; sem rede/env/provider concreto. |
-| INSIGHT-M2-2 | Decoder e validators | JSON fechado → template de placeholders → grounding/caution → render local; sem repair nem fatos numéricos livres. |
-| INSIGHT-M2-3 | Runtime provider-neutral | Fake provider, uma tentativa, fallback, provenance de sucesso, contenção sanitizada, invariância/no-write; sem rede. |
-| INSIGHT-M2-4 | Decisão provider/model | Selecionar provider/model, SDK/HTTP, segredo, retenção, timeout e resolved-model após M2-1..3 verdes. `FIRST_PROVIDER`/`FIRST_MODEL`: OPEN. |
-| INSIGHT-M2-5 | Adapter concreto | Único local de rede/auth; timeout finito; sem retry, tools, streaming, memory ou tipos de SDK fora do adapter. |
-| INSIGHT-M2-6 | Telemetria/custo | Eventos sanitizados, latência, request ID operacional e custo separado de provenance; sem payload raw. |
-| INSIGHT-M2-7 | Eval online | Workflow secret-gated separado; G1–G7 preservados; `PASS`/`FAIL`/`SKIPPED`/`INFRA_ERROR` distintos; harness externo somente pinado. |
-| INSIGHT-M2-8 | CLI e rollout | Ambas as flags necessárias, OFF por default, sem shadow egress, developer/limited opt-in e fallback invariável. |
-| INSIGHT-M2-9 | Closure | Auditoria, CI, evidências e docs; sem release implícito. |
+| INSIGHT-M2-0 | SPEC e decisões de design | **DONE / PUBLISHED** em `61a520b7be094ad31e188832cb46f34732b7a34e`; CI run `38841007669`. Grounding por placeholders estruturados, egress mínimo sem subject/provenance/facts externos, flag online separada e OFF, uma tentativa com timeout finito explícito e sem retry, `InsightRuntimeResult`/telemetria sanitizada, sem shadow egress. Provider/model foram decididos depois, em M2-4/ADR-007. |
+| INSIGHT-M2-1 | Prompt/request puro | **DONE / PUBLISHED** em `419290ea089e346b04a16c2c4a24d02e125aba1a`; CI run `38842621182`. Projeção de egress minimizada e determinística, subject/provenance excluídos, hash do input final e budgets M1.1; sem rede/env/provider concreto. |
+| INSIGHT-M2-2 | Decoder e validators | **DONE / PUBLISHED** em `1c869c623b99bb9e150c3bd5f8b4bfcb94b5082b`; CI run `38847852079`. JSON fechado → template de placeholders → grounding/caution (inclui a regra Unicode `Nd`) → render local; sem repair nem fatos numéricos livres. |
+| INSIGHT-M2-3 | Runtime provider-neutral | **DONE / PUBLISHED** em `1d478f058ac40d84ace749668d941ddb49c8e5ce`; CI run `38915257810`. Fake provider, uma tentativa, fallback, provenance de sucesso, contenção sanitizada, invariância/no-write; sem rede. |
+| INSIGHT-M2-4 | Decisão provider/model | **DONE / PUBLISHED** — implementação/docs em `e1dd7c7e7e9ac5509223ab5722d97bd3a7a85bd9` + follow-up `8e14824811d0b041e54603333f414775a81bfed7`; CI run `38922504778` é o push de `8e14824` (que inclui `e1dd7c7`), não há CI isolado de `e1dd7c7`. Decidido em `ADR-007`: OpenAI `gpt-5.4-nano-2026-03-17`, SDK `openai-python`, timeout 30.0 s, `max_retries=0`, non-streaming, `store:false`, `max_output_tokens` 2048. |
+| INSIGHT-M2-5 | Adapter concreto | **DONE / PUBLISHED** em `d4dbb06a51fbe3c057acb61c67eadcde0de6dd10`; CI run `38935882413`. Único local de rede/auth; timeout finito; sem retry, tools, streaming, memory ou tipos de SDK fora do adapter. |
+| INSIGHT-M2-6 | Telemetria/custo | **DONE / PUBLISHED** em `062431cdb8ed4b81714cc308e536a81bb43723c7`; CI run `39312837865`. Eventos sanitizados, latência, request ID operacional e custo separado de provenance; sem payload raw. |
+| INSIGHT-M2-7 | Eval online | **DONE / PUBLISHED** em `7e494afa231d68b52069843aada437b5ba6676a6`; CI run `39451275264`. Workflow secret-gated separado e **manual-only** (`workflow_dispatch`); `PASS`/`FAIL`/`SKIPPED`/`INFRA_ERROR` distintos; harness externo somente pinado. |
+| INSIGHT-M2-8 | CLI e rollout | **DONE / PUBLISHED** em `8701d85288b0227e3286241cc8b740c2cf7f060b`; CI run `39461160953` (`tests`/`unittest`, success). Ambas as flags necessárias (`HERMES_INSIGHT_ENABLED` **e** `HERMES_INSIGHT_ONLINE_ENABLED`), OFF por default, sem shadow egress, developer opt-in e fallback invariável. |
+| INSIGHT-M2-9 | Closure | **CLOSURE COMMIT / PENDING PUBLICATION.** Auditoria técnica final concluída e verde (P0=0, P1=0, P2 técnico=0); este commit registra a evidência documental. Sem release implícito. |
 
 **Guardrails de autoridade e ciência:** `observed > derived > heuristic > advice
 > prescription > InsightPresentation`. O runtime só verbaliza state/advice
@@ -1041,16 +1044,31 @@ concreto, seleção/pinning de modelo, allowlist de egress, invocation runtime,
 contrato de prompt, validação de resposta, observabilidade, eval online e rollout
 controlado/UI. Runtime online antes da conclusão de M1.1 é proibido.
 
-**Decisões abertas:** `FIRST_PROVIDER`, `FIRST_MODEL`,
-`ALLOWED_EXTERNAL_FACTS`, `TIMEOUT_POLICY`, `COST_BUDGET`,
-`ONLINE_EVAL_PROVIDER`, `ONLINE_EVAL_SCHEDULING`, `RETRY_POLICY`,
-`INITIAL_ROLLOUT_SURFACE` e user-facing disclosure/fallback UX.
+**Decisões resolvidas (ADR-007, implementadas em M2-4..M2-8):** provider
+`openai`; modelo `gpt-5.4-nano-2026-03-17`; API Responses; SDK `openai-python`;
+credencial `OPENAI_API_KEY` no boundary do adapter/CLI; timeout 30.0 s; retries
+automáticos do SDK 0; máximo de tentativas ao provider 1; streaming **não**;
+tools **não**; provider memory **não**; sampling **omitido**; `store: false`;
+`max_output_tokens` do provider 2048; rollout inicial developer opt-in com as
+**duas** flags (`HERMES_INSIGHT_ENABLED` **e** `HERMES_INSIGHT_ONLINE_ENABLED`),
+default **OFF**; allowlist de fatos externos **VAZIA**. O fallback determinístico
+continua sendo o default e M2 não introduz UI de opt-in.
 
-**Critérios de conclusão de M2:** M1.1 fechado; provider/model e allowlist
-aprovados; adapter e runtime provenance consistentes; prompt version/hash,
-schema/grounding/fallback e no-domain-mutation cobertos; invariância de
-Prescription comprovada; core offline independente de rede; workflow de eval
-online separado; rollout decidido explicitamente; docs e CI/evals atualizados.
+**Critérios de conclusão de M2:** **atendidos** — M1.1 fechado; provider/model e
+allowlist aprovados (ADR-007); adapter e runtime provenance consistentes; prompt
+version/hash, schema/grounding/fallback e no-domain-mutation cobertos;
+invariância de Prescription comprovada; core offline independente de rede;
+workflow de eval online separado e manual-only; rollout decidido explicitamente;
+docs e CI/evals atualizados.
+
+**Evidência de closure (auditoria técnica M2-9):** suíte completa
+1781 / 0 / 0 / 1 skip; focal 250 / 0 / 0 / 1 skip; CI núcleo `39461160953`
+success; eval online manual-only com 0 runs históricos; smoke test real **não
+exigido** e nenhuma chamada real ao provider; invariância de Prescription
+**PASS**; 0 writes em plan/provider/lifecycle; P0=0, P1=0, P2 técnico=0; P3
+restantes são dívida de manutenção não bloqueante. M2-9 permanece **CLOSURE
+COMMIT / PENDING PUBLICATION** até este commit chegar a `master` com CI verde;
+sem release, tag ou GA.
 
 - **PROG-1 é contract/documentation DONE; a implementação ainda não começou.**
 - `src/progression.py` e `src/training_decision.py` **permanecem órfãos**; destino
