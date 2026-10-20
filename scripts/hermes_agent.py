@@ -11,6 +11,7 @@ existente (``python3 src/training_plan.py <subcomando>``).
 """
 
 import argparse
+from datetime import datetime, timezone
 import os
 import shlex
 import subprocess
@@ -25,7 +26,6 @@ DAILY_SCRIPT = "scripts/daily_reconcile.sh"
 
 CONFIRM_YES = {"y", "yes", "s", "sim"}
 INSIGHT_ENABLED_ENV = "HERMES_INSIGHT_ENABLED"
-_INSIGHT_TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 
 class CommandEffect(str, Enum):
@@ -330,8 +330,10 @@ def cmd_tests(args) -> int:
 
 def insight_enabled(value: str | None = None) -> bool:
     """Flag opt-in e fail-closed da presentation local do INSIGHT."""
+    from src.insight.config import parse_insight_flag
+
     raw = os.environ.get(INSIGHT_ENABLED_ENV) if value is None else value
-    return isinstance(raw, str) and raw.strip().lower() in _INSIGHT_TRUTHY
+    return parse_insight_flag(raw)
 
 
 def build_insight_application():
@@ -350,16 +352,19 @@ def print_insight_presentation(presentation) -> None:
         print(f"caution_text: {presentation.caution_text}")
 
 
-def cmd_insight(args) -> int:
-    """Apresentação offline opt-in: View local -> fallback determinístico."""
-    if not insight_enabled():
+def cmd_insight(args, *, now: "datetime | None" = None) -> int:
+    """Apresentação opt-in: fallback local ou runtime online autorizado por duas flags."""
+    from src.insight.config import load_insight_runtime_config
+
+    config = load_insight_runtime_config(os.environ)
+    if not config.insight_enabled:
         print("Insight is disabled.")
         return 0
-    from src.insight.render import fallback_presentation
-
-    view = build_insight_application().get_insight_view(
-        subject=args.subject, workout_id=args.workout_id)
-    print_insight_presentation(fallback_presentation(view))
+    executed_at = now if now is not None else datetime.now(timezone.utc)
+    result = build_insight_application().get_insight_runtime_result(
+        subject=args.subject, workout_id=args.workout_id,
+        config=config, environment=os.environ, executed_at=executed_at)
+    print_insight_presentation(result.presentation)
     return 0
 
 

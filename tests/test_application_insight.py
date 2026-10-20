@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import json
 import tempfile
 import unittest
 from datetime import date, datetime, timezone
@@ -12,13 +13,46 @@ from src.ftp_evidence import FtpEvidence, FtpEvidenceRepository, FtpEvidenceSour
 from src.ftp_history import (FtpHistory, FtpHistoryRepository, FtpProtocol,
                              FtpReference, FtpReferenceSource)
 from src.insight.contract import (FactClassification, InsightView,
-                                  ObservationAvailability)
+                                   ObservationAvailability)
+from src.insight.config import InsightRuntimeConfig
+from src.insight.model_provider import (InsightModelRequest, InsightModelResponse,
+                                        InsightProviderTimeoutError)
+from src.insight.runtime import InsightRuntimeStatus
 from src.snapshot import TrainingSnapshot
 
 
 TODAY = date(2026, 10, 3)
 NOW = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
 EXTERNAL_ID = "hermes-plan-2026-10-04"
+MODEL = "gpt-5.4-nano-2026-03-17"
+
+
+class _InsightProvider:
+    def __init__(self, *, text: str | None = None, error: Exception | None = None) -> None:
+        self.text = text or json.dumps({
+            "headline": "Resumo", "explanation": "Estado",
+            "next_action_text": "Siga o plano", "caution_text": None,
+        })
+        self.error = error
+        self.calls: list[InsightModelRequest] = []
+
+    def generate(self, request: InsightModelRequest) -> InsightModelResponse:
+        self.calls.append(request)
+        if self.error is not None:
+            raise self.error
+        return InsightModelResponse(
+            text=self.text, provider="openai", requested_model=request.requested_model,
+            resolved_model=MODEL, request_id="resp_123")
+
+
+class _InsightFactory:
+    def __init__(self, provider: _InsightProvider) -> None:
+        self.provider = provider
+        self.calls: list[str] = []
+
+    def __call__(self, *, api_key: str) -> _InsightProvider:
+        self.calls.append(api_key)
+        return self.provider
 
 
 class ApplicationInsightViewTest(unittest.TestCase):
@@ -186,6 +220,42 @@ class ApplicationInsightViewTest(unittest.TestCase):
         self.assertNotIn("canonical_ftp", fact_keys)
         self.assertEqual(self.app.get_ftp_history().references[0].value_watts, 265)
         self.assertEqual(self.app.get_ftp_evidence()[0].value_watts, 270)
+
+    def test_runtime_rollout_preserves_plan_and_view_across_flag_and_provider_paths(self) -> None:
+        self._save_snapshot()
+        self._write_ftp_records()
+        paths = (self.app.plan_path, self.app._snapshot_file(),
+                 self.app.ftp_history_path, self.app.ftp_evidence_path)
+        before_files = {path: path.read_bytes() for path in paths}
+        before_plan = self.app.load_plan()
+        scenarios = (
+            (InsightRuntimeConfig(False, False), {}, _InsightProvider(),
+             InsightRuntimeStatus.FALLBACK_DISABLED, 0),
+            (InsightRuntimeConfig(True, False), {}, _InsightProvider(),
+             InsightRuntimeStatus.FALLBACK_DISABLED, 0),
+            (InsightRuntimeConfig(True, True), {"OPENAI_API_KEY": "key"},
+             _InsightProvider(), InsightRuntimeStatus.SUCCESS, 1),
+            (InsightRuntimeConfig(True, True), {"OPENAI_API_KEY": "key"},
+             _InsightProvider(error=InsightProviderTimeoutError()),
+             InsightRuntimeStatus.FALLBACK_PROVIDER, 1),
+            (InsightRuntimeConfig(True, True), {"OPENAI_API_KEY": "key"},
+             _InsightProvider(text="__RAW_PROVIDER_RESPONSE__"),
+             InsightRuntimeStatus.FALLBACK_INVALID_RESPONSE, 1),
+        )
+        for config, environment, provider, expected, expected_calls in scenarios:
+            with self.subTest(expected=expected):
+                factory = _InsightFactory(provider)
+                result = self.app.get_insight_runtime_result(
+                    subject="athlete", workout_id=self.workout_id, config=config,
+                    environment=environment, executed_at=NOW,
+                    provider_factory=factory)
+                self.assertEqual(result.status, expected)
+                self.assertEqual(len(factory.calls), expected_calls)
+                self.assertEqual(len(provider.calls), expected_calls)
+                self.assertNotIn("__RAW_PROVIDER_RESPONSE__", repr(result))
+                self.assertEqual(self.app.load_plan(), before_plan)
+                self.assertEqual(
+                    {path: path.read_bytes() for path in paths}, before_files)
 
     def test_insight_package_remains_ftp_agnostic(self) -> None:
         insight_root = Path(__file__).resolve().parent.parent / "src" / "insight"

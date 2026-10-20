@@ -12,7 +12,7 @@ import os
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 try:
     import athlete_profile as _athlete_profile
@@ -22,6 +22,9 @@ try:
     import ftp_evidence as _ftp_evidence
     import ftp_history as _ftp_history
     import insight.contract as _insight
+    import insight.config as _insight_config
+    import insight.rollout as _insight_rollout
+    import insight.runtime as _insight_runtime
     import lifecycle as _lifecycle
     import pw_hr_decoupling as _pw_hr_decoupling
     import snapshot as _snapshot
@@ -42,6 +45,9 @@ except ImportError:  # execucao como pacote (src.application)
     from . import ftp_evidence as _ftp_evidence  # type: ignore
     from . import ftp_history as _ftp_history  # type: ignore
     from .insight import contract as _insight  # type: ignore
+    from .insight import config as _insight_config  # type: ignore
+    from .insight import rollout as _insight_rollout  # type: ignore
+    from .insight import runtime as _insight_runtime  # type: ignore
     from . import lifecycle as _lifecycle  # type: ignore
     from . import pw_hr_decoupling as _pw_hr_decoupling  # type: ignore
     from . import snapshot as _snapshot  # type: ignore
@@ -776,6 +782,32 @@ class Application:
             prescribed_session=prescribed_session,
             observed_execution=observed_execution,
             provenance=tuple(provenance))
+
+    def get_insight_runtime_result(
+            self, *, subject: str, config: "_insight_config.InsightRuntimeConfig",
+            environment: "Mapping[str, str]", executed_at: datetime,
+            workout_id: Optional[str] = None, today: Optional[date] = None,
+            now: Optional[datetime] = None,
+            provider_factory: Optional[Callable[..., Any]] = None,
+    ) -> "_insight_runtime.InsightRuntimeResult":
+        """Wiring read-only do Insight: View local → rollout configurado → Presentation.
+
+        A credencial e o provider só são resolvidos pelo rollout quando as duas
+        flags já autorizaram egress. Esta seam não persiste plano, snapshot ou
+        lifecycle e recebe relógio/ambiente/factory explicitamente.
+        """
+        view_kwargs: dict[str, Any] = {"subject": subject, "workout_id": workout_id}
+        if today is not None:
+            view_kwargs["today"] = today
+        if now is not None:
+            view_kwargs["now"] = now
+        view = self.get_insight_view(**view_kwargs)
+        kwargs: dict[str, Any] = {}
+        if provider_factory is not None:
+            kwargs["provider_factory"] = provider_factory
+        return _insight_rollout.run_configured_insight(
+            view, config=config, environment=environment,
+            executed_at=executed_at, **kwargs)
 
     def get_form_advisory(
         self, *,

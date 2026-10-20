@@ -65,6 +65,11 @@ from .telemetry import (
     InsightTelemetrySink,
     build_insight_runtime_telemetry,
 )
+from .config import (INSIGHT_ENABLED_ENV, INSIGHT_MODEL,
+                     INSIGHT_ONLINE_ENABLED_ENV, INSIGHT_PROVIDER,
+                     InsightRuntimeConfig, load_insight_runtime_config,
+                     parse_insight_flag)
+from .rollout import run_configured_insight
 
 __all__ = [
     "FactClassification",
@@ -115,4 +120,12 @@ __all__ = [
     "InsightTelemetrySink",
     "InMemoryInsightTelemetrySink",
     "build_insight_runtime_telemetry",
+    "INSIGHT_ENABLED_ENV",
+    "INSIGHT_ONLINE_ENABLED_ENV",
+    "INSIGHT_PROVIDER",
+    "INSIGHT_MODEL",
+    "InsightRuntimeConfig",
+    "parse_insight_flag",
+    "load_insight_runtime_config",
+    "run_configured_insight",
 ]
