@@ -4,12 +4,16 @@ Lista de bugs conhecidos e pendências técnicas registradas, com rastreio no
 GitHub. Formato: cada issue tem status, impacto, mitigação atual e direção de
 solução.
 
-**Status do arquivo:** revisado em 07/10/2026. Os dois defeitos locais de
+**Status do arquivo:** revisado em 20/10/2026. Os dois defeitos locais de
 `summary` — `--date` recebido como `str` e `--export` engolido em período sem
 treinos — foram **corrigidos em 07/10/2026** e ficam documentados abaixo como
 registro de correção (sintomas reais, causa e cobertura). Em 08/10/2026 a nota
 defensiva de `lang` inválida em `workout_text`/`event_payload` também foi
-**corrigida** (defesa em profundidade). Segue aberto apenas o
+**corrigida** (defesa em profundidade). Em 20/10/2026 foram **corrigidos e
+publicados** os dois defeitos do dia de teste de FTP (FTP-H8): o evento D0
+publicava workout Z2 estruturado (`Ramp Test (FTP)` com 10m 45-75% / 30m 55% /
+10m 70-45%) e o `reconcile` substituía o dia do teste por
+`Recuperacao (plano ajustado)` quando havia carga extra. Segue aberto apenas o
 item #1 (fantasmas do Intervals, bug da plataforma, prioridade baixa e aceita).
 
 Pendências de escopo que não são bug estão em `docs/ROADMAP.md` (#58 integração
@@ -139,6 +143,161 @@ Etapa de **limpeza de fantasmas** no fluxo `reconcile`/`push` (ou no
   Intervals, não do agente; label `priority: low`; deixa de ser o primeiro item
   da sessão de testes de 22/09 (segue como melhoria de qualidade de dados,
   podendo entrar junto da Fase 1/notificações ou quando houver folga).
+
+---
+
+## FTP-H8 — o dia do teste de FTP publicava workout Z2 estruturado
+
+**Status:** **corrigido e publicado** (2026-10-20, `58374d8` em `master`) ·
+**Severidade:** alta (prescrição errada no dia do teste) · **Escopo:** plano,
+payload do Intervals, texto de cue · **Encontrado em:** 2026-10-20, auditoria do
+evento real de 22/10/2026
+
+### Sintoma
+
+O dia D0 (`FTP_TEST_DATE`) era publicado no Intervals como
+`2026-10-22 - Ramp Test (FTP)`, com a descrição/workout estruturado de uma
+sessão Z2 contínua:
+
+- passos `10m 45-75%` (aquecimento), `30m 55%` (bloco) e `10m 70-45%`
+  (desaquecimento) — o app (Zwift) executava recovery no dia do teste;
+- texto "Mesma carga do ultimo treino de Zona 2";
+- `planned_duration` 3000 s e TSS 15.0: carga prescrita que não existe.
+
+### Causa
+
+`_prep_workout(kind="d0")` montava um `PlannedWorkout` com `focus=zone2`,
+`on_sec=1800`, `on_power=0.55` e o nome "Ramp Test (FTP)": não havia protocolo
+de teste, apenas um rótulo sobre um workout Z2. A descrição vinha do builder
+genérico (`_warmup_msg`/`_structure_msg`/`_progress_msg`) e o Intervals deriva o
+workout estruturado da própria `description` (linhas `- texto duração %`); o
+payload do Hermes não tem campo `steps`.
+
+### Impacto
+
+- Gráfico e passos errados no dia do teste; sessão leve executada como se fosse
+  o teste de FTP.
+- O título prometia um protocolo (`Ramp Test`) que o Hermes não implementa.
+
+### Correção (implementada)
+
+- D0 passa a ser **evento informativo**: nome `"<dia> - FTP Test"`,
+  `planned_duration=0`, `tss=0.0`, `params` zerados e descrição instrucional
+  (método/plataforma à escolha do atleta; sem passos, sem `%FTP`, sem Zona 2).
+- Marcador estrutural aditivo
+  `ftp_test_intent="EXTERNAL_OR_USER_SELECTED_TEST"` persistido no `plan.json`
+  e consumido por `event_payload`/`workout_text`/`rebuild_workout`. A decisão é
+  **estrutural** — nunca por título. Modo implementado:
+  `EXTERNAL_OR_USER_SELECTED_TEST`; não existe protocolo prescritivo do Hermes.
+- `FTP_TEST_KEYWORDS` endurecido para expressões específicas (`ftp test`,
+  `ftp retest`, `ftp teste`, `teste de ftp`, `teste ftp`, `ramp test`); a
+  heurística textual fica restrita a detecção histórica/sugestão de reteste.
+- Nenhuma escrita em `ftp_history.json`/`ftp_evidence.json`; FTP canônico e
+  `FtpEvidence` intocados; `DEFAULT_FTP` não constrói alvo para o D0.
+
+### Cobertura de regressão
+
+- `tests/test_ftp_test_event.py` (15 testes): payload **final** via
+  `FakeProvider` sem passos, persistência do marcador em
+  `save_plan`/`load_plan`/`enrich`, ausência de escrita de arquivos de FTP,
+  keywords sem falso positivo amplo ("FTP Builder", "Prova", "Pré-FTP").
+- Invariância provada na auditoria: plano **sem** `ftp_test_date` idêntico byte
+  a byte ao parent; D-2/D-1 inalterados; D+1 continua estruturado.
+- Suíte: 1796 testes, 0 falhas, 0 erros, 1 skip (delta +15 vs baseline).
+
+### Operação — evento já publicado não é corrigido pelo código
+
+O código novo **não** corrige um evento já publicado a partir de plano legado
+(sem marcador): esse plano continua gerando o Z2 falso. O evento real
+`137152273` (`hermes-plan-2026-10-22`) foi corrigido por upsert em 2026-10-20:
+nome `FTP Test`, `workout_doc.steps=[]` (sem gráfico), sem duração e sem carga,
+descrição instrucional. O `plan.json` local foi ajustado **apenas** nessa
+entrada (backup do estado anterior guardado fora do repo).
+
+Observação de contrato: `planned_duration` no payload não é honrado pela API do
+Intervals — a duração do evento vem do parsing da descrição. Sem passos, o
+evento fica sem duração, que é o comportamento desejado para o D0.
+
+### Registro
+
+- 2026-10-20: causa raiz confirmada por execução do código do parent (nome,
+  focus, 3000 s, TSS 15.0, três passos e a frase "Mesma carga do ultimo treino
+  de Zona 2"); publicação `58374d8` (CI run `39491323217`, verde); correção
+  operacional do evento de 22/10 no mesmo dia.
+
+---
+
+## FTP-H8/P2 — `reconcile` substituía o dia do teste de FTP por recuperação
+
+**Status:** **corrigido e publicado** (2026-10-20, `9a82c99` em `master`) ·
+**Severidade:** alta (o teste desaparecia do calendário sem aviso) ·
+**Escopo:** `reconcile`/`push` · **Encontrado em:** 2026-10-20, auditoria do
+FTP-H8 (P2 promovido no gate de publicação)
+
+### Sintoma
+
+Com carga extra fora do plano ≥ cap diário na janela de 7 dias,
+`_adjust_for_extra_workouts` inseria `Recuperacao (plano ajustado)` no **próximo
+dia de treino**. Quando esse dia era o teste de FTP, o evento de teste era
+substituído, o marcador `ftp_test_intent` era perdido e o fluxo `all`
+(build → reconcile → push) publicava a recuperação no lugar do teste. O CLI não
+listava a mudança (só imprime o plano com `--show`) e podia terminar com
+`Nenhum treino perdido; plano mantido.`
+
+### Causa
+
+`_insert_recovery` fazia `[w for w in plan if w["day"] != next_day] +
+[recovery]` sem olhar o que havia no dia; `_adjust_for_extra_workouts` escolhia
+o alvo apenas por dia de treino, sem considerar a intenção de teste.
+
+### Impacto
+
+- Teste de FTP cancelado silenciosamente: o atleta via
+  "Recuperacao (plano ajustado)" no dia e nenhum aviso do teste perdido.
+- Defeito **pré-existente** ao FTP-H8 (o parent também substituía o
+  `Ramp Test (FTP)`), mas incompatível com o contrato do D0.
+
+### Correção (implementada)
+
+- `_adjust_for_extra_workouts` desvia a recuperação para o próximo dia de
+  treino **livre** quando o alvo carrega `ftp_test_intent`; o teste permanece
+  intacto.
+- `_insert_recovery` ganhou guarda defensiva: nunca sobrescreve um dia marcado.
+- O desvio é **anunciado**: `info["ftp_test_preserved"]` e
+  `info["recovery_day"]` alimentam `_ftp_test_reconcile_hint()` em
+  `cmd_reconcile`.
+- Sem marcador, o comportamento é idêntico ao anterior (autoridade estrutural,
+  não o título).
+- A absorção de treino perdido já não injeta volume no D0 (`on_sec<=0`).
+
+### Cobertura de regressão
+
+- `tests/test_ftp_test_event.py` → `FtpTestReconcileProtectionTest` (5 testes):
+  carga extra não substitui o dia do teste; recuperação vai para o próximo dia
+  livre; guarda de `_insert_recovery`; sem marcador reage como antes;
+  `reconcile` preserva o marcador e anuncia o desvio.
+- `tests/test_training_plan.py` → `FtpTestReconcileHintTest` (2 testes).
+- Suíte: 1803 testes, 0 falhas, 0 erros, 1 skip (delta +7).
+
+### Pendências residuais (P3, abertas — não bloqueiam)
+
+- `focus: zone2` permanece no D0, então a recuperação D+1 compara com o teste em
+  `_prev_same_focus` ("30 minutos a mais que o ultimo treino de Zona 2").
+  Cosmético; correção natural é excluir dias marcados dessa comparação.
+- `ftp_watts` snapshot permanece no D0 — inerte (nenhum caminho gera steps).
+- Keywords ainda casam por substring "Preparacao para FTP Test"/"Pos FTP Test"
+  (afeta só a sugestão de reteste); e
+  `test_nenhum_protocolo_e_inferido_do_texto` é asserção fraca.
+- `structure_read_only`/`workout_doc` de eventos antigos: ao trocar a descrição
+  por upsert, `moving_time`/`icu_training_load` herdados precisam ser zerados
+  explicitamente no payload; sem isso o evento informativo mantém a carga
+  antiga (27/10 → 0 no evento real).
+
+### Registro
+
+- 2026-10-20: reproduzido com o código real (teste em 21/10 + 200 TSS em 20/10
+  → o dia virava `Recuperacao (plano ajustado)`, marcador `None`); correção
+  publicada em `9a82c99` (CI run `39495983667`, verde).
 
 ---
 
