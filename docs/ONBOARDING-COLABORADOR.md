@@ -137,6 +137,18 @@ Hermes-coach/
 └── .github/workflows/test.yml
 ```
 
+### 4.1 Mapa do Código Python
+
+O inventário completo dos módulos Python, o mapa de dependências (com diagramas Mermaid
+por subsistema) e o guia para localizar responsabilidades estão em:
+
+[`docs/GUIA-CODIGO-PYTHON.md`](GUIA-CODIGO-PYTHON.md)
+
+Use esse documento para responder "onde fica X?", "o que faz Y?", "por onde começo a
+alterar Z?" e para entender os contratos que não podem ser quebrados. Ele descreve uma
+versão específica do projeto e precisa ser atualizado quando módulos forem criados,
+removidos ou tiverem a responsabilidade alterada.
+
 ---
 
 ## 5. Documentos que devem ser lidos primeiro
