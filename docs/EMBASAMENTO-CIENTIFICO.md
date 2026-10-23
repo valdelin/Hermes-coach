@@ -5,7 +5,7 @@
 > do vault é cópia). Quando divergirem, o repo vence. Editar no repo e copiar.
 > Espelho: `~/Documents/Obsidian Vault/DevOps/01-Projetos/cycling-coach/EMBASAMENTO-CIENTIFICO.md`.
 
-**Data:** 25/09/2026 · atualizado 05/10/2026
+**Data:** 25/09/2026 · atualizado 15/10/2026
 **Projeto:** Hermes Coach
 **Mapeamento:** Fisiologia do Exercício aplicada ao Algoritmo de Treino
 
@@ -29,7 +29,7 @@ evidência suficiente** e aponta a heterogeneidade.
 
 ## Índice
 
-1. [Princípios](#1-princípios) · 2. [FTP](#2-ftp) · [FTP, eFTP e modelos Power-Duration](#21-ftp-eftp-e-modelos-power-duration) · 3. [Critical Power e W'](#3-critical-power-e-w) ·
+1. [Princípios](#1-princípios) · 2. [FTP](#2-ftp) · [FTP, eFTP e modelos Power-Duration](#21-ftp-eftp-e-modelos-power-duration) · [Inatividade, reteste e preparação](#22-inatividade-reteste-e-preparação-para-teste-de-ftp) · 3. [Critical Power e W'](#3-critical-power-e-w) ·
 4. [Zonas](#4-zonas) · 5. [Periodização](#5-periodização) ·
 6. [Distribuição de intensidade](#6-distribuição-de-intensidade) ·
 7. [Training Load](#7-training-load) · 8. [CTL / ATL / TSB](#8-ctl--atl--tsb) ·
@@ -200,6 +200,39 @@ Zwift, só pode tornar-se canônico após confirmação; Hermes não pressupõe 
 método interno. Com FTP `UNKNOWN`, sugerir teste ou entrada explícita é policy de
 produto, não conclusão automática de paper. Esse contrato impede que estimate,
 best effort, CP/W′ ou `DEFAULT_FTP` reescreva a referência canônica.
+
+### 2.2 Inatividade, reteste e preparação para teste de FTP
+
+**EVIDÊNCIA CIENTÍFICA.** Destreino não tem uma taxa única nem um limiar
+fisiológico universal: depende de cessação total versus redução parcial,
+treinamento anterior e variável medida. Em atletas de endurance, a revisão de
+Barbieri et al. classifica destreino de curto prazo como até quatro semanas e de
+longo prazo como mais de quatro semanas; a mesma revisão relata redução de
+VO₂max após 12 dias de interrupção em corredores e ciclistas [44]. A meta-análise
+de Zheng et al. encontrou queda significativa de VO₂max tanto antes quanto após
+30 dias de cessação, maior no grupo de longo prazo [45]. Esses achados dizem
+respeito a capacidade aeróbica e desempenho; **não demonstram que FTP caia em
+uma proporção fixa nem definem uma duração universal de preparação para teste**.
+
+**HEURÍSTICA DO SISTEMA — protocolo futuro de reteste.** Para evitar tratar um
+atleta potencialmente destreinado como pronto para esforço máximo, o Hermes
+classificará a recência a partir de atividades de ciclismo **observadas**, nunca
+de sessões apenas planejadas em `plan.json`:
+
+| Tempo consecutivo sem atividade observada | Estado Hermes | Conduta de teste/FTP |
+| --- | --- | --- |
+| 0–13 dias | `ACTIVE` | resultado válido de teste pode seguir a policy normal de atualização |
+| 14–27 dias | `REDUCED_RECENCY` | mostrar cautela; ainda não é destreino prolongado pela policy |
+| ≥28 dias | `DETRAINED` | criar uma semana de reintrodução antes de sugerir ou agendar teste máximo; não atualizar FTP automaticamente nesse intervalo |
+| dados de atividades ausentes ou sem recência verificável | `UNKNOWN` | não presumir continuidade de treino; exigir decisão humana |
+
+Os 28 dias operacionalizam o corte de quatro semanas usado nas revisões, mas são
+uma convenção de produto, não um diagnóstico. A semana de reintrodução também é
+heurística de segurança operacional para retornar ao esforço máximo: não é uma
+alegação de que sete dias restaurem FTP, VO₂max ou qualquer limiar fisiológico.
+Quando implementado, o catálogo de protocolos deverá oferecer alternativas
+independentes de plataforma; o atleta escolhe o protocolo, e o agendamento só
+vira publicação no calendário pelo fluxo explícito de `push` já existente.
 
 ## 3. Critical Power e W'
 
@@ -1220,6 +1253,10 @@ documento foram conferidos contra o abstract.
     *INTERVALS_OFFICIAL. Declara os campos de atividade e `SportSettings.ftp_est_min_secs`; não define a semântica precisa de todos os campos rolling/pm.*
 43. **Tramontin, A., Borszcz, F., & Costa, V. (2022).** *Functional Threshold Power Estimated from a 20-minute Time-trial Test is Warm-up-dependent.* International Journal of Sports Medicine. PMID 34749416 — <https://doi.org/10.1055/a-1524-2312>
     *EVIDÊNCIA. Aquecimento e pacing afetam o TT20 e o FTP derivado.*
+44. **Barbieri, A., Fuk, A., Gallo, G., et al. (2024).** *Cardiorespiratory and metabolic consequences of detraining in endurance athletes.* Frontiers in Physiology, 14, 1334766. PMID 38344385 — <https://doi.org/10.3389/fphys.2023.1334766>
+    *EVIDÊNCIA. Revisão em atletas de endurance: classifica até quatro semanas como curto prazo e mais de quatro como longo prazo; relata respostas heterogêneas e queda de VO₂max após 12 dias de interrupção em estudo prévio de corredores/ciclistas.*
+45. **Zheng, J., Pan, T., Jiang, Y., & Shen, Y. (2022).** *Effects of Short- and Long-Term Detraining on Maximal Oxygen Uptake in Athletes: A Systematic Review and Meta-Analysis.* BioMed Research International, 2022, 2130993. PMID 36017396 — <https://doi.org/10.1155/2022/2130993>
+    *EVIDÊNCIA. Vinte e um estudos; cessação curta e longa reduziram VO₂max, com efeito maior no período longo. Não oferece conversão direta para FTP.*
 
 **Lacuna conhecida (05/10/2026).** Desde a v0.0.31 este documento foi descrito —
 também no `AGENTS.md` — como contendo uma "Tabela Científica Z1–Z7" com colunas
