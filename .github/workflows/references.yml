@@ -1,0 +1,32 @@
+name: references
+
+# Camada online da verificação científica. Fica fora do workflow de PR de
+# propósito: NCBI/Crossref são serviços externos e uma indisponibilidade
+# momentânea não deve bloquear uma mudança de código. O suite de PR roda a
+# camada offline (estrutura, citações e matriz); esta roda na main, semanalmente
+# e sob demanda, para pegar link trocado e metadado que envelheceu.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+  push:
+    branches: [master]
+    paths:
+      - "docs/EMBASAMENTO-CIENTIFICO.md"
+      - "scripts/check_references.py"
+      - ".github/workflows/references.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Resolver PMID/DOI contra NCBI e Crossref
+        run: python3 scripts/check_references.py --refresh

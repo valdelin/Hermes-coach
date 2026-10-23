@@ -36,7 +36,8 @@ evidência suficiente** e aponta a heterogeneidade.
 9. [Readiness](#9-readiness) · 10. [Adaptation State](#10-adaptation-state) ·
 11. [Progression Engine](#11-progression-engine) · 12. [VO2max](#12-vo2max) ·
 13. [Recovery / Deload](#13-recovery--deload) · 14. [Limitações](#14-limitações) ·
-15. [Referências](#15-referências)
+15. [Matriz de rastreabilidade](#15-matriz-de-rastreabilidade-por-feature) ·
+16. [Referências](#16-referências)
 
 ---
 
@@ -1165,10 +1166,48 @@ de comparar OLS, WLS, regressão robusta ou outro modelo. Para
 `ZONE_BANDS`, `focus` e o contrato de `WorkoutParams` antes de integração
 produtiva.
 
-## 15. Referências
+## 15. Matriz de rastreabilidade por feature
 
-Todas verificadas por PMID no NCBI. Autores, títulos e resultados citados neste
-documento foram conferidos contra o abstract.
+**CONTRATO DOCUMENTAL.** Cada linha liga uma feature do motor ao método que ela
+implementa, à referência que sustenta o que é evidência, e ao limite explícito
+do que essa referência **não** demonstra. A coluna "O que o estudo NÃO mostra"
+não é ressalva de rodapé: é o que impede a referência de virar autorização para
+o código. Onde não há estudo primário, a linha declara **HEURÍSTICA DO SISTEMA**
+ou **MODELO COMPUTACIONAL** e não finge que existe evidência. A matriz não
+acrescenta achados; ela apenas torna auditável a relação entre texto, código e
+fonte.
+
+| Feature | Método/modelo no Hermes | Referência | O que o estudo NÃO mostra |
+| --- | --- | --- | --- |
+| **FTP canônico, FTP20 e eFTP** (§2) | FTP confirmado pelo usuário; FTP20 × 0,95 como estimate; eFTP do provider como evidência, nunca como FTP canônico. | [10] Mackey 2021; [35] Borszcz 2018; [43] Tramontin 2022; [37]–[42] Intervals.icu | Que FTP20 ou FTP95 seja MLSS, LT ou RCP no indivíduo; que repetibilidade implique equivalência; que o método do eFTP do provider seja reproduzível ou fisiologicamente validado; que o resultado se generalize a mulheres e a outros níveis. |
+| **FTP vs marcadores fisiológicos** (§2) | Correlação e limites de concordância contra LT, IAT, Dmax e MLSS; o motor não infere marcador ausente a partir de FTP. | [11] Jeffries 2021; [12] Inglis 2020; [13] Sitko 2022; [36] Borszcz 2019 | Que correlação alta autorize trocar FTP por LT, MLSS ou RCP; que a identidade valha para todo atleta; que a associação seja causal; que o viés médio pequeno elimine a dispersão individual. |
+| **CP e W′** (§3, §3.1) | Ajuste hiperbólico P = CP + W′/t (dois parâmetros) e modelo Morton 3P; CP e W′ informativos, sem uso prescritivo. | [14] Chorley 2020; [23] Jones 2010; [34] Morton 1996; [29] Jenkins 1998; [30] Bull 2000; [31] Vinetti 2019; [24] Morgan 2019; [25] Karsten 2021; [26] Leo 2022 | Um protocolo, número de esforços, amplitude de durações, R² ou RMSE universal; que CP seja FTP; que W′ seja estoque fisiológico medido; que a reconstituição de 0,1 W/s seja constante; validade fora da faixa de durações testada. |
+| **Zonas e intenção** (§4) | `ZONE_BANDS` em %FTP; sobreposição de 91–97% resolvida por intenção e dose; Z7 fora da faixa. | **Sem estudo primário:** `src/coach.py:ZONE_BANDS` é **MODELO COMPUTACIONAL**; [4] Coggan & Allen 2010 e [7] Coggan 2026 entram como metodologia de indústria. | Que as faixas sejam limiares fisiológicos; que 91–97% FTP distinga Sweet Spot de Limiar; que Z1–Z7 sejam universais; que a zona, sozinha, prescreva a adaptação. |
+| **Periodização** (§5) | Fases BASE, BUILD, SPECIFIC, PEAK, RECOVERY e TEST, com transições, limites de carga e critérios configuráveis. | [8] Galán-Rioja 2023; [2] Seiler 2010; [3] Seiler 2018; [6] Friel 2014 | Superioridade de um modelo de periodização em 8–12 semanas; que a ordem das fases seja sequência fisiológica universal; efeito sazonal de longo prazo; que a fase, sozinha, determine a adaptação. |
+| **Distribuição de intensidade** (§6) | Minutos efetivos em baixa, moderada e alta intensidade; modelos POLARIZED, PYRAMIDAL, THRESHOLD_HEAVY e CUSTOM. | [9] Cove 2025 | Superioridade de polarizado sobre não polarizado; associação entre volume e adaptação acima do volume necessário; que o modelo de TID cause a adaptação; generalização fora de ciclistas treinados. |
+| **Training Load: NP, IF e TSS** (§7) | Fórmulas de indústria sobre potência; TSS executado, estimado, carga externa e carga interna separados. | [7] Coggan 2026 (TrainingPeaks) | Equivalência fisiológica; que TSS meça estresse; precisão em HIIT curto; comparabilidade entre atletas ou entre métodos de NP; que carga externa e interna sejam conversíveis. |
+| **CTL, ATL, TSB e form_pct** (§8) | EWMA 42/7 sobre TSS ou `icu_training_load`; `form_pct = TSB/CTL × 100`; thresholds apenas como advisory. | [1] Banister 1991; [28] Clarke & Skiba 2013 | Que CTL, ATL e TSB sejam quantidades fisiológicas; que as constantes 42/7 sejam universais; que −15 ou −30% sejam limiares clínicos; que TSB determine fase ou adaptação. |
+| **Readiness e HRV** (§9, §9.1–9.3) | Sete eixos, três com produtor; GREEN, YELLOW e RED; cobertura explícita; decisão ancorada no dia da leitura. | [15] Düking 2021; [16] Granero-Gallegos 2020 | Predição de desempenho; que HRV tenha limiar absoluto universal; que um sinal isolado cancele a sessão; que o score seja diagnóstico; que a janela de 7 dias seja protocolo de coleta; que 0,8 e 0,2 sejam calibrados. |
+| **Adaptation State** (§10) | Seis domínios normalizados de 0 a 1, com decaimento linear e saturação; confiança por concordância entre sinais. | **Sem estudo primário:** **HEURÍSTICA DO SISTEMA** e **MODELO COMPUTACIONAL**; [1] Banister 1991 é apenas a origem do modelo fitness-fadiga. | Que os seis domínios correspondam a adaptações fisiológicas; que as taxas de decaimento e saturação tenham lastro; que a confiança seja probabilidade calibrada; que a saturação represente um teto biológico. |
+| **Progression Engine** (§11, §11.1) | Degraus por família; "uma dimensão por vez" como regra, com quatro exceções declaradas; ledger auditável. | [19] Buchheit & Laursen 2013; [20] Seiler 2013; [21] Schoenmakers 2019; [22] Rosenblat 2021; [18] Held 2026 | Que 3×12→2×15, 5×3→4×4 ou 8×1→6×2 seja superior; que "uma dimensão por degrau" seja lei fisiológica; que a magnitude dos degraus seja dose validada; que a razão trabalho:recuperação seja a única variável relevante. |
+| **VO2max** (§12) | Três famílias de intervalos; faixa Z5 de 106–120% FTP; alvo em tempo acumulado ≥90% VO₂max. | [17] Schoenmakers 2026; [18] Held 2026; [19] Buchheit & Laursen 2013; [5] Billat 2001 | Uma estrutura de protocolo superior; dose-resposta de longo prazo; que 115% FTP seja universal; que recuperação ativa versus passiva importe; que o ranking da network meta-analysis seja confirmatório. |
+| **Recovery / Deload** (§13) | Redistribuição da carga perdida dentro do teto semanal; Z2 e Sweet Spot absorvíveis, Limiar e VO2 não; active recovery não compensado. | [27] Coyle 1984; [44] Barbieri 2024; [45] Zheng 2022; [1] Banister 1991 | Taxa única de destreino; que FTP caia em proporção fixa; que sete dias de reintrodução restaurem FTP ou VO₂max; que redistribuir carga preserve o estímulo pretendido, o que é decisão do sistema; que "absorvível" seja categoria fisiológica. |
+| **Inatividade e reteste** (§2.2) | 0–13 dias `ACTIVE`, 14–27 `REDUCED_RECENCY`, ≥28 `DETRAINED`; semana de reintrodução antes de teste máximo. | [44] Barbieri 2024; [45] Zheng 2022; [27] Coyle 1984 | Que 28 dias seja corte fisiológico universal; que a semana de reintrodução restaure a capacidade; que a cinética de perda seja igual entre FTP, VO₂max e desempenho; que a recência observada baste para diagnosticar destreino. |
+
+**Como a matriz é verificada.** `tests/test_scientific_references.py` exige que
+toda referência citada aqui exista na lista, que cada linha tenha as quatro
+colunas e que a coluna de limite não esteja vazia. A resolução online de
+PMID/DOI, título, primeiro autor e ano é feita por
+`scripts/check_references.py` e roda no workflow `references`, separado do
+suite de PR.
+
+## 16. Referências
+
+As entradas com PMID foram verificadas contra o registro do NCBI e as com DOI
+contra o Crossref; as demais são fontes não indexadas (livros, documentação de
+indústria e fóruns). Autores, títulos e resultados citados neste documento foram
+conferidos contra o abstract. A verificação é automatizada por
+`scripts/check_references.py`; a camada offline roda no suite de testes.
 
 1. **Banister, E. W. (1991).** *Modeling Muscle Fatigue and Recovery in Training*.
 2. **Seiler, S. (2010).** *What is Best Practice for Training Intensity Distribution in Endurance Athletes?* International Journal of Sports Physiology and Performance.

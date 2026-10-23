@@ -1,7 +1,7 @@
 import json
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from src.plan import (GOALS, GOAL_LABELS, GOAL_TEMPLATES, GOAL_BUDGET_SCALE,
@@ -310,11 +310,14 @@ class FtpTestPrepTest(unittest.TestCase):
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
         import training_plan as tp
+        # Data relativa: uma data fixa vira passado e faz o loop de validação
+        # rodar para sempre depois que o calendário avança.
+        future = (date.today() + timedelta(days=7)).isoformat()
         with mock.patch.object(tp, "_env_set",
                                side_effect=lambda k, v, **kw: None), \
-             mock.patch("builtins.input", return_value="2026-10-22"):
+             mock.patch("builtins.input", return_value=future):
             result = tp.prompt_ftp_test_date()
-        self.assertEqual(result, "2026-10-22")
+        self.assertEqual(result, future)
 
 
 if __name__ == "__main__":

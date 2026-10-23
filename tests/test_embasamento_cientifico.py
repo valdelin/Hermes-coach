@@ -19,7 +19,8 @@ SECOES_ESPERADAS = (
     "## 12. VO2max",
     "## 13. Recovery / Deload",
     "## 14. Limitações",
-    "## 15. Referências",
+    "## 15. Matriz de rastreabilidade por feature",
+    "## 16. Referências",
 )
 
 CLASSIFICACOES = ("EVIDÊNCIA CIENTÍFICA", "HEURÍSTICA DO SISTEMA",
@@ -56,7 +57,7 @@ class EmbasamentoCientificoTest(unittest.TestCase):
         self.assertTrue(REPO_DOC.exists())
         self.assertGreater(len(self.doc), 4000)
 
-    def test_tem_as_quinze_secoes_na_ordem(self):
+    def test_tem_as_dezesseis_secoes_na_ordem(self):
         positions = []
         for heading in SECOES_ESPERADAS:
             self.assertIn(heading, self.doc, f"secao ausente: {heading}")
@@ -84,7 +85,7 @@ class EmbasamentoCientificoTest(unittest.TestCase):
     def test_pmids_citados_tem_formato_de_referencia(self):
         # Todo PMID no corpo precisa aparecer na seção de referências com autor,
         # para não haver fonte órfã nem autor sem fonte.
-        body, _, refs = self.doc.partition("## 15. Referências")
+        body, _, refs = self.doc.partition("## 16. Referências")
         cited = set(re.findall(r"PMID (\d{7,8})", body))
         for pmid in cited:
             self.assertIn(pmid, refs, f"PMID {pmid} citado sem referencia")
@@ -157,7 +158,7 @@ class EmbasamentoCientificoTest(unittest.TestCase):
         self.assertIn("Z5_CEILING", block)
 
     def test_referencia_7_e_marcada_como_industria(self):
-        refs = self.doc.partition("## 15. Referências")[2]
+        refs = self.doc.partition("## 16. Referências")[2]
         entry = refs.partition("7. **Coggan")[2].partition("8. **")[0]
         self.assertIn("METODOLOGIA DE INDÚSTRIA", entry)
 
@@ -200,7 +201,7 @@ class EmbasamentoCientificoTest(unittest.TestCase):
         self.assertNotRegex(self.doc, r"^\|\s*Z[1-7]\s*\|.*%FC")
 
     def test_bibliografia_preserva_referencias_do_prompt(self):
-        refs = self.doc.partition("## 15. Referências")[2]
+        refs = self.doc.partition("## 16. Referências")[2]
         for expected in ("Banister", "Seiler", "Coggan", "Billat", "Friel",
                          "Galán-Rioja", "Cove", "Mackey", "Jeffries", "Inglis",
                          "Sitko", "Chorley", "Düking", "Granero-Gallegos",
