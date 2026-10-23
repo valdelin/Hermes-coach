@@ -39,6 +39,7 @@ class AthletePhysiologicalProfile:
     resting_hr: int | None = None
     hrv_baseline: float | None = None
     weekly_training_hours: float | None = None
+    max_workout_duration_sec: int | None = None
     training_days: tuple[int, ...] = ()
     training_age: float | None = None
     preferred_long_day: int | None = None
@@ -79,6 +80,7 @@ def build_athlete_profile(
         canonical_source: FtpReferenceSource | str | None = None,
         threshold_hr: int | None = None,
         weekly_training_hours: float | None = None,
+        max_workout_duration_sec: int | None = None,
         training_days: tuple[int, ...] = (),
         preferred_long_day: int | None = None,
         resting_hr: int | float | None = None,
@@ -108,6 +110,7 @@ def build_athlete_profile(
         threshold_hr=threshold_hr,
         resting_hr=resting_hr,
         weekly_training_hours=weekly_training_hours,
+        max_workout_duration_sec=max_workout_duration_sec,
         training_days=tuple(training_days),
         preferred_long_day=preferred_long_day,
     )

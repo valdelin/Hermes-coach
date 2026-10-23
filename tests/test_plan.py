@@ -72,13 +72,15 @@ class BuildPlanTest(unittest.TestCase):
         if today.weekday() >= 5:
             self.skipTest("hoje e fim de semana")
         existing = [{"day": today.isoformat(), "focus": "zone2",
-                     "planned_duration": 2400,
+                     "planned_duration": 240 * 60,
                      "name": f"{today} - Recuperacao (plano ajustado)",
                      "params": {"on_sec": 1200}, "tss": 14.0,
                      "external_id": f"hermes-plan-{today}"}]
-        plan = build_plan([], -7, ftp=182, days=5, existing=existing)
+        plan = build_plan([], -7, ftp=182, days=5, existing=existing,
+                          max_workout_duration_sec=30 * 60)
         self.assertEqual(plan[0]["day"], today.isoformat())
         self.assertIn("Recuperacao (plano ajustado)", plan[0]["name"])
+        self.assertEqual(plan[0]["planned_duration"], 240 * 60)
 
     def test_preenche_todos_os_dias_de_semana(self):
         plan = build_plan([], 0, ftp=182, days=14,
@@ -1377,6 +1379,90 @@ class ZoneIntegrityTest(unittest.TestCase):
                                      "active recovery acima do limiar")
                 # so Z2 pode ser active recovery
                 self.assertEqual(w["focus"], FOCUS_ZONE2)
+
+
+class MaxWorkoutDurationTest(unittest.TestCase):
+    def test_parse_accepts_only_configured_range_in_minutes(self):
+        self.assertIsNone(src.plan.parse_max_workout_duration_minutes(""))
+        self.assertEqual(src.plan.parse_max_workout_duration_minutes("30"), 1800)
+        self.assertEqual(src.plan.parse_max_workout_duration_minutes("90"), 5400)
+        self.assertEqual(src.plan.parse_max_workout_duration_minutes("180"), 10800)
+        self.assertIsNone(src.plan.parse_max_workout_duration_minutes("29"))
+        self.assertIsNone(src.plan.parse_max_workout_duration_minutes("181"))
+        self.assertIsNone(src.plan.parse_max_workout_duration_minutes("1.5h"))
+
+    def test_build_caps_total_duration_without_intervals(self):
+        plan = build_plan(
+            [], tsb=-20, ftp=250, days=7, start=date(2026, 10, 26),
+            training_days=(0,), goal="gran-fondo",
+            max_workout_duration_sec=3600,
+        )
+        self.assertEqual(len(plan), 1)
+        workout = plan[0]
+        self.assertLessEqual(workout["planned_duration"], 3600)
+
+    def test_default_cap_is_180_minutes(self):
+        self.assertEqual(src.plan.MAX_WORKOUT_DURATION_SEC, 180 * 60)
+
+    def test_absent_or_invalid_cap_uses_default_in_build(self):
+        events = [{
+            "start_date_local": f"{date.today().isoformat()}T10:00:00",
+            "training_load": 210,
+            "paired_activity_id": "completed-1",
+        }]
+        for cap in (None, 29 * 60, 181 * 60):
+            plan = build_plan(
+                events, tsb=-5, ftp=250, days=7, start=date(2026, 10, 26),
+                training_days=(0,), active_recovery_days=(0,),
+                min_regular_duration_sec=300 * 60,
+                max_workout_duration_sec=cap,
+            )
+            self.assertLessEqual(plan[0]["planned_duration"], 180 * 60)
+            self.assertGreater(plan[0]["planned_duration"], 120 * 60)
+
+    def test_quality_sessions_compact_to_30_minutes_without_lowering_power(self):
+        for focus in (FOCUS_THRESHOLD, FOCUS_VO2):
+            params = src.plan.WorkoutParams(
+                focus=focus, **src.plan.BLOCK_VARIANTS[focus][0])
+            compacted = src.plan._cap_workout_duration(params, 30 * 60)
+            duration = (compacted.warmup_sec + compacted.cooldown_sec +
+                        compacted.repeats * (compacted.on_sec + compacted.off_sec))
+            self.assertLessEqual(duration, 30 * 60)
+            self.assertEqual(compacted.on_power, params.on_power)
+            self.assertGreaterEqual(compacted.warmup_sec, 300)
+            self.assertGreaterEqual(compacted.cooldown_sec, 300)
+            self.assertGreaterEqual(compacted.on_sec, 60)
+            self.assertGreaterEqual(compacted.off_sec, 60)
+            self.assertEqual(compacted.focus, focus)
+
+    def test_individual_60min_preference_replaces_short_quality_with_recovery(self):
+        plan = build_plan(
+            [], tsb=0, ftp=195, days=7, start=date(2026, 10, 26),
+            training_days=(0, 2, 4), goal="ftp-builder",
+            min_regular_duration_sec=60 * 60,
+        )
+        self.assertTrue(plan)
+        self.assertTrue(any(w["focus"] == FOCUS_ZONE2 for w in plan))
+        for workout in plan:
+            if workout["focus"] == FOCUS_ZONE2:
+                self.assertGreaterEqual(workout["planned_duration"], 60 * 60)
+
+class WorkoutVariantRotationTest(unittest.TestCase):
+    def test_goal_builds_in_consecutive_iso_weeks_rotate_same_slot_variant(self):
+        first = build_plan([], 0, ftp=250, days=7, start=date(2026, 10, 19),
+                           goal="ftp-builder")
+        second = build_plan([], 0, ftp=250, days=7, start=date(2026, 10, 26),
+                            goal="ftp-builder")
+        self.assertEqual(first[0]["focus"], second[0]["focus"])
+        self.assertNotEqual(first[0]["params"], second[0]["params"])
+        self.assertGreaterEqual(second[0]["params"]["on_power"],
+                                zone_floor(second[0]["focus"]))
+
+    def test_build_without_goal_keeps_legacy_variant(self):
+        first = build_plan([], 0, ftp=250, days=7, start=date(2026, 10, 19))
+        second = build_plan([], 0, ftp=250, days=7, start=date(2026, 10, 26))
+        self.assertEqual(first[0]["focus"], second[0]["focus"])
+        self.assertEqual(first[0]["params"], second[0]["params"])
 
 
 class PlanTopLevelImportTest(unittest.TestCase):

@@ -24,7 +24,7 @@ try:
     from plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                         manual_duplicate_ids,
-                        parse_training_days, parse_goal, parse_weekly_hours,
+                        parse_training_days, parse_goal, parse_weekly_hours, parse_max_workout_duration_minutes,
                         parse_min_regular_duration_minutes,
                         parse_active_recovery_days,
                         parse_long_day, parse_fthr, parse_periodization,
@@ -53,7 +53,7 @@ except ImportError:
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                         manual_duplicate_ids,
-                        parse_training_days, parse_goal, parse_weekly_hours,
+                        parse_training_days, parse_goal, parse_weekly_hours, parse_max_workout_duration_minutes,
                        parse_min_regular_duration_minutes,
                        parse_active_recovery_days,
                        parse_long_day, parse_fthr, parse_periodization,
@@ -65,7 +65,7 @@ except ImportError:
     from .plan import (build_plan, event_payload, load_plan, load_plan_meta,
                        reconcile, save_plan, orphan_external_ids,
                       manual_duplicate_ids,
-                       parse_training_days, parse_goal, parse_weekly_hours,
+                       parse_training_days, parse_goal, parse_weekly_hours, parse_max_workout_duration_minutes,
                        parse_long_day, parse_fthr, parse_periodization,
                        GOAL_LABELS, FOCUS_LABELS_PT, PERIODIZATIONS,
                        PERIODIZATION_LABELS, REST, DEFAULT_FTP, CUE_LANGS,
@@ -192,6 +192,17 @@ def get_weekly_hours():
     if value.strip() and hours is None:
         print(f"aviso: WEEKLY_HOURS={value!r} invalido; sem ajuste de volume")
     return hours
+
+
+def get_max_workout_duration_sec():
+    """MAX_WORKOUT_DURATION_MINUTES, ou o default seguro de 180 min."""
+    load_env(PROJECT_ROOT / ".env")
+    value = os.environ.get("MAX_WORKOUT_DURATION_MINUTES", "")
+    sec = parse_max_workout_duration_minutes(value)
+    if value.strip() and sec is None:
+        print(f"aviso: MAX_WORKOUT_DURATION_MINUTES={value!r} invalido; "
+              "mantido teto de 180 min")
+    return sec if sec is not None else 180 * 60
 
 
 def get_active_recovery_days():
@@ -468,6 +479,7 @@ def cmd_check(args):
         ftp=get_ftp(),
         training_days=get_training_days(),
         weekly_hours=get_weekly_hours(),
+        max_workout_duration_sec=get_max_workout_duration_sec(),
         active_recovery_days=get_active_recovery_days(),
         min_regular_duration_sec=get_min_regular_duration_sec(),
         long_day=get_long_day(),
@@ -779,6 +791,7 @@ def cmd_build(args):
         periodization=periodization,
         race_date=race_date,
         weekly_hours=weekly_hours,
+        max_workout_duration_sec=get_max_workout_duration_sec(),
         min_regular_duration_sec=min_regular_duration_sec,
         active_recovery_days=active_recovery_days,
         long_day=long_day,

@@ -160,6 +160,9 @@ class Application:
         fthr = plan.parse_fthr(self.get_env("FTHR", "") or "")
         weekly_hours = plan.parse_weekly_hours(
             self.get_env("WEEKLY_HOURS", "") or "")
+        max_workout_duration_sec = plan.parse_max_workout_duration_minutes(
+            self.get_env("MAX_WORKOUT_DURATION_MINUTES", "") or
+            self.get_env("MAX_WORKOUT_DURATION_HOURS", "") or "")
         raw_training_days = self.get_env("TRAINING_DAYS", "") or ""
         training_days = (plan.parse_training_days(raw_training_days)
                          if raw_training_days.strip() else ())
@@ -170,6 +173,7 @@ class Application:
             canonical_ftp=reference.ftp_value if reference else None,
             canonical_source=reference.source if reference else None,
             threshold_hr=fthr, weekly_training_hours=weekly_hours,
+            max_workout_duration_sec=max_workout_duration_sec,
             training_days=training_days, preferred_long_day=long_day,
             resting_hr=resting_hr)
 
@@ -1002,6 +1006,7 @@ def build_workouts(
     phase_report: Optional[Dict[str, Any]] = None,
     min_regular_duration_sec: Optional[int] = None,
     active_recovery_days: Tuple[int, ...] = (),
+    max_workout_duration_sec: Optional[int] = None,
 ) -> BuildResult:
     """Monta o plano a partir do historico. Nao grava em disco.
 
@@ -1047,6 +1052,7 @@ def build_workouts(
         events, tsb, ftp=ftp, days=days_plan, existing=existing,
         training_days=training_days, goal=goal, race_date=race_date,
         ftp_test_date=ftp_test_date, weekly_hours=weekly_hours,
+        max_workout_duration_sec=max_workout_duration_sec,
         long_day=long_day, hr_mode=hr_mode, recovery_ramp=recovery_ramp,
         periodization=periodization, readiness=decisao,
         readiness_report=readiness_report, phase_report=phase_report,
@@ -1208,6 +1214,7 @@ def assess_daily_readiness(
     eligibility_fn: Callable[..., Any],
     active_recovery_days: Tuple[int, ...] = (),
     min_regular_duration_sec: Optional[int] = None,
+    max_workout_duration_sec: Optional[int] = None,
 ) -> ReadinessProposal:
     """Avalia a sessao de HOJE e decide se ha proposta de adaptacao por
     prontidao. Nao grava e nao publica: o adapter decide `--apply`/`--dry-run`.
@@ -1247,7 +1254,9 @@ def assess_daily_readiness(
                  training_days=training_days, goal=meta.get("goal"),
                  race_date=meta.get("race_date"),
                   ftp_test_date=meta.get("ftp_test_date"),
-                  weekly_hours=weekly_hours, long_day=long_day,
+                  weekly_hours=weekly_hours,
+                  max_workout_duration_sec=max_workout_duration_sec,
+                  long_day=long_day,
                   hr_mode=bool(treino.get("hr_mode")),
                   periodization=periodization,
                   active_recovery_days=active_recovery_days,

@@ -118,6 +118,20 @@ def parse_min_regular_duration_minutes(value):
     return minutes * 60
 
 
+def parse_max_workout_duration_minutes(value):
+    """Converte MAX_WORKOUT_DURATION_MINUTES em segundos ou None se inválido."""
+    if value is None or not str(value).strip():
+        return None
+    raw = str(value).strip()
+    try:
+        minutes = int(raw)
+    except ValueError:
+        return None
+    if not MIN_WORKOUT_DURATION_SEC // 60 <= minutes <= MAX_WORKOUT_DURATION_SEC // 60:
+        return None
+    return int(minutes * 60)
+
+
 def parse_long_day(value):
     """Converte LONG_DAY do .env (dia preferido para treinos longos, ex. 'sun'
     ou 'dom') em weekday (date.weekday()) ou None se ausente/invalido."""
@@ -174,9 +188,14 @@ def _block(repeats, on_sec, off_sec, on_power):
 #   duracao dos treinos (on_sec) para caber nas horas, respeitando TSS budget.
 # - LONG_DAY: dia preferido para o treino longo (endurance/maior volume); o
 #   build rotaciona o ciclo semanal para esse treino cair no dia escolhido.
+# - MAX_WORKOUT_DURATION_MINUTES/HOURS: limite maximo por treino individual
+#   (independente de WEEKLY_HOURS). Utile quando se tem horas na semana mas nao
+#   quer fazer um unico treino muito longo.
 VOLUME_SCALE_MIN = 0.5
 VOLUME_SCALE_MAX = 1.5
 MIN_REGULAR_DURATION_SEC = 3600
+MIN_WORKOUT_DURATION_SEC = 30 * 60
+MAX_WORKOUT_DURATION_SEC = 180 * 60
 ACTIVE_RECOVERY_POWER = 0.60
 ACTIVE_RECOVERY_ON_SEC = 2400
 
@@ -245,11 +264,60 @@ def _scale_duration(params, scale):
                             "on_sec": max(120, int(params.on_sec * scale))})
 
 
+def _cap_workout_duration(params, max_sec):
+    """Compacta uma sessão futura no teto, sem reduzir a potência declarada."""
+    max_sec = MAX_WORKOUT_DURATION_SEC if max_sec is None else max_sec
+    cur = (params.warmup_sec + params.cooldown_sec +
+           params.repeats * (params.on_sec + params.off_sec))
+    if cur <= max_sec:
+        return params
+    min_warmup = min(params.warmup_sec, 300)
+    min_cooldown = min(params.cooldown_sec, 300)
+    min_on = 60
+    min_off = 60 if params.off_sec else 0
+    minimum = (min_warmup + min_cooldown + params.repeats *
+               (min_on + min_off))
+    if minimum > max_sec:
+        raise ValueError("teto de duração não comporta a estrutura mínima")
+    available = {
+        "warmup_sec": params.warmup_sec - min_warmup,
+        "cooldown_sec": params.cooldown_sec - min_cooldown,
+        "on_sec": params.repeats * (params.on_sec - min_on),
+        "off_sec": params.repeats * max(0, params.off_sec - min_off),
+    }
+    variable = sum(available.values())
+    ratio = min(1.0, (max_sec - minimum) / variable) if variable else 0.0
+    return WorkoutParams(**{
+        **params.__dict__,
+        "warmup_sec": int(min_warmup + available["warmup_sec"] * ratio),
+        "cooldown_sec": int(min_cooldown + available["cooldown_sec"] * ratio),
+        "on_sec": int(min_on + available["on_sec"] * ratio / params.repeats),
+        "off_sec": (int(min_off + available["off_sec"] * ratio / params.repeats)
+                    if params.off_sec else 0),
+    })
+
+
+def _effective_workout_duration_cap(max_sec):
+    """Normaliza o teto opcional ao contrato indoor de 30–180 min."""
+    if max_sec is None:
+        return MAX_WORKOUT_DURATION_SEC
+    if MIN_WORKOUT_DURATION_SEC <= max_sec <= MAX_WORKOUT_DURATION_SEC:
+        return max_sec
+    return MAX_WORKOUT_DURATION_SEC
+
+
 def _active_recovery_params():
     """Sessao de 60min em Z2 leve; active recovery e intencao, nao foco Z1."""
     return WorkoutParams(focus=FOCUS_ZONE2,
-                         **_block(1, ACTIVE_RECOVERY_ON_SEC, 0,
-                                  ACTIVE_RECOVERY_POWER))
+                          **_block(1, ACTIVE_RECOVERY_ON_SEC, 0,
+                                   ACTIVE_RECOVERY_POWER))
+
+
+def _active_recovery_params_for_duration(duration_sec):
+    """Recuperação Z2 que atende a preferência individual de duração."""
+    params = _active_recovery_params()
+    on_sec = max(params.on_sec, duration_sec - params.warmup_sec - params.cooldown_sec)
+    return WorkoutParams(**{**params.__dict__, "on_sec": on_sec})
 
 
 # Indice = posicao do dia dentro da agenda de treino (build_plan). O template
@@ -989,10 +1057,13 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                ftp_test_date=None, weekly_hours=None, long_day=None,
                hr_mode=False, recovery_ramp=None, periodization=None,
                readiness=None, readiness_report=None, phase_report=None,
-               min_regular_duration_sec=None, active_recovery_days=()):
+               min_regular_duration_sec=None, active_recovery_days=(),
+               max_workout_duration_sec=None):
     # `readiness_report` e preenchido in-place para o CLI relatar o desfecho da
     # avaliacao sem alterar o retorno (que e a lista de treinos, contrato).
     readiness_report = {} if readiness_report is None else readiness_report
+    max_workout_duration_sec = _effective_workout_duration_cap(
+        max_workout_duration_sec)
     active_recovery_days = tuple(sorted(set(active_recovery_days)))
     if not set(active_recovery_days).issubset(training_days):
         raise ValueError("active_recovery_days deve estar contido em training_days")
@@ -1038,7 +1109,8 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                                           readiness_report=readiness_report,
                                           phase_report=phase_report,
                                           min_regular_duration_sec=min_regular_duration_sec,
-                                          active_recovery_days=active_recovery_days)
+                                          active_recovery_days=active_recovery_days,
+                                          max_workout_duration_sec=max_workout_duration_sec)
     slots = sorted(training_days)
     scale = GOAL_BUDGET_SCALE.get(goal, 1.0)
     avg = avg_load(events)
@@ -1070,7 +1142,10 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
             params = _active_recovery_params()
             day_name = f"{day.isoformat()} - Recuperacao ativa (Z2)"
         else:
-            params = WorkoutParams(focus=focus, **_block_for(focus, i, goal))
+            week_offset = (day.isocalendar().week - 1) % len(
+                BLOCK_VARIANTS.get(focus, [None]))
+            params = WorkoutParams(focus=focus, **_block_for(
+                focus, i, goal, week_offset=week_offset))
             params = _scale_duration(params, volume_scale)
             day_name = workout_name(day.isoformat(), focus)
         # Issue #58 Passo A revisao 2: uma intervencao de prontidao nao pode
@@ -1109,9 +1184,24 @@ def build_plan(events, tsb, ftp=DEFAULT_FTP, days=14, start=None, existing=None,
                 params, tss, recent, budget, cap, ftp,
                 min_duration_sec=min_regular_duration_sec,
                 budget_or_readiness_protected=readiness_agiu)
+        params = _cap_workout_duration(params, max_workout_duration_sec)
+        tss = estimate_tss(params, ftp)
         duration = sum((params.warmup_sec,
-                        params.repeats * (params.on_sec + params.off_sec),
-                        params.cooldown_sec))
+                         params.repeats * (params.on_sec + params.off_sec),
+                         params.cooldown_sec))
+        if (taper is None and min_regular_duration_sec and
+                duration < min_regular_duration_sec and
+                focus in QUALITY_FOCUSES):
+            params = _active_recovery_params_for_duration(
+                min_regular_duration_sec)
+            params = _cap_workout_duration(params, max_workout_duration_sec)
+            focus = FOCUS_ZONE2
+            day_name = f"{day.isoformat()} - Recuperacao ativa (Z2)"
+            dias_qualidade.discard(day.isoformat())
+            tss = estimate_tss(params, ftp)
+            duration = sum((params.warmup_sec,
+                            params.repeats * (params.on_sec + params.off_sec),
+                            params.cooldown_sec))
         plan.append(PlannedWorkout(
             day=day.isoformat(), focus=focus,
             planned_duration=duration,
@@ -1196,13 +1286,16 @@ SITUACOES_READINESS = {
 }
 
 
-def _block_for(focus, slot, goal):
-    """Bloco do foco. Com GOAL ativo, rotaciona as variantes de formato para o
-    plano nao ficar monotonico; sem GOAL, usa o template atual."""
+def _block_for(focus, slot, goal, week_offset=0):
+    """Bloco do foco com rotação também pela semana ISO do dia.
+
+    O offset evita reiniciar na variante zero quando o próximo bloco é gerado
+    em outra chamada de build. Sem GOAL, preserva o template legado.
+    """
     if goal is None:
         return templates()[focus]
     variants = BLOCK_VARIANTS.get(focus, [templates()[focus]])
-    return variants[slot % len(variants)]
+    return variants[(slot + week_offset) % len(variants)]
 
 
 def _taper_focus(goal, day, race_date):

@@ -28,6 +28,23 @@ class _FakeClient:
         return []
 
 
+class MaxWorkoutDurationConfigTest(unittest.TestCase):
+    def test_env_absent_or_invalid_keeps_180_min_default(self):
+        with mock.patch.object(tp, "load_env"), \
+             mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("MAX_WORKOUT_DURATION_MINUTES", None)
+            self.assertEqual(tp.get_max_workout_duration_sec(), 180 * 60)
+            os.environ["MAX_WORKOUT_DURATION_MINUTES"] = "999"
+            self.assertEqual(tp.get_max_workout_duration_sec(), 180 * 60)
+
+    def test_env_value_in_range_reaches_duration_reader(self):
+        with mock.patch.object(tp, "load_env"), \
+             mock.patch.dict(os.environ,
+                             {"MAX_WORKOUT_DURATION_MINUTES": "45"},
+                             clear=False):
+            self.assertEqual(tp.get_max_workout_duration_sec(), 45 * 60)
+
+
 def steady_power(watts, minutes=50):
     return [watts] * int(minutes * 60)
 
