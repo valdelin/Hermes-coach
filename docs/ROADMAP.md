@@ -955,7 +955,7 @@ pode usar qualquer canal, com ou sem agente.
 | ID | Escopo | Status |
 |---|---|---|
 | PROG-1 | Contrato `ProgressionEvidence` → `ProgressionDecision` (actions, targets, reasons, hierarquia de precedência, missing-data, determinismo) | **SPEC/CONTRACT DONE — 2026-10-08**; documentação em `docs/SPEC-progression.md`. **NÃO confundir com código DONE** — implementação ainda não iniciada |
-| PROG-2 | Guardrails de progressão + matriz de teste normativa | **BLOCKED / TRAINER DECISIONS Q1-Q4** — gates em ROTEIRO-TREINADOR §1.8 / TALLY §12.2 |
+| PROG-2 | Guardrails de progressão + matriz de teste normativa | **SCIENCE REVIEW DONE / TRAINER ANSWERS PENDING** — Q1-Q4 em ROTEIRO-TREINADOR §1.8; não implementar guardrails até respostas explícitas |
 | PROG-3 | Integração de evidência (adherence + WorkoutExecutionView + readiness + phase + ramp + seams key-workout e recovery-week) | FUTURE |
 | PROG-4 | Progressão de estímulo (biblioteca `SEQUENCES` p/ REPETITIONS/INTERVAL_DURATION; ranking de Q3) | FUTURE |
 | PROG-5 | Mutation de prescrição (`PrescriptionProgression`, use-case separado) | FUTURE — permanece por último |
@@ -978,3 +978,23 @@ PROG-4 → PROG-6 → PROG-5.
 - Validação do caso real foi read-only (PROMPT 67): lição abstrata "boa adesão +
   readiness degradada + missing data pode resultar em MAINTAIN" — sem dados pessoais
   em repo.
+
+## Referência externa — Domestique (2026-10-22)
+
+O [Domestique](https://github.com/platypus45/domestique) foi analisado como
+referência de produto local-first para possíveis evoluções do Hermes. A análise
+não cria backlog aprovado nem autoriza copiar código/arquitetura; ela registra
+padrões reaproveitáveis e anti-patterns para histórico fisiológico, mutation
+protocol, provider FIT, perfis locais e distribuição Linux.
+
+Documento de referência: [`docs/REFERENCIAS-DOMESTIQUE.md`](REFERENCIAS-DOMESTIQUE.md).
+Análise rastreável: [`docs/research/DOMESTIQUE-ANALISE-HISTORICO-FISIOLOGICO-2026-10-22.md`](research/DOMESTIQUE-ANALISE-HISTORICO-FISIOLOGICO-2026-10-22.md).
+
+## Melhorias apontadas — repetição de treinos / memória entre blocos (2026-10-23)
+
+| ID | Item | Esforço | Status | Notas |
+|---|---|---|---|---|
+| DUR-01 | **Duração máxima por treino indoor** — cada atleta configura `MAX_WORKOUT_DURATION_MINUTES` entre 30–180 min; 180 é somente default/teto absoluto, separado de `WEEKLY_HOURS`. Sessões futuras são compactadas sem reduzir potência/zona. | Médio | **implementado localmente e validado** | Warm-up/cooldown até 5 min e work/recovery até 1 min para caber; treino de hoje preservado. Verificação independente: 8 testes, sensor 3/3 mutantes mortos, `validate_state` verde. Contrato em `.specs/features/indoor-workout-duration/spec.md`; AD-002. |
+| VAR-01 | **Deslocar rotação de blocos por semana** — usa offset da semana ISO em `BLOCK_VARIANTS`, evitando reiniciar na variante zero ao gerar a próxima semana. | Baixo | **implementado localmente e validado** | Só com `GOAL`; sem `GOAL` preserva template legado. Verificação independente: 1.557 testes, sensor matou remoção do offset e rotação indevida sem GOAL. Medir 2–4 semanas reais antes de considerar VAR-02. |
+| VAR-02 | **Variação com memória histórica** — ao gerar, olhar sessões completadas das últimas 14 dias e preferir variantes `(focus, repeats, on_sec, on_power)` não usadas. Fallback para rotação se tudo já foi usado. | Médio | **backlog** | Casa com "histórico > disponibilidade". Precisa de mapeamento das sessões completadas para a assinatura do bloco. |
+| VAR-03 | **Sanity check pré-push** — validar estrutura do treino (aquecimento/cooldown coerentes, sem sessão dura nos últimos 2 dias antes de prova, duração dentro do teto, piso de zona). Evita bugs tipo o warmup mal renderizado do Domestique. | Baixo | **implementado e integrado ao push** | Só alerta + bloqueio, nunca auto-corrige. Integrado em `src/training_plan.py` via `src/plan_sanity.py`. Coberto por `tests/test_plan_sanity.py`. Ver `.specs/features/pre-push-sanity-check/`. |

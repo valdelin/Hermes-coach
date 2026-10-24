@@ -1,0 +1,17 @@
+Prioridade;ID;Item;Impacto / evidência;Dependência;Recomendação
+P0 concluído localmente;DUR-01;MAX_WORKOUT_DURATION_MINUTES por treino;Cada atleta configura 30–180 min; default/teto 180; independente de WEEKLY_HOURS;Nenhuma;Verificação independente PASS: 8 testes; sensor 3/3 mutantes mortos; pendente apenas de commit explícito
+P0 concluído localmente;VAR-01;Rotação de variantes por semana;Protótipo reduziu repetição em 14d de 15/20 para 10/20; implementação usa semana ISO;Nenhuma;Verificação independente PASS 1557 testes; medir 2–4 semanas reais antes de VAR-02
+P0;VAR-03;Sanity check pré-push;Barreira de integridade; protótipo detectou qualidade em D-1 de prova;implementado (plan_sanity + push);Alerta/bloqueio SAN-02/SAN-03/SAN-04/SAN-05/SAN-06; sem auto-correção
+P1;VAR-02;Variação baseada em histórico executado;Política correta mas protótipo não superou VAR-01 com 3 variantes/foco;VAR-01 e catálogo maior/refino de política;Não implementar antes de medir VAR-01 em plano real
+P1;PROG-2;Guardrails de progressão;Evita inventar limiares de adesão e incompletude;Respostas Q1-Q4 do treinador;Coletar decisões do treinador; sem código até então
+P1;PROG-3;Integrar execução/readiness/fase/rampa;Ponte para que próximo bloco responda ao realizado;PROG-2 e seams de key-workout/recovery-week;Especificar após respostas do treinador
+P1;#2 / AGENT-2;Notificações;Melhora aderência sem mudar prescrição;Canal e credenciais;Começar por comunicação read-only
+P2;#61;Revisão do hermes_agent.py;Protege interface de automação futura;Code review;Revisar antes de tornar interface oficial
+P2;#22 / AGENT-3;Próximo passo e Q&A read-only;UX útil mas rationale ainda precisa estabilizar;Decision ledger;Limitar a explicação read-only
+P2;#23 + #35;Portal piloto e segundo atleta;Maior aprendizado externo; hoje 1 atleta;Portal/OAuth e voluntário;Piloto com critérios de sucesso e consentimento
+P2;#1;Atividade fantasma do Intervals;Cosmético; não muda CTL/ATL/TSB nem reconcile;Limitação API Intervals;Hold até haver folga ou reclamação recorrente; dry-run obrigatório
+P3;#9 #10 #15;Personalização fisiológica;Perfil de esforço nível do atleta wellness;Validação com treinador;Não inserir heurísticas novas sem decisão explícita
+P3;#18 #30;Corrida e multi-esporte;Alto alcance mas altera contratos de domínio;Modelo multi-esporte e testes;Começar por contrato sport/carga/eventos
+P3;#28 #29 AGENT-4;Race Recon Coach+ e proposta;Diferenciais com risco de mutação indevida;Ledger ProposedChange e portal;Ledger antes de chat; motor continua autor
+P4;#7 #8 #11 #12;PWA multi-atleta catálogo e app comercial;Produto/mercado;Pesquisa de produto e piloto;Após validar fluxo com atleta externo
+P4;#13 #24-#27 AGENT-5;MCP banco API worker pagamento hub;Infra SaaS com alto custo e risco;Portal negócio threat model evals;Contrato de ferramentas e ledger antes de MCP
