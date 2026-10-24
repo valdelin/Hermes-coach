@@ -1642,6 +1642,11 @@ def cmd_push(args):
               "plano mantidos (de plano anterior mais longo).")
     print(f"Calendario atualizado (HTTP {result.create_status}): "
           f"{result.created} eventos")
+    try:
+        msg = f"Publicados: {result.created} | Órfãos removidos: {getattr(result, 'orphans_deleted', len(result.orphans) if result.orphans else 0)}"
+        _notify("Hermes Coach - Push concluído", msg)
+    except Exception:
+        pass
 
 
 def cmd_all(args):

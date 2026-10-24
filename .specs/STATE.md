@@ -25,3 +25,10 @@
 - **Rules**: SAN-02 (teto de duração), SAN-03 (qualidade em D-0/D-1/D-2 de prova), SAN-04 (estrutura mínima), SAN-05 (piso de zona), SAN-06 (alerta para `MIN_REGULAR_DURATION_MINUTES`).
 - **Reason**: Barreira de integridade para evitar publicar sessões inconsistentes com as regras vigentes.
 - **Trade-off**: Pode bloquear um `push` legítimo em casos ambíguos; decisão explícita por código, sem reescrita automática.
+
+### NOT-01/02/03 (Notifications - Telegram)
+- **Decision**: Interface `Notifier` com `NullNotifier` por padrão; `TelegramNotifier` via Bot API (stdlib, best-effort). Nunca quebra `push`/fluxos.
+- **Config**: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `NOTIFY_ENABLED`.
+- **Integration**: Notificação em `push` bem-sucedido com contagens básicas.
+- **Reason**: Feedback imediato sem dependências pesadas.
+- **Trade-off**: Primeiro canal só Telegram; sem fila/retry complexo.
