@@ -146,6 +146,7 @@ revisão técnica** (propostas aplicadas/não aplicadas) em
     (c) teto de `decay()` e (d) estimador de CP são robustez de modelo.
 
 ### Fase 1 — Comunicação (issue #2) & Arquitetura SaaS Core
+- **Orquestrador (AGENT-0) — #61 revisado e aprovado.** `scripts/hermes_agent.py` é uma facade segura e determinística sobre o CLI, com gate de confirmação e testes completos.
 - Resumo do treino (foco + TSB + TSS previsto/real + avisos do reconcile) via
   **Telegram** primeiro; interface `Notifier` extensível (e-mail/WhatsApp);
   config `NOTIFY_CHANNEL`/token/chat id no `.env`.
