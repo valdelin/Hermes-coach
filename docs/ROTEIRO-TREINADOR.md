@@ -303,34 +303,159 @@ mesmo não usa um.)
 **Pergunta:** A preparação D-2 fácil / D-1 spin é suficiente como proteção contra
 treino intenso anterior ao teste? Se não, qual janela/regra usar?
 
-### 1.8 Progressão semanal — decisões de política (gate PROG-1/2)
+### 1.8 Progressão semanal — decisões de política (gate PROG-2)
 
-<!-- PROG-1 / PROG-2 — gates Q1-Q4 da progressão semanal. Sem resposta → PROG-2
-     permanece BLOCKED. Não respondidas nesta task. Relacionadas, mas NÃO
-     duplicadas, com §2.1 (WEEK_MISSED / BLOCK_PROGRESSION / DELOAD_USE):
-     ali o foco é o método geral; aqui é o gate operacional da progressão. -->
+<!-- PROG-1 / PROG-2 — gates Q1-Q4 da progressão semanal. A revisão científica
+     PROG-2 foi concluída, mas não responde decisões operacionais. Sem resposta
+     explícita do treinador, PROG-2 permanece bloqueado. Relacionadas, mas NÃO
+     duplicadas, com §2.1 (WEEK_MISSED / BLOCK_PROGRESSION / DELOAD_USE): ali o
+     foco é o método geral; aqui é o gate operacional da progressão. -->
 
 _Por que perguntamos:_ o Hermes ainda não decide, semana a semana, se o estímulo
 deve progredir, manter, recuperar ou regressar — ele organiza o plano por orçamento
-de carga e prontidão diária. Antes de qualquer guardrail de progressão, precisamos
-do seu gate: o que bloqueia avanço, o que distingue manter de regressar, como
-escolher a dimensão a progredir e como reconhecer a hora de recuperar. Nenhuma
-resposta liga alerta nem muda plano automaticamente.
+de carga e prontidão diária. A revisão científica de PROG-2 informa limites e
+guardrails, mas não substitui seu julgamento operacional. Nenhuma resposta nesta
+seção liga alerta nem muda plano automaticamente.
 
-**Pergunta (Q1 — adesão):** Qual nível de cumprimento do plano bloqueia a
-progressão semanal? E em qual janela esse nível conta (uma semana? duas semanas?)?
+**Resumo da evidência:** Q1 tem evidência **INSUFFICIENT** para percentual/janela
+universal e **MODERATE** para monitoramento multidimensional; Q2 é **MODERATE** para
+avaliação contextual e **INSUFFICIENT** para contagem fixa; Q3 é **MODERATE** para
+individualização/distribuição e **LIMITED** para ordem exata de microprogressão; Q4
+é **MODERATE** para painel multimodal e **INSUFFICIENT** para cutoff, biomarcador ou
+calendário universal.
 
-**Pergunta (Q2 — incompletos):** Quantas sessões relevantes incompletas ou parciais
-na janela justificam manter o nível atual em vez de progredir? E a partir de quantas
-você reduz explicitamente o nível (em vez de só manter)?
+#### Q1 — Adesão
 
-**Pergunta (Q3 — dimensão):** Ao longo das semanas, o que você costuma fazer crescer
-primeiro: volume total, tempo no intervalo, repetições ou intensidade? Você
-prioriza uma dimensão por vez?
+**Pergunta:** Qual nível de cumprimento do plano bloqueia a progressão semanal? E em
+qual janela esse nível conta?
 
-**Pergunta (Q4 — recuperação):** Quando você antecipa ou detecta que o atleta precisa
-de uma semana de recuperação? Você olha execução, prontidão (sono/RHR/HRV), fase da
-periodização, densidade de treinos fortes ou uma combinação?
+**Evidência científica resumida:** a literatura não identifica percentual universal
+validado de adesão semanal, nem janela universal de uma, duas ou quatro semanas. Ao
+monitorar adesão, diferencie sessões planejadas, concluídas, dose realmente executada,
+tipo/objetivo da sessão e, quando comparáveis, carga externa/interna.
+
+**O que a ciência não determina:** cortes como 50%, 60%, 66%, 70%, 75%, 80% ou 90%;
+
+**Proposta operacional:** `LOW_ADHERENCE` bloqueia `PROGRESS`.
+
+**Classificação:** **PRODUCT SAFETY POLICY**, informada por evidência limitada. Este
+threshold será política configurável de treinador/produto, não constante fisiológica
+universal.
+
+**Decisão ainda necessária do treinador:**
+- Percentual operacional: ____ %
+- Janela: ____ semanas
+- Ponderação: ( ) todas iguais ( ) qualitativa pesa mais ( ) long ride pesa mais
+  ( ) regra específica: ____ ( ) outro: ____
+
+**Resposta do treinador:** _pendente_.
+
+#### Q2 — Sessões incompletas/parciais
+
+**Pergunta:** Que padrão de sessões relevantes incompletas ou parciais deve diferenciar
+`MAINTAIN` de `REGRESS`?
+
+**Evidência científica resumida:** não existe contagem universal validada como
+“1 incomplete → MAINTAIN, 2 → REGRESS, 3 → RECOVER”. Uma sessão parcial isolada não
+implica `REGRESS`; padrão repetido e contextualizado pode bloquear `PROGRESS`.
+
+**O que a ciência não determina:** o número de sessões, janela ou ação final. A causa
+da incompletude importa: fadiga/incapacidade de sustentar estímulo, pacing, doença,
+suficiente não são equivalentes.
+
+**Proposta operacional:** padrão repetido e contextualizado de incompletude bloqueia
+`PROGRESS` e requer classificação entre `MAINTAIN` e `REGRESS`.
+
+**Classificação:** **TRAINER POLICY**, informada por evidência moderada de
+monitoramento contextual, sem contagem universal.
+
+**Decisão ainda necessária do treinador:**
+- Sessão relevante: ( ) qualquer sessão ( ) apenas qualitativas ( ) qualitativas +
+  long ride ( ) sessões marcadas explicitamente como KEY ( ) outro: ____
+- `dias_qualidade` do sistema **não** é automaticamente KEY. Definir KEY, se houver:
+  ____
+- PARTIAL considera: ( ) duração ( ) blocos/repetições ( ) dose específica
+  ( ) interrupção ( ) motivo declarado ( ) combinação: ____
+- Padrão para `MAINTAIN` versus `REGRESS`: ( ) isolada ( ) quantidade em janela
+  ( ) falhas consecutivas ( ) falha + fadiga/performance degradada
+  ( ) combinação configurável: ____
+
+**Resposta do treinador:** _pendente_.
+
+#### Q3 — Ordem de progressão do estímulo
+
+**Pergunta:** Qual ranking deve guiar o crescimento por fase/objetivo entre `VOLUME`,
+`INTERVAL_DURATION`, `REPETITIONS`, `INTENSITY`, `FREQUENCY`, `DENSITY` e
+`LONG_RIDE_DURATION`?
+
+**Evidência científica resumida:** não existe sequência universal aplicável a todos os
+ciclistas. Quando a sessão já está na intensidade-alvo, é defensável preferir aumento
+
+**O que a ciência não determina:** ranking universal por fase, família ou atleta; nem
+ordem fixa “repetições → duração → intensidade”.
+
+**Proposta operacional:** tratar como **COACHING HEURISTIC**, não lei fisiológica:
+uma dimensão principal por vez; dose específica antes de intensidade; evitar aumento
+simultâneo de volume e intensidade por padrão.
+
+**Decisão ainda necessária do treinador:**
+- Ranking BASE: ____
+- Ranking BUILD: ____
+- Ranking SPECIFIC: ____
+- Ranking PEAK: ____
+- Volume + intensidade: ( ) não por padrão ( ) só regra explícita
+  ( ) fases específicas ( ) decisão manual ( ) outro: ____
+
+**Resposta do treinador:** _pendente_.
+
+#### Q4 — Recovery / deload
+
+**Pergunta:** Que combinação operacional deve antecipar recuperação e como classificar
+cada sinal como `HARD BLOCKER`, `SOFT GUARDRAIL` ou `ADVISORY ONLY`?
+
+**Evidência científica resumida:** não existe calendário universal 3:1 ou 4:1. A
+avaliação mais defensável combina desempenho, execução/adesão, fadiga subjetiva,
+sono, sintomas de doença, RHR, HRV, carga recente e fase/contexto.
+
+**O que a ciência não determina:** cutoff universal, número de dias persistentes ou
+combinação numérica automática. HRV, RHR, sono, TSB, CTL, ATL, ramp rate e ACWR não
+devem comandar recovery/progressão isoladamente.
+
+**Proposta operacional:** `ILLNESS_SIGNAL` ou sintomas relevantes bloqueiam `PROGRESS`
+como **SCIENCE-INFORMED PRODUCT SAFETY POLICY**; não são diagnóstico médico. Sinais
+adversos persistentes e convergentes bloqueiam `PROGRESS` e podem favorecer `RECOVER`.
+
+**Decisão ainda necessária do treinador:**
+- Classifique A execução/adesão, B performance, C fadiga/wellness, D sono, E HRV/RHR,
+  F illness, G carga recente e H fase: `HARD BLOCKER` / `SOFT GUARDRAIL` /
+  `ADVISORY ONLY`.
+- Persistência: ____ dias/sessões ou janela ____
+- Recovery planejada: ( ) somente adaptativa ( ) calendário + antecipação
+  ( ) calendário fixo ( ) depende da fase ( ) outro: ____
+- Após doença/recovery, carga perdida não será compensada automaticamente com aumento
+  posterior.
+
+**Resposta do treinador:** _pendente_.
+
+**Valores legados não respondem Q1-Q4.** Os ratios de potência/tempo/RPE/interrupção
+em `src/progression.py`, `recent_load > planned_load * 1.15`, 900 s e `load * 0.5`
+`src/recovery.py` e limiares de readiness são contratos ou heurísticas legadas. Não
+foram aprovados pelo treinador nem devem ser promovidos a guardrails PROG-2.
+
+**Referências da revisão PROG-2:** Halson (2014), PMID 25200666, DOI
+10.1007/s40279-014-0253-z; Meeusen et al. (2013), PMID 23247672, DOI
+10.1249/MSS.0b013e318279a10a; Kreher & Schwartz (2012), PMID 23016079, DOI
+10.1177/1941738111434406; Le Meur et al. (2013), PMID 23770718, DOI
+10.1249/MSS.0b013e3182980125; Stöggl & Sperlich (2015), PMID 26578968, DOI
+10.3389/fphys.2015.00295; Mølmen et al. (2019), PMID 31802956, DOI
+10.2147/OAJSM.S180408; Almquist et al. (2022), PMID 35299664, DOI
+10.3389/fphys.2022.837634; Saw et al. (2016), PMID 26423706, DOI
+10.1136/bjsports-2015-094758; Düking et al. (2021), PMID 34489178, DOI
+10.1016/j.jsams.2021.04.012; Manresa-Rocamora et al. (2021), PMID 34639599, DOI
+10.3390/ijerph181910299; Soligard et al. (2016), PMID 27535989, DOI
+10.1136/bjsports-2016-096581; Schwellnus et al. (2016), PMID 27535991, DOI
+10.1136/bjsports-2016-096572; Impellizzeri et al. (2020), PMID 32502973, DOI
+10.1123/ijspp.2019-0864.
 
 ---
 
