@@ -64,6 +64,13 @@ Dashboard e telas implementadas são **somente leitura**. Ações futuras devem
 usar exclusivamente `scripts/hermes_agent.py`, preservar dry-run e pedir
 confirmação antes de qualquer `build --apply`, `reconcile --apply` ou `push`.
 
+## Código comentado para estudo
+
+As cópias didáticas da TUI ficam em `docs/CODIGO-COMENTADO/src/ui/` e
+`docs/CODIGO-COMENTADO/scripts/hermes_tui.py`. Elas possuem somente um cabeçalho
+explicativo; o código executável e canônico continua em `src/ui/` e
+`scripts/hermes_tui.py`.
+
 ## Diagnóstico rápido
 
 | Sintoma | Verificar |
