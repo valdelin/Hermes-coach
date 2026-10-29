@@ -91,6 +91,9 @@ class IntervalsClient:
     def events(self, **params):
         return self._get("/events", params)
 
+    def activities(self, **params):
+        return self._get("/activities", params)
+
     def wellness(self, **params):
         return self._get("/wellness", params)
 
@@ -124,6 +127,15 @@ class IntervalsClient:
     def _get(self, path, params):
         resp = self._request("GET", f"{self.base}{path}", params=params or None)
         return resp.json()
+
+    def athlete(self):
+        """Perfil do atleta: GET /api/v1/athlete/{id}.
+        Retorna dados como ftp, weight, vo2max, etc."""
+        resp = self._request("GET", self.base)
+        return resp.json()
+
+    def get_athlete(self):
+        return self.athlete()
 
     def activity(self, activity_id):
         """Detalhe de uma atividade: GET /api/v1/activity/{id} (fora do escopo

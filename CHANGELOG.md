@@ -23,6 +23,13 @@ abertos de recuperação e FTP; não os promove a comportamento resolvido.
 
 ### Adicionado
 
+- **TUI local-first em Textual.** `python3 scripts/hermes_tui.py` abre dashboard
+  com PMC, calendário mensal/semanal com plano e histórico do Intervals.icu,
+  detalhe de atividade com streams reais de potência/FC/cadência e zonas, e
+  tela de prontidão. A interface é somente leitura nesta entrega; ações
+  mutáveis continuam na facade `scripts/hermes_agent.py`. Manual:
+  `docs/MANUAL-TUI.md`.
+
 - **Relatório HTML: prontidão, sessão e consistência.** `summary --export` agora
   mostra a sessão planejada, o estado factual do plano e cumprimento por semana,
   além da classificação de prontidão. A cobertura separa os 7 eixos do modelo,

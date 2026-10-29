@@ -43,7 +43,9 @@ hermes-coach/
 │   ├── critical_power.py              # Critical Power / W′ como complemento ao FTP
 │   ├── vo2_generator.py               # gerador VO2max estruturado (progressão por dimensão)
 │   ├── zone_intent.py                 # intenção e dose por família (a potência não decide a zona)
+│   ├── ui/                             # TUI local-first: dashboard, calendário e prontidão
 │   └── training_plan.py               # CLI (info/model/build/adherence/recovery/summary/reconcile/push)
+├── scripts/hermes_tui.py              # entrada da TUI
 ├── tests/                             # 803 testes (stdlib unittest)
 └── docs/                              # ROADMAP, GLOSSARIO, PITCH-DECK, ARQUITETURA, TEMAS, ...
 ```
@@ -75,6 +77,19 @@ hermes-coach/
 - [docs/ROTEIRO-TESTES.md](docs/ROTEIRO-TESTES.md) — roteiro de testes
   manual/semi-automático (CLI, agente, calendário, reconciliação, onboarding,
   disponibilidade, FTP) com checklist, caça a bugs e template de reporte.
+- [docs/MANUAL-TUI.md](docs/MANUAL-TUI.md) — execução, telas, atalhos, fontes de
+  dados e limites da interface de terminal.
+
+## Interface de terminal (TUI)
+
+```bash
+python3 scripts/hermes_tui.py
+```
+
+A TUI é local-first e somente leitura: mostra dashboard, PMC, calendário com
+histórico do Intervals.icu, detalhe de atividade e prontidão. Alterações do
+plano ou calendário continuam protegidas pela facade `scripts/hermes_agent.py`.
+Consulte o [manual da TUI](docs/MANUAL-TUI.md) para atalhos e limites.
 
 ## Setup
 

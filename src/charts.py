@@ -7,8 +7,25 @@ unicode por serie (PMC CTL/ATL/TSB) e barras de carga semanal.
 
 from datetime import date, timedelta
 
+try:
+    from . import brand
+except Exception:
+    try:
+        import brand
+    except Exception:
+        brand = None
+
 BLOCKS = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"  # 8 graus
 BAR = "\u2588"  # bloco cheio
+
+
+def _pmc_colors(theme=None):
+    if brand is None:
+        return "#7da6ff", "#ff9e64", "#b9f27c"
+    slug = theme or getattr(brand, "DEFAULT_THEME", "tokyo-night")
+    themes = getattr(brand, "THEMES", {}) or {}
+    t = themes.get(slug) or themes.get(getattr(brand, "DEFAULT_THEME", "tokyo-night")) or {}
+    return t.get("ctl", "#7da6ff"), t.get("atl", "#ff9e64"), t.get("tsb", "#b9f27c")
 
 
 def sparkline(values, width=None, vmin=None, vmax=None):
@@ -44,7 +61,7 @@ def _resample_rows(rows, width):
     return [rows[round(i * step)] for i in range(width)]
 
 
-def pmc_chart(rows, width=64):
+def pmc_chart(rows, width=64, theme=None, markup=False):
     """Linhas CTL/ATL/TSB do PMC compartilhando a MESMA escala (comparaveis).
 
     `rows`: lista de (day, ctl, atl, tsb) de recovery.pmc_series.
@@ -57,10 +74,18 @@ def pmc_chart(rows, width=64):
     tsb = [r[3] for r in rows]
     lo = min(min(ctl), min(atl), min(tsb))
     hi = max(max(ctl), max(atl), max(tsb))
+    c_ctl, c_atl, c_tsb = _pmc_colors(theme)
+    if not markup:
+        return [
+            f"CTL {rows[-1][1]:6.1f}  {sparkline(ctl, vmin=lo, vmax=hi)}",
+            f"ATL {rows[-1][2]:6.1f}  {sparkline(atl, vmin=lo, vmax=hi)}",
+            f"TSB {rows[-1][3]:+6.1f}  {sparkline(tsb, vmin=lo, vmax=hi)}",
+            f"escala {lo:.0f}..{hi:.0f} | {rows[0][0]} a {rows[-1][0]}",
+        ]
     return [
-        f"CTL {rows[-1][1]:6.1f}  {sparkline(ctl, vmin=lo, vmax=hi)}",
-        f"ATL {rows[-1][2]:6.1f}  {sparkline(atl, vmin=lo, vmax=hi)}",
-        f"TSB {rows[-1][3]:+6.1f}  {sparkline(tsb, vmin=lo, vmax=hi)}",
+        f"[{c_ctl}]CTL {rows[-1][1]:6.1f}  {sparkline(ctl, vmin=lo, vmax=hi)}[/{c_ctl}]",
+        f"[{c_atl}]ATL {rows[-1][2]:6.1f}  {sparkline(atl, vmin=lo, vmax=hi)}[/{c_atl}]",
+        f"[{c_tsb}]TSB {rows[-1][3]:+6.1f}  {sparkline(tsb, vmin=lo, vmax=hi)}[/{c_tsb}]",
         f"escala {lo:.0f}..{hi:.0f} | {rows[0][0]} a {rows[-1][0]}",
     ]
 
