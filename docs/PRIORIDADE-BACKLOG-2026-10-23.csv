@@ -7,6 +7,9 @@ P1;PROG-2;Guardrails de progressão;Evita inventar limiares de adesão e incompl
 P1;PROG-3;Integrar execução/readiness/fase/rampa;Ponte para que próximo bloco responda ao realizado;PROG-2 e seams de key-workout/recovery-week;Especificar após respostas do treinador
 P1;#2 / AGENT-2;Notificações;Melhora aderência sem mudar prescrição;Canal e credenciais;Começar por comunicação read-only
 P2;#61;Revisão do hermes_agent.py;Protege interface de automação futura;Code review;Revisar antes de tornar interface oficial
+P1;AGENT-6 / #62;Bootstrap multi-profile Hermes orchestrator + coachops;Integração Telegram segura sem acoplar Coach como orquestrador;OAuth ChatGPT/Codex interativo e token Telegram atual no default;Concluir OAuth Skills/SOUL allowlist mover token uma vez e validar rollback; coachops sem Telegram inicial
+P1;AGENT-7 / #63;Eval de delegação entre Bots;Verifica roteamento confirmação e isolamento;AGENT-6 e facade #61;Casos status push dry-run bloqueio VAR-03 e fora de domínio; nenhum push real
+P4 — gate obrigatório;TENANT-1 / #64;Fronteira de tenancy Coach;Evita isolamento falso entre atletas;Antecede #8 #23 #24 #25;Especificar identidade RBAC secret store audit/idempotência e testes de não-vazamento antes de atleta externo
 P2;#22 / AGENT-3;Próximo passo e Q&A read-only;UX útil mas rationale ainda precisa estabilizar;Decision ledger;Limitar a explicação read-only
 P2;#23 + #35;Portal piloto e segundo atleta;Maior aprendizado externo; hoje 1 atleta;Portal/OAuth e voluntário;Piloto com critérios de sucesso e consentimento
 P2;#1;Atividade fantasma do Intervals;Cosmético; não muda CTL/ATL/TSB nem reconcile;Limitação API Intervals;Hold até haver folga ou reclamação recorrente; dry-run obrigatório
