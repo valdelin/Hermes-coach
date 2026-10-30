@@ -47,7 +47,17 @@ PLAN = ROOT / "plan.json"
 WEEKDAYS = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"]
 
 
-BLOCKS = " ▁▂▃▄▅▆▇█"
+BLOCKS = "▁▂▃▄▅▆▇█"
+
+ZONE_COLORS = (
+    "#4d9bff",  # Z1
+    "#ffd93b",  # Z2
+    "#ff9f1a",  # Z3
+    "#ff6b35",  # Sweet Spot
+    "#ff3b30",  # Z4
+    "#d946ef",  # Z5
+    "#8b5cf6",  # Z6
+)
 
 
 class CalendarScreen(Screen):
@@ -141,18 +151,18 @@ class CalendarScreen(Screen):
     }
 
     .workout-name {
-        height: auto;
+        height: 1;
+        overflow: hidden;
     }
 
     .workout-meta {
-        height: auto;
+        height: 1;
+        overflow: hidden;
         color: $text-muted;
     }
 
     .workout-profile {
-        height: auto;
-        color: $warning;
-        padding-top: 1;
+        height: 1;
     }
 
     .rest-label {
@@ -195,6 +205,8 @@ class CalendarScreen(Screen):
         self.current_date = date.today()
         self.selected_date = date.today()
         self._workouts_cache = {}
+        self._activity_profile_cache = {}
+        self._intervals_client = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -313,6 +325,7 @@ class CalendarScreen(Screen):
                 if inner is None and hasattr(client, 'activities'):
                     inner = client
                 if inner is not None and hasattr(inner, 'activities'):
+                    self._intervals_client = inner
                     newest = date.today()
                     oldest = newest - timedelta(days=365)
                     acts = inner.activities(oldest=oldest.isoformat(), newest=newest.isoformat()) or []
@@ -367,6 +380,68 @@ class CalendarScreen(Screen):
             return out
         return out
 
+    def _zone_color(self, intensity: float) -> str:
+        if intensity < .56:
+            return ZONE_COLORS[0]
+        if intensity < .76:
+            return ZONE_COLORS[1]
+        if intensity < .84:
+            return ZONE_COLORS[2]
+        if intensity <= .97:
+            return ZONE_COLORS[3]
+        if intensity <= 1.05:
+            return ZONE_COLORS[4]
+        if intensity <= 1.20:
+            return ZONE_COLORS[5]
+        return ZONE_COLORS[6]
+
+    def _render_profile(self, intensities: list[float]) -> str:
+        if not intensities:
+            return ""
+        lo, hi = min(intensities), max(intensities)
+        span = hi - lo if hi > lo else 1.0
+        output = []
+        for intensity in intensities:
+            index = max(0, min(len(BLOCKS) - 1,
+                               round((intensity - lo) / span * (len(BLOCKS) - 1))))
+            color = self._zone_color(intensity)
+            output.append(f"[{color}]{BLOCKS[index]}[/{color}]")
+        return "".join(output)
+
+    def _activity_profile_sparkline(self, activity: dict, width: int = 14) -> str:
+        """Mini-perfil real de potência de uma atividade do Intervals.icu."""
+        activity_id = activity.get("id")
+        if not activity_id:
+            return ""
+        cache_key = (activity_id, width)
+        if cache_key in self._activity_profile_cache:
+            return self._activity_profile_cache[cache_key]
+        try:
+            client = self._intervals_client
+            if client is None:
+                from ..utils import get_app
+                app_client = get_app().client()
+                client = getattr(app_client, "_client", None) or getattr(app_client, "client", None) or app_client
+                self._intervals_client = client
+            detail = client.activity(activity_id) or {}
+            streams = client.activity_streams(activity_id, types=("watts", "time")) or {}
+            watts = streams.get("watts") or []
+            ftp = detail.get("icu_ftp") or detail.get("icu_pm_ftp")
+            ftp = float(ftp) if ftp else None
+            if not watts or not ftp or ftp <= 0:
+                result = ""
+            else:
+                sample_count = min(width, len(watts))
+                intensities = []
+                for i in range(sample_count):
+                    value = watts[round(i * (len(watts) - 1) / max(1, sample_count - 1))]
+                    intensities.append(max(0.0, float(value)) / ftp)
+                result = self._render_profile(intensities)
+        except Exception:
+            result = ""
+        self._activity_profile_cache[cache_key] = result
+        return result
+
     def _profile_sparkline(self, w: dict, width: int = 14) -> str:
         try:
             params = w.get("params") or {}
@@ -400,15 +475,10 @@ class CalendarScreen(Screen):
             if not profile:
                 return ""
 
-            # Normalize to blocks
-            lo, hi = min(profile), max(profile)
-            span = hi - lo if hi - lo > 0 else 1.0
-            out = []
-            for v in profile[:width]:
-                idx = int((v - lo) / span * (len(BLOCKS) - 1))
-                idx = max(0, min(len(BLOCKS) - 1, idx))
-                out.append(BLOCKS[idx])
-            return "".join(out)
+            if len(profile) != width:
+                step = (len(profile) - 1) / max(1, width - 1)
+                profile = [profile[round(i * step)] for i in range(width)]
+            return self._render_profile(profile)
         except Exception:
             return ""
 
@@ -487,10 +557,10 @@ class CalendarScreen(Screen):
                             except Exception:
                                 tss_s = str(tss)
                             card.mount(Label(name[:24], classes="workout-name"))
-                            prof = self._profile_sparkline(w, width=12)
+                            prof = self._activity_profile_sparkline(done, width=12) or self._profile_sparkline(w, width=12)
                             if prof:
                                 card.mount(Label(prof, classes="workout-profile"))
-                            card.mount(Label(f"[REALIZADO] {dur}m TSS{tss_s}", classes="workout-meta"))
+                            card.mount(Label(f"Realizado · {dur}m · TSS{tss_s}", classes="workout-meta"))
                         elif done and not planned:
                             dname = str(done.get("name", "Atividade"))
                             tss = done.get("tss") or 0
@@ -504,7 +574,10 @@ class CalendarScreen(Screen):
                             except Exception:
                                 dur_m = 0
                             card.mount(Label(dname[:24], classes="workout-name"))
-                            card.mount(Label(f"[EXTRA] {dur_m}m TSS{tss_s}", classes="workout-meta"))
+                            prof = self._activity_profile_sparkline(done, width=12)
+                            if prof:
+                                card.mount(Label(prof, classes="workout-profile"))
+                            card.mount(Label(f"Extra · {dur_m}m · TSS{tss_s}", classes="workout-meta"))
                         elif planned and not done:
                             w = planned
                             name = str(w.get("name", "Treino"))
@@ -519,7 +592,7 @@ class CalendarScreen(Screen):
                             prof = self._profile_sparkline(w, width=12)
                             if prof:
                                 card.mount(Label(prof, classes="workout-profile"))
-                            card.mount(Label(f"[PLANEJADO • NÃO REALIZADO] {dur}m", classes="workout-meta"))
+                            card.mount(Label(f"Planejado · {dur}m · TSS{tss_s}", classes="workout-meta"))
                     else:
                         card.mount(Label("Descanso", classes="rest-label"))
         else:
@@ -561,10 +634,10 @@ class CalendarScreen(Screen):
                         except Exception:
                             tss_s = str(tss)
                         card.mount(Label(name[:22], classes="workout-name"))
-                        prof = self._profile_sparkline(w, width=14)
+                        prof = self._activity_profile_sparkline(done, width=14) or self._profile_sparkline(w, width=14)
                         if prof:
                             card.mount(Label(prof, classes="workout-profile"))
-                        card.mount(Label(f"[REALIZADO] {dur}m TSS{tss_s}", classes="workout-meta"))
+                        card.mount(Label(f"Realizado · {dur}m · TSS{tss_s}", classes="workout-meta"))
                     elif done and not planned:
                         dname = str(done.get("name", "Atividade"))
                         tss = done.get("tss") or 0
@@ -578,7 +651,10 @@ class CalendarScreen(Screen):
                         except Exception:
                             dur_m = 0
                         card.mount(Label(dname[:22], classes="workout-name"))
-                        card.mount(Label(f"[EXTRA] {dur_m}m TSS{tss_s}", classes="workout-meta"))
+                        prof = self._activity_profile_sparkline(done, width=14)
+                        if prof:
+                            card.mount(Label(prof, classes="workout-profile"))
+                        card.mount(Label(f"Extra · {dur_m}m · TSS{tss_s}", classes="workout-meta"))
                     elif planned and not done:
                         w = planned
                         name = str(w.get("name", "Treino"))
@@ -593,7 +669,7 @@ class CalendarScreen(Screen):
                         prof = self._profile_sparkline(w, width=14)
                         if prof:
                             card.mount(Label(prof, classes="workout-profile"))
-                        card.mount(Label(f"[PLANEJADO • NÃO REALIZADO] {dur}m", classes="workout-meta"))
+                        card.mount(Label(f"Planejado · {dur}m · TSS{tss_s}", classes="workout-meta"))
                 else:
                     card.mount(Label("Descanso", classes="rest-label"))
 
