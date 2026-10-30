@@ -43,7 +43,7 @@ unitários verdes.
 
 ### T2: Modal de prévia e confirmação
 
-**Status:** Pending
+**Status:** Complete (`T2`)
 
 **Depends on:** T1
 

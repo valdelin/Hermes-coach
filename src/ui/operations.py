@@ -21,6 +21,16 @@ class OperationName(str, Enum):
     PUSH = "push"
 
 
+class OperationPhase(str, Enum):
+    PREVIEW_READY = "preview_ready"
+    FIRST_CONFIRM = "first_confirm"
+    TYPED_CONFIRM = "typed_confirm"
+    APPLYING = "applying"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 @dataclass(frozen=True)
 class OperationSpec:
     preview_argv: tuple[str, ...]
@@ -96,3 +106,48 @@ class FacadeRunner:
             completed.stdout or "",
             completed.stderr or "",
         )
+
+
+class OperationFlow:
+    """Máquina de estados que impede apply sem prévia e confirmação."""
+
+    def __init__(self, operation: OperationName, runner: FacadeRunner) -> None:
+        self.operation = operation
+        self.spec = operation_spec(operation)
+        self.runner = runner
+        self.phase: OperationPhase | None = None
+        self.result: OperationResult | None = None
+
+    def preview(self) -> OperationResult:
+        self.result = self.runner.run(self.spec.preview_argv)
+        self.phase = (OperationPhase.PREVIEW_READY if self.result.succeeded
+                      else OperationPhase.FAILED)
+        return self.result
+
+    def continue_after_preview(self) -> bool:
+        if self.phase is not OperationPhase.PREVIEW_READY:
+            return False
+        self.phase = (OperationPhase.TYPED_CONFIRM if self.spec.typed_confirmation
+                      else OperationPhase.FIRST_CONFIRM)
+        return True
+
+    def confirm_typed(self, value: str) -> bool:
+        if self.phase is not OperationPhase.TYPED_CONFIRM:
+            return False
+        if value != self.spec.typed_confirmation:
+            return False
+        self.phase = OperationPhase.FIRST_CONFIRM
+        return True
+
+    def apply(self) -> OperationResult | None:
+        if self.phase is not OperationPhase.FIRST_CONFIRM:
+            return None
+        self.phase = OperationPhase.APPLYING
+        self.result = self.runner.run(self.spec.apply_argv)
+        self.phase = (OperationPhase.SUCCEEDED if self.result.succeeded
+                      else OperationPhase.FAILED)
+        return self.result
+
+    def cancel(self) -> None:
+        if self.phase is not OperationPhase.APPLYING:
+            self.phase = OperationPhase.CANCELLED

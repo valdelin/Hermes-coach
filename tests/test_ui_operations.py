@@ -5,7 +5,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from src.ui.operations import FacadeRunner, OperationName, operation_spec
+from src.ui.operations import (
+    FacadeRunner, OperationFlow, OperationName, OperationPhase, OperationResult,
+    operation_spec,
+)
 
 
 class OperationCatalogTest(unittest.TestCase):
@@ -66,6 +69,61 @@ class FacadeRunnerTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
         self.assertIn("arquivo ausente", result.stderr)
+
+
+class OperationFlowTest(unittest.TestCase):
+    def _runner(self, *results):
+        runner = Mock()
+        runner.run.side_effect = results
+        return runner
+
+    def test_previa_com_sucesso_habilita_apply_normal_so_apos_confirmar(self):
+        runner = self._runner(
+            OperationResult(("build", "--dry-run"), 0, "prévia", ""),
+            OperationResult(("build", "--yes"), 0, "aplicado", ""),
+        )
+        flow = OperationFlow(OperationName.BUILD, runner)
+
+        self.assertTrue(flow.preview().succeeded)
+        self.assertIsNone(flow.apply())
+        self.assertTrue(flow.continue_after_preview())
+        self.assertEqual(flow.apply().argv, ("build", "--yes"))
+        self.assertEqual(flow.phase, OperationPhase.SUCCEEDED)
+
+    def test_falha_na_previa_nao_permite_apply(self):
+        runner = self._runner(OperationResult(("check", "--dry-run"), 2, "", "falhou"))
+        flow = OperationFlow(OperationName.CHECK, runner)
+
+        self.assertFalse(flow.preview().succeeded)
+        self.assertEqual(flow.phase, OperationPhase.FAILED)
+        self.assertFalse(flow.continue_after_preview())
+        self.assertIsNone(flow.apply())
+        self.assertEqual(runner.run.call_count, 1)
+
+    def test_push_exige_texto_exato_antes_de_apply(self):
+        runner = self._runner(
+            OperationResult(("publicar", "--dry-run"), 0, "prévia", ""),
+            OperationResult(("publicar", "--yes"), 0, "publicado", ""),
+        )
+        flow = OperationFlow(OperationName.PUSH, runner)
+
+        flow.preview()
+        self.assertTrue(flow.continue_after_preview())
+        self.assertEqual(flow.phase, OperationPhase.TYPED_CONFIRM)
+        self.assertFalse(flow.confirm_typed("publicar"))
+        self.assertIsNone(flow.apply())
+        self.assertTrue(flow.confirm_typed("PUBLICAR"))
+        self.assertEqual(flow.apply().argv, ("publicar", "--yes"))
+
+    def test_cancelamento_nunca_chama_apply(self):
+        runner = self._runner(OperationResult(("reconcile", "--show"), 0, "prévia", ""))
+        flow = OperationFlow(OperationName.RECONCILE, runner)
+
+        flow.preview()
+        flow.cancel()
+        self.assertEqual(flow.phase, OperationPhase.CANCELLED)
+        self.assertIsNone(flow.apply())
+        self.assertEqual(runner.run.call_count, 1)
 
 
 if __name__ == "__main__":

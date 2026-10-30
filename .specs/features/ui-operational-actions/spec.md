@@ -119,10 +119,10 @@ argv confirmam execução sem shell e sem dados secretos.
 |---|---|---|---|
 | UIOPS-01 | P1: alterações locais | Execute | Implementing |
 | UIOPS-02 | P1: alterações locais | Execute | Implementing |
-| UIOPS-03 | P1: alterações locais | Execute | Pending |
-| UIOPS-04 | P1: publicação | Execute | Pending |
-| UIOPS-05 | P1: publicação | Execute | Pending |
-| UIOPS-06 | P2: execução | Execute | Pending |
+| UIOPS-03 | P1: alterações locais | Execute | Implementing |
+| UIOPS-04 | P1: publicação | Execute | Implementing |
+| UIOPS-05 | P1: publicação | Execute | Implementing |
+| UIOPS-06 | P2: execução | Execute | Implementing |
 | UIOPS-07 | P2: execução | Execute | Implementing |
 
 **Coverage:** 7 total, 0 mapped to tasks, 7 unmapped ⚠️
