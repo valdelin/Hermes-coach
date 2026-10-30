@@ -43,9 +43,9 @@ aplicação. Para publicar, além da prévia há uma confirmação adicional: di
 Use as setas para selecionar o dia, `m`/`w` para alternar mensal/semanal e
 `Enter` (ou espaço) para abrir o detalhe.
 
-- **REALIZADO**: treino planejado e atividade realizada no mesmo dia;
-- **PLANEJADO • NÃO REALIZADO**: existe plano, sem atividade realizada;
-- **EXTRA**: atividade realizada sem treino planejado.
+- **Realizado**: treino planejado e atividade realizada no mesmo dia;
+- **Planejado**: existe plano, sem atividade realizada;
+- **Extra**: atividade realizada sem treino planejado.
 
 Quando há mais de uma atividade no mesmo dia, a TUI prefere a que contém maior
 evidência de execução (carga, duração, potência e origem não manual), evitando
@@ -55,6 +55,18 @@ O detalhe busca sob demanda os streams de atividade do Intervals.icu. Quando
 existirem, mostra potência, FC e cadência ao longo da atividade e tempo em zonas
 de potência e FC. Os limites de FC vêm de `icu_hr_zones` da atividade. A tela se
 redesenha ao redimensionar o terminal e mantém streams em cache enquanto aberta.
+
+Um dia somente planejado mostra foco, duração, TSS, perfil de potência-alvo e os
+blocos existentes de aquecimento, trabalho, recuperação e desaquecimento. Quando
+há plano e atividade no mesmo dia, o detalhe inclui **Comparação factual** com
+Planejado, Realizado e Diferença para duração e TSS; potência média e normalizada
+só aparecem se vierem da atividade. `—` significa dado ausente.
+
+Na visão semanal, o topo mostra duração/TSS planejados e realizados, contagens de
+realizado, perdido, pendente e extra, além da distribuição planejada por zona. Um
+plano sem atividade antes de hoje é perdido; hoje e futuro são pendentes. Zonas
+realizadas só são mostradas com streams reais disponíveis; a TUI declara
+**indisponível** em vez de estimá-las.
 
 ## Prontidão: interpretação e limites
 

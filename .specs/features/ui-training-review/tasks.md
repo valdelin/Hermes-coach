@@ -139,7 +139,7 @@ streams reais em cache.
 
 ### T4: Manual e cópias didáticas
 
-**Status:** Pending
+**Status:** Complete (`T4`)
 
 **What:** Documentar as leituras adicionadas e espelhar os dois arquivos de tela
 canônicos em `docs/CODIGO-COMENTADO/`.

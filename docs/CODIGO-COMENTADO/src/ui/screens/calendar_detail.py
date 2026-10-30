@@ -28,6 +28,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Label, Static
 
+from ..training_review import day_comparison, planned_workout_summary
+
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
@@ -236,6 +238,21 @@ class CalendarDetailScreen(Screen):
         padding: 0 3;
         color: $text;
     }
+
+    .comparison-columns {
+        layout: horizontal;
+        padding: 0 2;
+    }
+
+    .comparison-column {
+        width: 1fr;
+        padding: 0 1;
+    }
+
+    .comparison-title {
+        text-style: bold;
+        color: $text-muted;
+    }
     """
 
     BINDINGS = [
@@ -303,6 +320,51 @@ class CalendarDetailScreen(Screen):
         container.mount(row)
         row.mount(Label(k, classes="k"))
         row.mount(Label(str(v), classes="v"))
+
+    def _render_structure(self, container: Vertical, planned: dict) -> None:
+        summary = planned_workout_summary(planned)
+        if not summary.blocks:
+            return
+        container.mount(Label("ESTRUTURA", classes="section"))
+        box = Vertical(classes="box")
+        container.mount(box)
+        for block in summary.blocks:
+            repetitions = f" × {block.repetitions}" if block.repetitions > 1 else ""
+            intensity = f" @ {block.intensity * 100:.0f}% FTP" if block.intensity is not None else ""
+            self._kv(box, block.label, f"{block.duration_seconds // 60} min{repetitions}{intensity}")
+
+    def _render_comparison(self, container: Vertical, planned: dict, done: dict) -> None:
+        comparison = day_comparison(planned, done)
+
+        def minutes(seconds: int | None) -> str:
+            return f"{seconds // 60} min" if seconds is not None else "—"
+
+        def signed(value: float | int | None, unit: str = "") -> str:
+            if value is None:
+                return "—"
+            number = f"{value:+.0f}" if float(value).is_integer() else f"{value:+.1f}"
+            return f"{number}{unit}"
+
+        container.mount(Label("COMPARAÇÃO FACTUAL", classes="section"))
+        columns = Horizontal(classes="comparison-columns")
+        container.mount(columns)
+        planned_box = Vertical(classes="comparison-column")
+        actual_box = Vertical(classes="comparison-column")
+        delta_box = Vertical(classes="comparison-column")
+        columns.mount(planned_box)
+        columns.mount(actual_box)
+        columns.mount(delta_box)
+        planned_box.mount(Label("PLANEJADO", classes="comparison-title"))
+        self._kv(planned_box, "Duração", minutes(comparison.planned_duration_seconds))
+        self._kv(planned_box, "TSS", f"{comparison.planned_tss:.0f}" if comparison.planned_tss is not None else "—")
+        actual_box.mount(Label("REALIZADO", classes="comparison-title"))
+        self._kv(actual_box, "Duração", minutes(comparison.actual_duration_seconds))
+        self._kv(actual_box, "TSS", f"{comparison.actual_tss:.0f}" if comparison.actual_tss is not None else "—")
+        self._kv(actual_box, "Potência média", f"{comparison.average_watts:.0f} W" if comparison.average_watts is not None else "—")
+        self._kv(actual_box, "Potência normalizada", f"{comparison.normalized_power:.0f} W" if comparison.normalized_power is not None else "—")
+        delta_box.mount(Label("DIFERENÇA", classes="comparison-title"))
+        self._kv(delta_box, "Δ duração", signed((comparison.duration_delta_seconds or 0) / 60 if comparison.duration_delta_seconds is not None else None, " min"))
+        self._kv(delta_box, "Δ TSS", signed(comparison.tss_delta))
 
     def _zone_color_for_p(self, p: float) -> str:
         if p < 0.56:
@@ -662,6 +724,9 @@ class CalendarDetailScreen(Screen):
             if planned.get("external_id"):
                 self._kv(box, "External ID", planned.get("external_id"))
 
+        if planned and done:
+            self._render_comparison(container, planned, done)
+
         # Mostrar perfil também para histórico (atividades realizadas) quando houver params?
         # Planos têm params; atividades do Intervals podem não ter. Mas vamos tentar montar
         # a partir de dados disponíveis ou pelo menos mostrar card se conseguirmos gerar.
@@ -679,6 +744,8 @@ class CalendarDetailScreen(Screen):
             pcard = Vertical(classes="profile-card")
             container.mount(pcard)
             pcard.mount(Static(prof, classes="profile"))
+        if planned:
+            self._render_structure(container, planned)
         for metric, title, unit, color in (
             ("heartrate", "FREQUÊNCIA CARDÍACA", "bpm", "#ff4d4d"),
             ("cadence", "CADÊNCIA", "rpm", "#22d3ee"),
@@ -741,21 +808,6 @@ class CalendarDetailScreen(Screen):
                 row.mount(Label(hr_range, classes="hr-zone-range"))
                 row.mount(Static(self._progress_bar(pct, color, max_hr_pct), classes="hr-zone-bar"))
                 row.mount(Label(duration, classes="hr-zone-time"))
-            params = planned.get("params") or {}
-            if isinstance(params, dict) and params:
-                container.mount(Label("ESTRUTURA", classes="section"))
-                pbox = Vertical(classes="box")
-                container.mount(pbox)
-                if params.get("warmup_sec"):
-                    self._kv(pbox, "Aquecimento", f"{int(params['warmup_sec'])//60} min")
-                if params.get("repeats"):
-                    self._kv(pbox, "Repetições", str(params["repeats"]))
-                if params.get("on_sec"):
-                    self._kv(pbox, "Bloco (ON)", f"{int(params['on_sec'])//60}m @ {params.get('on_power','?')}")
-                if params.get("off_sec"):
-                    self._kv(pbox, "Recuperação (OFF)", f"{int(params['off_sec'])//60}m @ {params.get('off_power','?')}")
-                if params.get("cooldown_sec"):
-                    self._kv(pbox, "Desaquecimento", f"{int(params['cooldown_sec'])//60} min")
 
         if done:
             container.mount(Label("TREINO REALIZADO", classes="section"))

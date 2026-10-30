@@ -104,6 +104,21 @@ class CalendarScreen(Screen):
         grid-gutter: 1 1;
     }
 
+    .week-summary {
+        height: 7;
+        border: round $panel;
+        padding: 0 1;
+        margin-bottom: 1;
+    }
+
+    .week-summary-title {
+        text-style: bold;
+    }
+
+    .week-summary-muted {
+        color: $text-muted;
+    }
+
     .weekday-header {
         height: 1;
         content-align: center middle;
@@ -482,6 +497,34 @@ class CalendarScreen(Screen):
         except Exception:
             return ""
 
+    def _render_week_summary(self, body: Container, workouts: dict) -> None:
+        from ..training_review import week_summary
+
+        summary = week_summary(workouts, self._week_start(self.current_date), date.today())
+
+        def minutes(seconds: int) -> int:
+            return seconds // 60
+
+        def zones(values: dict[str, float]) -> str:
+            if not values:
+                return "—"
+            return " · ".join(f"{zone} {int(seconds // 60)}m" for zone, seconds in values.items())
+
+        box = Vertical(classes="week-summary")
+        body.mount(box)
+        box.mount(Label("RESUMO SEMANAL", classes="week-summary-title"))
+        box.mount(Label(f"Planejado: {minutes(summary.planned_duration_seconds)}m · TSS{summary.planned_tss:.0f}"))
+        box.mount(Label(f"Realizado: {minutes(summary.actual_duration_seconds)}m · TSS{summary.actual_tss:.0f}"))
+        box.mount(Label(
+            f"{summary.completed} realizado · {summary.missed} perdido · "
+            f"{summary.pending} pendente · {summary.extra} extra",
+            classes="week-summary-muted",
+        ))
+        box.mount(Label("Zonas planejadas:", classes="week-summary-muted"))
+        box.mount(Label(zones(summary.planned_zone_seconds), classes="week-summary-muted"))
+        actual = zones(summary.actual_zone_seconds) if summary.actual_zone_seconds is not None else "indisponível"
+        box.mount(Label(f"Zonas realizadas: {actual}", classes="week-summary-muted"))
+
     def _refresh(self) -> None:
         try:
             title = self.query_one("#title", Label)
@@ -596,6 +639,7 @@ class CalendarScreen(Screen):
                     else:
                         card.mount(Label("Descanso", classes="rest-label"))
         else:
+            self._render_week_summary(body, workouts)
             grid = Grid(classes="week-grid")
             body.mount(grid)
             for wd in WEEKDAYS:
