@@ -104,7 +104,7 @@ projeções de `training_review`.
 
 ### T3: Resumo da semana no calendário
 
-**Status:** Pending
+**Status:** Complete (`T3`)
 
 **What:** Renderizar no modo semanal os totais, estados e distribuição planejada
 por zona, declarando distribuição realizada indisponível quando não houver

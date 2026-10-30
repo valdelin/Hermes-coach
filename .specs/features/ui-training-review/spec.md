@@ -114,14 +114,14 @@ para entender volume, carga e pendências da semana em uma única tela.
 | UIR-05 | P1: Plano × realizado | Execute | Verified |
 | UIR-06 | P1: Plano × realizado | Execute | Verified |
 | UIR-07 | P1: Plano × realizado | Execute | Verified |
-| UIR-08 | P1: Resumo semanal | Execute | Implementing |
-| UIR-09 | P1: Resumo semanal | Execute | Implementing |
-| UIR-10 | P1: Resumo semanal | Execute | Implementing |
-| UIR-11 | P1: Resumo semanal | Execute | Implementing |
-| UIR-12 | P1: Resumo semanal | Execute | Implementing |
-| UIR-13 | P1: Resumo semanal | Execute | Implementing |
-| UIR-14 | P1: Resumo semanal | Execute | Implementing |
-| UIR-15 | P1: Resumo semanal | Execute | Implementing |
+| UIR-08 | P1: Resumo semanal | Execute | Verified |
+| UIR-09 | P1: Resumo semanal | Execute | Verified |
+| UIR-10 | P1: Resumo semanal | Execute | Verified |
+| UIR-11 | P1: Resumo semanal | Execute | Verified |
+| UIR-12 | P1: Resumo semanal | Execute | Verified |
+| UIR-13 | P1: Resumo semanal | Execute | Verified |
+| UIR-14 | P1: Resumo semanal | Execute | Verified |
+| UIR-15 | P1: Resumo semanal | Execute | Verified |
 
 **Coverage:** 15 total, 15 mapped to tasks, 0 unmapped.
 
