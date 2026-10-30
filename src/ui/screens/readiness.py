@@ -168,6 +168,7 @@ class ReadinessScreen(Screen):
         Binding("h", "back", "Dashboard"),
         Binding("q", "quit", "Sair"),
         Binding("r", "refresh", "Atualizar"),
+        Binding("a", "check", "Verificar prontidão"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -194,6 +195,11 @@ class ReadinessScreen(Screen):
 
     def action_refresh(self) -> None:
         self._load()
+
+    def action_check(self) -> None:
+        from ..operations import OperationName
+        from .operation import OperationModal
+        self.app.push_screen(OperationModal(OperationName.CHECK, self._load))
 
     def _bar(self, val: float | None) -> str:
         if val is None:

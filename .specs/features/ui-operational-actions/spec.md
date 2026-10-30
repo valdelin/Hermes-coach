@@ -117,15 +117,15 @@ argv confirmam execução sem shell e sem dados secretos.
 
 | Requirement ID | Story | Phase | Status |
 |---|---|---|---|
-| UIOPS-01 | P1: alterações locais | Execute | Implementing |
-| UIOPS-02 | P1: alterações locais | Execute | Implementing |
-| UIOPS-03 | P1: alterações locais | Execute | Implementing |
-| UIOPS-04 | P1: publicação | Execute | Implementing |
-| UIOPS-05 | P1: publicação | Execute | Implementing |
-| UIOPS-06 | P2: execução | Execute | Implementing |
-| UIOPS-07 | P2: execução | Execute | Implementing |
+| UIOPS-01 | P1: alterações locais | Execute | Verified |
+| UIOPS-02 | P1: alterações locais | Execute | Verified |
+| UIOPS-03 | P1: alterações locais | Execute | Verified |
+| UIOPS-04 | P1: publicação | Execute | Verified |
+| UIOPS-05 | P1: publicação | Execute | Verified |
+| UIOPS-06 | P2: execução | Execute | Verified |
+| UIOPS-07 | P2: execução | Execute | Verified |
 
-**Coverage:** 7 total, 0 mapped to tasks, 7 unmapped ⚠️
+**Coverage:** 7 total, 7 mapped to tasks, 0 unmapped
 
 ## Success Criteria
 

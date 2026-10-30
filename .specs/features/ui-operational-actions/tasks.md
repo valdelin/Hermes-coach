@@ -81,7 +81,7 @@ de placeholder.
 
 ### T4: Ação de check, manual e validação integrada
 
-**Status:** Pending
+**Status:** Complete (`T4`)
 
 **Depends on:** T2
 

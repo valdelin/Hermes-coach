@@ -30,6 +30,14 @@ o que puder ser obtido do plano local.
 Atalhos globais: `q` sai; `Esc` volta. A barra inferior mostra os atalhos da
 tela atual.
 
+## Operações protegidas
+
+No dashboard, `g`, `r` e `p` iniciam respectivamente gerar plano, reconciliar e
+publicar. Em Prontidão, `a` inicia `check`. A TUI sempre executa primeiro uma
+prévia pela facade `scripts/hermes_agent.py`, mostra a saída e só então oferece
+aplicação. Para publicar, além da prévia há uma confirmação adicional: digite
+`PUBLICAR`. Cancelar em qualquer etapa não executa a ação mutável.
+
 ## Calendário e detalhe de treino
 
 Use as setas para selecionar o dia, `m`/`w` para alternar mensal/semanal e

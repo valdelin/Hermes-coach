@@ -121,6 +121,17 @@ class DashboardOperationTest(unittest.TestCase):
         operations = [call.args[0]._flow.operation for call in app.push_screen.call_args_list]
         self.assertEqual(operations, [OperationName.BUILD, OperationName.RECONCILE, OperationName.PUSH])
 
+    def test_prontidao_abre_modal_de_check(self):
+        from textual.screen import Screen
+        from src.ui.screens.readiness import ReadinessScreen
+
+        app = Mock()
+        screen = ReadinessScreen()
+        with patch.object(Screen, "app", new_callable=PropertyMock, return_value=app):
+            screen.action_check()
+
+        self.assertEqual(app.push_screen.call_args.args[0]._flow.operation, OperationName.CHECK)
+
     def test_push_exige_texto_exato_antes_de_apply(self):
         runner = self._runner(
             OperationResult(("publicar", "--dry-run"), 0, "prévia", ""),
