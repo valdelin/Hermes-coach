@@ -12,7 +12,7 @@
 | Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
 | --- | --- | --- | --- | --- |
 | UI projection logic | unit | Every UIR acceptance criterion and listed data-absence edge case | `tests/test_training_review.py` | `python3 -m unittest tests.test_training_review -v` |
-| Detail and calendar rendering | headless UI integration | One fixture per planned, compared and weekly state; verify visible factual text | `tests/test_ui_calendar.py` | `python3 -m unittest tests.test_ui_calendar -v` |
+| Detail and calendar rendering | headless UI integration | One fixture per planned, compared and weekly state; verify visible factual text | `tests/test_ui_calendar_detail.py`, `tests/test_ui_calendar.py` | focused commands by screen |
 | Full repository | CI-equivalent | All existing tests remain green | `tests/test_*.py` | `python3 -m unittest discover -s tests -v` |
 
 ## Gate Check Commands
@@ -20,7 +20,7 @@
 | Gate | When | Command |
 | --- | --- | --- |
 | Quick | Projection task | `python3 -m unittest tests.test_training_review -v` |
-| Full | Screen task | `python3 -m unittest tests.test_training_review tests.test_ui_calendar -v` |
+| Full | Screen task | `python3 -m unittest tests.test_training_review tests.test_ui_calendar_detail -v` |
 | Build | Final documentation/integration task | `python3 -m unittest discover -s tests -v` |
 
 ## Execution Plan
@@ -71,14 +71,14 @@ UIR-09, UIR-10, UIR-11, UIR-12, UIR-13, UIR-14, UIR-15.
 
 ### T2: Detalhe de plano e comparação diária
 
-**Status:** Pending
+**Status:** Complete (`T2`)
 
 **What:** Renderizar estrutura planejada independente de streams/FC e a
 comparação Planejado × Realizado lado a lado no detalhe do calendário.
 
 **Where:** `src/ui/screens/calendar_detail.py`
 
-**Tests at:** `tests/test_ui_calendar.py`
+**Tests at:** `tests/test_ui_calendar_detail.py`
 
 **Depends on:** T1
 

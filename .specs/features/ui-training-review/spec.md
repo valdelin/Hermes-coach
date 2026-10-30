@@ -107,13 +107,13 @@ para entender volume, carga e pendências da semana em uma única tela.
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| UIR-01 | P1: Detalhe planejado | Execute | Implementing |
-| UIR-02 | P1: Detalhe planejado | Tasks | Pending |
-| UIR-03 | P1: Detalhe planejado | Execute | Implementing |
-| UIR-04 | P1: Plano × realizado | Execute | Implementing |
-| UIR-05 | P1: Plano × realizado | Execute | Implementing |
-| UIR-06 | P1: Plano × realizado | Execute | Implementing |
-| UIR-07 | P1: Plano × realizado | Execute | Implementing |
+| UIR-01 | P1: Detalhe planejado | Execute | Verified |
+| UIR-02 | P1: Detalhe planejado | Execute | Verified |
+| UIR-03 | P1: Detalhe planejado | Execute | Verified |
+| UIR-04 | P1: Plano × realizado | Execute | Verified |
+| UIR-05 | P1: Plano × realizado | Execute | Verified |
+| UIR-06 | P1: Plano × realizado | Execute | Verified |
+| UIR-07 | P1: Plano × realizado | Execute | Verified |
 | UIR-08 | P1: Resumo semanal | Execute | Implementing |
 | UIR-09 | P1: Resumo semanal | Execute | Implementing |
 | UIR-10 | P1: Resumo semanal | Execute | Implementing |
@@ -123,7 +123,7 @@ para entender volume, carga e pendências da semana em uma única tela.
 | UIR-14 | P1: Resumo semanal | Execute | Implementing |
 | UIR-15 | P1: Resumo semanal | Execute | Implementing |
 
-**Coverage:** 15 total, 0 mapped to tasks, 15 unmapped.
+**Coverage:** 15 total, 15 mapped to tasks, 0 unmapped.
 
 ## Success Criteria
 
