@@ -62,7 +62,7 @@ estado em execução bloqueia novas transições.
 
 ### T3: Ações do dashboard
 
-**Status:** Pending
+**Status:** Complete (`T3`)
 
 **Depends on:** T2
 

@@ -3,7 +3,7 @@
 import subprocess
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, PropertyMock, patch
 
 from src.ui.operations import (
     FacadeRunner, OperationFlow, OperationName, OperationPhase, OperationResult,
@@ -99,6 +99,27 @@ class OperationFlowTest(unittest.TestCase):
         self.assertFalse(flow.continue_after_preview())
         self.assertIsNone(flow.apply())
         self.assertEqual(runner.run.call_count, 1)
+
+
+class DashboardOperationTest(unittest.TestCase):
+    def _runner(self, *results):
+        runner = Mock()
+        runner.run.side_effect = results
+        return runner
+
+    def test_dashboard_abre_modal_para_operacoes_declaradas(self):
+        from textual.screen import Screen
+        from src.ui.screens.dashboard import DashboardScreen
+
+        app = Mock()
+        screen = DashboardScreen()
+        with patch.object(Screen, "app", new_callable=PropertyMock, return_value=app):
+            screen.action_generate()
+            screen.action_reconcile()
+            screen.action_publish()
+
+        operations = [call.args[0]._flow.operation for call in app.push_screen.call_args_list]
+        self.assertEqual(operations, [OperationName.BUILD, OperationName.RECONCILE, OperationName.PUSH])
 
     def test_push_exige_texto_exato_antes_de_apply(self):
         runner = self._runner(

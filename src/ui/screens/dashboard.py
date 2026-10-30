@@ -102,16 +102,21 @@ class DashboardScreen(Screen):
         self.app.push_screen(ReadinessScreen())
 
     def action_generate(self):
-        self.app.bell()
-        self.notify("Use 'g' no terminal CLI ou rode: python scripts/hermes_agent.py build")
+        self._open_operation("build")
 
     def action_publish(self):
-        self.app.bell()
-        self.notify("Acesse Publicar (p): sempre com push --dry-run primeiro.")
+        self._open_operation("push")
 
     def action_reconcile(self):
-        self.app.bell()
-        self.notify("Rode: python scripts/hermes_agent.py reconcile")
+        self._open_operation("reconcile")
+
+    def _open_operation(self, name: str) -> None:
+        from ..operations import OperationName
+        from .operation import OperationModal
+        self.app.push_screen(OperationModal(OperationName(name), self._reload))
+
+    def _reload(self) -> None:
+        self.refresh(recompose=True)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn_cal":
