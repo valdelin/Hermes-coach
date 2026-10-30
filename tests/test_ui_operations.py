@@ -165,6 +165,15 @@ class DashboardOperationTest(unittest.TestCase):
         modal._complete_success()
         self.assertEqual(refresh.call_count, 1)
 
+    def test_saida_do_modal_inclui_comando_e_exit_code(self):
+        from src.ui.screens.operation import OperationModal
+
+        modal = OperationModal(OperationName.BUILD)
+        result = OperationResult(("build", "--dry-run"), 0, "ok", "")
+        text = modal._format_output(result)
+        self.assertIn("$ hermes_agent.py build --dry-run", text)
+        self.assertIn("exit code: 0", text)
+
     def test_cancelamento_nunca_chama_apply(self):
         runner = self._runner(OperationResult(("reconcile", "--show"), 0, "prévia", ""))
         flow = OperationFlow(OperationName.RECONCILE, runner)

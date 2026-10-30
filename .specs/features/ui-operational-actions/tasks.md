@@ -118,6 +118,25 @@ UIOPS-07 reportados pelo verificador estão corrigidos.
 
 **Commit:** `fix(ui): align operations with facade parser`
 
+### T6: Fechar gaps da verificação independente
+
+**Status:** Complete (`T6`)
+
+**Depends on:** T5
+
+**Files:** `src/ui/screens/operation.py`, `docs/MANUAL-TUI.md`,
+`tests/test_ui_operations.py`, `.specs/features/ui-operational-actions/spec.md`,
+`.specs/features/ui-operational-actions/tasks.md`
+
+**Tests:** comando e exit code são renderizados; callback de sucesso continua
+coberto; contrato EARS usa argv aceito pela facade.
+
+**Done when:** spec, manual e modal descrevem o mesmo fluxo executável.
+
+**Gate:** Quick
+
+**Commit:** `fix(ui): close operation verification gaps`
+
 ## Test Coverage Matrix
 
 | Requirement | Tests | Task |

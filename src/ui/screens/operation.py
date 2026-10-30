@@ -24,9 +24,10 @@ class OperationModal(ModalScreen[bool]):
     #operation-token { display: none; }
     """
 
-    def __init__(self, operation: OperationName, on_success: Callable[[], None] | None = None):
+    def __init__(self, operation: OperationName, on_success: Callable[[], None] | None = None,
+                 runner: FacadeRunner | None = None):
         super().__init__()
-        self._flow = OperationFlow(operation, FacadeRunner())
+        self._flow = OperationFlow(operation, runner or FacadeRunner())
         self._on_success = on_success
         self._worker = None
 
@@ -59,9 +60,7 @@ class OperationModal(ModalScreen[bool]):
 
     def _render_result(self) -> None:
         result = self._flow.result
-        command = " ".join(result.argv) if result else ""
-        output = "\n".join(part for part in (result.stdout, result.stderr) if part) if result else ""
-        output = f"$ hermes_agent.py {command}\nexit code: {result.returncode if result else 'desconhecido'}\n\n{output or 'Saída vazia.'}"
+        output = self._format_output(result)
         self.query_one("#operation-output", Static).update(output)
         status = self.query_one("#operation-status", Label)
         if self._flow.phase is OperationPhase.PREVIEW_READY:
@@ -70,8 +69,15 @@ class OperationModal(ModalScreen[bool]):
         elif self._flow.phase is OperationPhase.SUCCEEDED:
             status.update("Operação concluída.")
             self._complete_success()
+            self.query_one("#operation-cancel", Button).disabled = False
         else:
             status.update(f"Operação falhou (exit {result.returncode if result else 'desconhecido'}).")
+            self.query_one("#operation-cancel", Button).disabled = False
+
+    def _format_output(self, result) -> str:
+        command = " ".join(result.argv) if result else ""
+        output = "\n".join(part for part in (result.stdout, result.stderr) if part) if result else ""
+        return f"$ hermes_agent.py {command}\nexit code: {result.returncode if result else 'desconhecido'}\n\n{output or 'Saída vazia.'}"
 
     def _complete_success(self) -> None:
         if self._on_success:

@@ -63,8 +63,9 @@ duração/score de sono, fadiga, soreness, stress, mood, motivation, readiness d
 provider, CTL e ATL. Campos ausentes aparecem em cinza e reduzem a confiança.
 
 Um score de prontidão só é interpretável quando o sinal bruto tem baseline
-individual e regra de normalização explícitos. A TUI atual é de leitura: não
-executa `check --apply` nem muda o plano.
+individual e regra de normalização explícitos. A TUI apresenta a leitura e pode
+executar o fluxo protegido de `check`: prévia, confirmação e aplicação pela
+facade.
 
 ## Segurança e escopo atual
 

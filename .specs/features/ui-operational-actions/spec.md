@@ -54,7 +54,7 @@ mostrar o resultado consultivo e obter confirmação.
 2. WHEN o atleta iniciar `check`, THEN a TUI SHALL executar `scripts/hermes_agent.py check --dry-run` sem `--yes` e mostrar stdout, stderr e exit code.
 3. WHEN o atleta iniciar `reconcile`, THEN a TUI SHALL executar `scripts/hermes_agent.py reconcile --show` sem `--yes` e mostrar stdout, stderr e exit code.
 4. WHEN uma prévia retornar exit code zero, THEN a TUI SHALL oferecer a ação `Aplicar` correspondente sem executá-la automaticamente.
-5. WHEN o atleta confirmar `Aplicar`, THEN a TUI SHALL executar somente `scripts/hermes_agent.py <ação> --yes` com os argumentos mutáveis definidos para a ação.
+5. WHEN o atleta confirmar `Aplicar`, THEN a TUI SHALL executar somente `scripts/hermes_agent.py --yes <ação>` com os argumentos mutáveis definidos para a ação.
 6. IF o atleta cancelar a confirmação, THEN a TUI SHALL não iniciar subprocesso mutável nem enviar `--yes`.
 7. IF uma prévia ou aplicação retornar exit code não zero, THEN a TUI SHALL mostrar a saída capturada, marcar a operação como falha e não oferecer confirmação de aplicação para aquela prévia.
 
@@ -72,9 +72,9 @@ duas vezes antes de escrever no calendário do Intervals.icu.
 
 **Acceptance Criteria**:
 
-1. WHEN o atleta iniciar publicação, THEN a TUI SHALL executar `scripts/hermes_agent.py publicar --dry-run` sem `--yes` e mostrar a saída.
+1. WHEN o atleta iniciar publicação, THEN a TUI SHALL executar `scripts/hermes_agent.py push --dry-run` sem `--yes` e mostrar a saída.
 2. WHEN o dry-run de publicação retornar exit code zero, THEN a TUI SHALL exigir uma confirmação de continuidade antes de exibir a confirmação textual final.
-3. WHEN o atleta informar exatamente `PUBLICAR` na segunda confirmação, THEN a TUI SHALL executar `scripts/hermes_agent.py publicar --yes`.
+3. WHEN o atleta informar exatamente `PUBLICAR` na segunda confirmação, THEN a TUI SHALL executar `scripts/hermes_agent.py --yes push`.
 4. IF a confirmação textual for diferente de `PUBLICAR` ou for cancelada, THEN a TUI SHALL não executar publicação nem enviar `--yes`.
 5. IF o dry-run ou a publicação retornar exit code não zero, THEN a TUI SHALL mostrar a saída capturada e SHALL não tentar nova operação automaticamente.
 
