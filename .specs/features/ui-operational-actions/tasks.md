@@ -98,6 +98,26 @@ prévia/confirmação; suíte completa passa.
 
 **Commit:** `feat(ui): add readiness check action`
 
+### T5: Corrigir contrato da facade e observabilidade do modal
+
+**Status:** Complete (`T5`)
+
+**Depends on:** T1, T2, T3, T4
+
+**Files:** `src/ui/operations.py`, `src/ui/screens/operation.py`,
+`docs/MANUAL-TUI.md`, `tests/test_ui_operations.py`,
+`.specs/features/ui-operational-actions/{tasks,spec}.md`
+
+**Tests:** parser real aceita todo argv do catálogo; sucesso chama refresh;
+saída mostra comando e exit code; durante apply não é possível cancelar o modal.
+
+**Done when:** gaps bloqueantes de UIOPS-01, UIOPS-02, UIOPS-04, UIOPS-06 e
+UIOPS-07 reportados pelo verificador estão corrigidos.
+
+**Gate:** Build
+
+**Commit:** `fix(ui): align operations with facade parser`
+
 ## Test Coverage Matrix
 
 | Requirement | Tests | Task |

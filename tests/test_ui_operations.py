@@ -17,7 +17,7 @@ class OperationCatalogTest(unittest.TestCase):
             OperationName.BUILD: ("build", "--dry-run"),
             OperationName.CHECK: ("check", "--dry-run"),
             OperationName.RECONCILE: ("reconcile", "--show"),
-            OperationName.PUSH: ("publicar", "--dry-run"),
+            OperationName.PUSH: ("push", "--dry-run"),
         }
         for operation, argv in expected.items():
             with self.subTest(operation=operation):
@@ -26,13 +26,13 @@ class OperationCatalogTest(unittest.TestCase):
 
     def test_aplicacoes_sao_fechadas_e_somente_push_exige_texto(self):
         self.assertEqual(operation_spec(OperationName.BUILD).apply_argv,
-                         ("build", "--yes"))
+                         ("--yes", "build"))
         self.assertEqual(operation_spec(OperationName.CHECK).apply_argv,
-                         ("check", "--apply", "--yes"))
+                         ("--yes", "check", "--apply"))
         self.assertEqual(operation_spec(OperationName.RECONCILE).apply_argv,
-                         ("reconcile", "--yes"))
+                         ("--yes", "reconcile"))
         self.assertEqual(operation_spec(OperationName.PUSH).apply_argv,
-                         ("publicar", "--yes"))
+                         ("--yes", "push"))
         self.assertEqual(operation_spec(OperationName.PUSH).typed_confirmation,
                          "PUBLICAR")
         self.assertIsNone(operation_spec(OperationName.BUILD).typed_confirmation)
@@ -80,14 +80,14 @@ class OperationFlowTest(unittest.TestCase):
     def test_previa_com_sucesso_habilita_apply_normal_so_apos_confirmar(self):
         runner = self._runner(
             OperationResult(("build", "--dry-run"), 0, "prévia", ""),
-            OperationResult(("build", "--yes"), 0, "aplicado", ""),
+            OperationResult(("--yes", "build"), 0, "aplicado", ""),
         )
         flow = OperationFlow(OperationName.BUILD, runner)
 
         self.assertTrue(flow.preview().succeeded)
         self.assertIsNone(flow.apply())
         self.assertTrue(flow.continue_after_preview())
-        self.assertEqual(flow.apply().argv, ("build", "--yes"))
+        self.assertEqual(flow.apply().argv, ("--yes", "build"))
         self.assertEqual(flow.phase, OperationPhase.SUCCEEDED)
 
     def test_falha_na_previa_nao_permite_apply(self):
@@ -134,8 +134,8 @@ class DashboardOperationTest(unittest.TestCase):
 
     def test_push_exige_texto_exato_antes_de_apply(self):
         runner = self._runner(
-            OperationResult(("publicar", "--dry-run"), 0, "prévia", ""),
-            OperationResult(("publicar", "--yes"), 0, "publicado", ""),
+            OperationResult(("push", "--dry-run"), 0, "prévia", ""),
+            OperationResult(("--yes", "push"), 0, "publicado", ""),
         )
         flow = OperationFlow(OperationName.PUSH, runner)
 
@@ -145,7 +145,25 @@ class DashboardOperationTest(unittest.TestCase):
         self.assertFalse(flow.confirm_typed("publicar"))
         self.assertIsNone(flow.apply())
         self.assertTrue(flow.confirm_typed("PUBLICAR"))
-        self.assertEqual(flow.apply().argv, ("publicar", "--yes"))
+        self.assertEqual(flow.apply().argv, ("--yes", "push"))
+
+    def test_catalogo_e_aceito_pelo_parser_da_facade(self):
+        from scripts.hermes_agent import build_parser
+
+        parser = build_parser()
+        for operation in OperationName:
+            spec = operation_spec(operation)
+            for argv in (spec.preview_argv, spec.apply_argv):
+                with self.subTest(operation=operation, argv=argv):
+                    self.assertIsNotNone(parser.parse_args(list(argv)))
+
+    def test_sucesso_do_modal_chama_refresh_uma_vez(self):
+        from src.ui.screens.operation import OperationModal
+
+        refresh = Mock()
+        modal = OperationModal(OperationName.BUILD, refresh)
+        modal._complete_success()
+        self.assertEqual(refresh.call_count, 1)
 
     def test_cancelamento_nunca_chama_apply(self):
         runner = self._runner(OperationResult(("reconcile", "--show"), 0, "prévia", ""))

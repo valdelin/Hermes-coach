@@ -68,9 +68,9 @@ executa `check --apply` nem muda o plano.
 
 ## Segurança e escopo atual
 
-Dashboard e telas implementadas são **somente leitura**. Ações futuras devem
-usar exclusivamente `scripts/hermes_agent.py`, preservar dry-run e pedir
-confirmação antes de qualquer `build --apply`, `reconcile --apply` ou `push`.
+Consultas permanecem local-first. As operações disponíveis usam exclusivamente
+`scripts/hermes_agent.py`, preservam dry-run e exigem confirmação antes de
+qualquer mutação local ou externa.
 
 ## Código comentado para estudo
 

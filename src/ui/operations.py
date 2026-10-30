@@ -53,19 +53,19 @@ class OperationResult:
 _OPERATIONS = {
     OperationName.BUILD: OperationSpec(
         preview_argv=("build", "--dry-run"),
-        apply_argv=("build", "--yes"),
+        apply_argv=("--yes", "build"),
     ),
     OperationName.CHECK: OperationSpec(
         preview_argv=("check", "--dry-run"),
-        apply_argv=("check", "--apply", "--yes"),
+        apply_argv=("--yes", "check", "--apply"),
     ),
     OperationName.RECONCILE: OperationSpec(
         preview_argv=("reconcile", "--show"),
-        apply_argv=("reconcile", "--yes"),
+        apply_argv=("--yes", "reconcile"),
     ),
     OperationName.PUSH: OperationSpec(
-        preview_argv=("publicar", "--dry-run"),
-        apply_argv=("publicar", "--yes"),
+        preview_argv=("push", "--dry-run"),
+        apply_argv=("--yes", "push"),
         typed_confirmation="PUBLICAR",
     ),
 }

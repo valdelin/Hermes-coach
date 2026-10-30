@@ -49,6 +49,7 @@ class OperationModal(ModalScreen[bool]):
         self._worker = self.run_worker(self._flow.preview, thread=True, exclusive=True, exit_on_error=False)
 
     def _run_apply(self) -> None:
+        self.query_one("#operation-cancel", Button).disabled = True
         self._worker = self.run_worker(self._flow.apply, thread=True, exclusive=True, exit_on_error=False)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -58,22 +59,29 @@ class OperationModal(ModalScreen[bool]):
 
     def _render_result(self) -> None:
         result = self._flow.result
+        command = " ".join(result.argv) if result else ""
         output = "\n".join(part for part in (result.stdout, result.stderr) if part) if result else ""
-        self.query_one("#operation-output", Static).update(output or "Saída vazia.")
+        output = f"$ hermes_agent.py {command}\nexit code: {result.returncode if result else 'desconhecido'}\n\n{output or 'Saída vazia.'}"
+        self.query_one("#operation-output", Static).update(output)
         status = self.query_one("#operation-status", Label)
         if self._flow.phase is OperationPhase.PREVIEW_READY:
             status.update("Prévia concluída. Revise a saída antes de continuar.")
             self.query_one("#operation-continue", Button).disabled = False
         elif self._flow.phase is OperationPhase.SUCCEEDED:
             status.update("Operação concluída.")
-            if self._on_success:
-                self._on_success()
+            self._complete_success()
         else:
             status.update(f"Operação falhou (exit {result.returncode if result else 'desconhecido'}).")
+
+    def _complete_success(self) -> None:
+        if self._on_success:
+            self._on_success()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
         if button_id == "operation-cancel":
+            if self._flow.phase is OperationPhase.APPLYING:
+                return
             self._flow.cancel()
             self.dismiss(False)
         elif button_id == "operation-continue" and self._flow.continue_after_preview():
