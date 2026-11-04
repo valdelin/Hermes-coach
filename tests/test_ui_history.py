@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.ui.history import link_activities
+from src.ui.history import link_activities, historical_power_steps
 
 
 class ActivityLinksTest(unittest.TestCase):
@@ -38,6 +38,24 @@ class ActivityLinksTest(unittest.TestCase):
         result = link_activities(events, activities)
         self.assertEqual(result.activities, tuple(activities))
         self.assertEqual(result.event_activity, {})
+
+
+class HistoricalPowerStepsTest(unittest.TestCase):
+    def test_perfil_estruturado_preserva_rampas_e_bloco(self):
+        event = {"workout_doc": {"steps": [
+            {"duration": 600, "power": {"units": "%ftp", "start": 45, "end": 75}},
+            {"duration": 2400, "power": {"units": "%ftp", "value": 60}},
+            {"duration": 600, "power": {"units": "%ftp", "start": 70, "end": 45}},
+        ]}}
+        self.assertEqual(historical_power_steps(event), (
+            (600, 0.45, 0.75), (2400, 0.6, 0.6), (600, 0.7, 0.45)))
+
+    def test_sem_potencia_ou_formato_desconhecido_nao_inventa_perfil(self):
+        for event in ({}, {"workout_doc": {"steps": [
+                {"duration": 600, "power": {"units": "watts", "value": 120}}]}},
+                {"workout_doc": {"steps": [{"duration": 600}]}}):
+            with self.subTest(event=event):
+                self.assertIsNone(historical_power_steps(event))
 
 
 if __name__ == "__main__":

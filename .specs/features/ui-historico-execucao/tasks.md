@@ -55,6 +55,8 @@ graph LR
 
 ### T2: Traduzir estrutura histórica
 
+**Status**: Concluído; exibição na TUI pendente.
+
 **What**: Traduzir evento e passos de potência suportados sem inventar dados.
 **Where**: `src/ui/history.py`
 **Depends on**: T1

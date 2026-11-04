@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 
 @dataclass(frozen=True)
@@ -38,3 +39,28 @@ def link_activities(events: list[dict], activities: list[dict]) -> ActivityLinks
             continue
         kept.append(activity)
     return ActivityLinks(tuple(kept), event_activity, activity_event)
+
+
+def historical_power_steps(event: dict) -> tuple[tuple[int, float, float], ...] | None:
+    """Retorna apenas passos simples explícitos em %FTP; rejeita perfis parciais."""
+    doc = event.get("workout_doc")
+    steps = doc.get("steps") if isinstance(doc, dict) else None
+    if not isinstance(steps, list) or not steps:
+        return None
+    result = []
+    for step in steps:
+        if not isinstance(step, dict) or not isinstance(step.get("power"), dict):
+            return None
+        power = step["power"]
+        if power.get("units") != "%ftp" or any(k in step for k in ("steps", "repeat", "repeats")):
+            return None
+        try:
+            duration = float(step["duration"])
+            start = float(power["value"] if "value" in power else power["start"])
+            end = float(power["value"] if "value" in power else power["end"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not all(math.isfinite(x) for x in (duration, start, end)) or duration <= 0 or start < 0 or end < 0 or not duration.is_integer():
+            return None
+        result.append((int(duration), start / 100, end / 100))
+    return tuple(result)
