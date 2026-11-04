@@ -163,10 +163,27 @@ class Application:
         max_workout_duration_sec = plan.parse_max_workout_duration_minutes(
             self.get_env("MAX_WORKOUT_DURATION_MINUTES", "") or
             self.get_env("MAX_WORKOUT_DURATION_HOURS", "") or "")
+        if __package__:
+            from . import preferences
+        else:
+            import preferences
+        prefs_path = Path(self.plan_path).parent / "data" / "user_prefs.json"
+        prefs = preferences._load_json(prefs_path)
         raw_training_days = self.get_env("TRAINING_DAYS", "") or ""
-        training_days = (plan.parse_training_days(raw_training_days)
-                         if raw_training_days.strip() else ())
-        long_day = plan.parse_long_day(self.get_env("LONG_DAY", "") or "")
+        configured_days = prefs.get("training_days")
+        if isinstance(configured_days, list) and configured_days:
+            try:
+                training_days = tuple(sorted({int(d) for d in configured_days if 0 <= int(d) <= 6}))
+            except (TypeError, ValueError):
+                training_days = ()
+        else:
+            training_days = (plan.parse_training_days(raw_training_days)
+                             if raw_training_days.strip() else ())
+        configured_long_day = prefs.get("preferred_long_day")
+        if isinstance(configured_long_day, int) and 0 <= configured_long_day <= 6:
+            long_day = configured_long_day
+        else:
+            long_day = plan.parse_long_day(self.get_env("LONG_DAY", "") or "")
         trend = self.get_heart_rate_trend_view(today=today, now=now)
         resting_hr = trend.rhr.current if trend.rhr is not None else None
         return _athlete_profile.build_athlete_profile(

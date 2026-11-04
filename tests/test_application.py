@@ -179,6 +179,17 @@ class LocalUseCasesTest(unittest.TestCase):
                          snapshot_before)
         self.assertEqual(calls["client"], 0)
 
+    def test_profile_prioriza_preferencias_isoladas_do_plano(self):
+        self.env_file.write_text("TRAINING_DAYS=seg,qua,sex\nLONG_DAY=dom\n", encoding="utf-8")
+        prefs = self.root / "data" / "user_prefs.json"
+        prefs.parent.mkdir()
+        prefs.write_text(json.dumps({"training_days": [1, 3], "preferred_long_day": 3}), encoding="utf-8")
+        app, _ = self._app()
+        with mock.patch.dict(os.environ, {}, clear=True):
+            profile = app.get_athlete_physiological_profile(today=date(2026, 10, 3))
+        self.assertEqual(profile.training_days, (1, 3))
+        self.assertEqual(profile.preferred_long_day, 3)
+
 
 class AthleteProfileFtpHistoryTest(unittest.TestCase):
     """FTP-H1 — `profile.ftp` reflete somente a `FtpReference` canonica.

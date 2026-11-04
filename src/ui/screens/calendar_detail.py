@@ -13,7 +13,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Label, Static
 
-from ..training_review import day_comparison, planned_workout_summary
+from ..training_review import day_comparison, day_plans, planned_workout_summary, zone_seconds_for_stream
+from ..history import sample_power_steps
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
@@ -251,6 +252,8 @@ class CalendarDetailScreen(Screen):
         self.day_iso = day_iso
         self.entry = entry or {}
         self._activity_stream_cache = {}
+        self._zone_update_callback = None
+        self._reported_zones = set()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -292,11 +295,32 @@ class CalendarDetailScreen(Screen):
     def _status_text(self) -> str:
         planned = self.entry.get("planned")
         done = self.entry.get("done")
+        if self.entry.get("matching_unavailable") and (planned or done):
+            return "STATUS INDISPONÍVEL"
+        if len(day_plans(self.entry)) > 1:
+            return "MÚLTIPLOS TREINOS • CONSULTE DETALHES"
+        if planned and done and self.entry.get("matching_required"):
+            matched = self.entry.get("matched_activity_id")
+            if matched is None or str(done.get("id")) != str(matched):
+                try:
+                    status = "PENDENTE" if date.fromisoformat(self.day_iso) >= date.today() else "NÃO REALIZADO"
+                except ValueError:
+                    return "STATUS INDISPONÍVEL"
+                return f"PLANEJADO • {status} • ATIVIDADE EXTRA"
         if planned and done:
+            activities = self.entry.get("activities") or []
+            if self.entry.get("matching_required") and any(
+                    str(a.get("id")) != str(self.entry.get("matched_activity_id")) for a in activities):
+                return "PLANEJADO • REALIZADO • ATIVIDADE EXTRA"
             return "PLANEJADO • REALIZADO"
         if done and not planned:
             return "REALIZADO FORA DO PLANO"
         if planned and not done:
+            try:
+                if date.fromisoformat(self.day_iso) >= date.today():
+                    return "PLANEJADO • PENDENTE"
+            except ValueError:
+                return "STATUS INDISPONÍVEL"
             return "PLANEJADO • NÃO REALIZADO"
         return "DESCANSO"
 
@@ -560,6 +584,16 @@ class CalendarDetailScreen(Screen):
 
     def _profile(self, w: dict, scale: float = 1.8, width: int | None = None) -> str:
         try:
+            if w.get("origin") == "intervals":
+                samples = sample_power_steps(w.get("historical_power_steps") or (), width or 60)
+                if not samples:
+                    return ""
+                blocks = "▁▂▃▄▅▆▇█"
+                lo, hi = min(samples), max(samples)
+                span = hi - lo or 1.0
+                return "".join(
+                    f"[{self._zone_color_for_p(p)}]{blocks[round((p-lo)/span*(len(blocks)-1))]}[/{self._zone_color_for_p(p)}]"
+                    for p in samples)
             params = w.get("params") or {}
             if not isinstance(params, dict):
                 return ""
@@ -687,29 +721,59 @@ class CalendarDetailScreen(Screen):
         planned = self.entry.get("planned") or {}
         done = self.entry.get("done") or {}
 
+        activities = self.entry.get("activities") or []
+        if self.entry.get("plan_divergence"):
+            container.mount(Label("Plano local difere do evento remoto.", classes="section"))
+            for remote in self.entry.get("remote_plans") or []:
+                if remote.get("shadowed_by_local"):
+                    container.mount(Label(f"Evento remoto: {remote.get('name') or 'Sem nome'} · {remote.get('day') or '—'}"))
+                    remote_profile = self._profile(remote, width=self._chart_width())
+                    if remote_profile:
+                        container.mount(Static(remote_profile, classes="profile"))
+                    else:
+                        container.mount(Label("Perfil remoto indisponível."))
+        if len(activities) > 1:
+            container.mount(Label("ATIVIDADES DO DIA", classes="section"))
+            for activity in activities:
+                container.mount(Label(str(activity.get("name") or activity.get("id") or "Atividade")))
+
         if planned:
             container.mount(Label("TREINO PLANEJADO", classes="section"))
             box = Vertical(classes="box")
             container.mount(box)
-            name = planned.get("name") or "Treino"
-            box.mount(Label(name))
-            self._kv(box, "Foco", planned.get("focus") or "—")
-            dur = planned.get("planned_duration") or 0
-            try:
-                dur_m = int(int(dur) // 60)
-            except Exception:
-                dur_m = 0
-            self._kv(box, "Duração", f"{dur_m} min")
+            if planned.get("origin") == "intervals":
+                self._kv(box, "Origem", "Intervals.icu")
+            if self.entry.get("structure_comparison_unavailable"):
+                box.mount(Label("Comparação da estrutura indisponível."))
+            remote_plans = self.entry.get("remote_plans") or []
+            for remote in remote_plans:
+                if remote is not planned and remote.get("external_id") != planned.get("external_id"):
+                    box.mount(Label(f"Outro evento planejado: {remote.get('name') or 'Sem nome'}"))
+            name = planned.get("name") or planned.get("focus")
+            if name:
+                box.mount(Label(str(name)))
+            focus = planned.get("focus")
+            if focus not in (None, "", 0):
+                self._kv(box, "Foco", str(focus))
+            dur = planned.get("planned_duration")
+            if dur not in (None, "", 0):
+                try:
+                    dur_m = int(int(dur) // 60)
+                    self._kv(box, "Duração", f"{dur_m} min")
+                except Exception:
+                    pass
             tss = planned.get("tss")
-            try:
-                tss_s = f"{float(tss):.0f}" if tss is not None else "—"
-            except Exception:
-                tss_s = str(tss)
-            self._kv(box, "TSS", tss_s)
+            if tss not in (None, "", 0):
+                try:
+                    tss_s = f"{float(tss):.0f}"
+                    self._kv(box, "TSS", tss_s)
+                except Exception:
+                    self._kv(box, "TSS", str(tss))
             if planned.get("external_id"):
                 self._kv(box, "External ID", planned.get("external_id"))
 
-        if planned and done:
+        if planned and done and (not self.entry.get("matching_required") or
+                                 str(done.get("id")) == str(self.entry.get("matched_activity_id"))):
             self._render_comparison(container, planned, done)
 
         # Mostrar perfil também para histórico (atividades realizadas) quando houver params?
@@ -718,19 +782,78 @@ class CalendarDetailScreen(Screen):
         actual_points, actual_ftp, actual_metrics, hr_zone_data = (
             self._load_activity_streams(done) if done else ([], None, {}, {})
         )
+        if done and actual_points and actual_ftp:
+            try:
+                zones = zone_seconds_for_stream(actual_points, actual_ftp)
+                if zones:
+                    activity_id = done.get("id") or done.get("activity_id")
+                    if activity_id is not None:
+                        activity_id = str(activity_id)
+                    if activity_id and activity_id not in getattr(self, "_reported_zones", set()):
+                        callback = getattr(self, "_zone_update_callback", None)
+                        if callback:
+                            callback({activity_id: zones})
+                        reported = getattr(self, "_reported_zones", None)
+                        if reported is None:
+                            self._reported_zones = {activity_id}
+                        else:
+                            reported.add(activity_id)
+            except Exception:
+                pass
         # Atividade realizada tem precedência: o perfil representa os dados reais,
         # não a prescrição planejada.
         chart_width = self._chart_width()
         prof = self._actual_profile(actual_points, actual_ftp, width=chart_width) if actual_points else ""
-        if not prof:
+        if planned and planned.get("origin") == "intervals" and done:
+            planned_profile = self._profile(planned, scale=2.0, width=chart_width)
+            if planned_profile:
+                container.mount(Label("PERFIL PLANEJADO", classes="section"))
+                planned_card = Vertical(classes="profile-card")
+                container.mount(planned_card)
+                planned_card.mount(Static(planned_profile, classes="profile"))
+            else:
+                container.mount(Label("Perfil planejado indisponível."))
+        if not prof and not done:
             prof = self._profile(planned, scale=2.0, width=chart_width) if planned else ""
+        elif not prof and done:
+            container.mount(Label("Perfil realizado indisponível."))
         if prof:
             container.mount(Label("PERFIL DO TREINO", classes="section"))
             pcard = Vertical(classes="profile-card")
             container.mount(pcard)
             pcard.mount(Static(prof, classes="profile"))
+        elif not done and planned and planned.get("origin") == "intervals":
+            container.mount(Label("Perfil planejado indisponível."))
         if planned:
             self._render_structure(container, planned)
+        for activity in activities:
+            if activity is done or (activity.get("id") is not None and activity.get("id") == done.get("id")):
+                continue
+            container.mount(Label(f"ATIVIDADE: {activity.get('name') or 'Sem nome'}", classes="section"))
+            activity_box = Vertical(classes="box")
+            container.mount(activity_box)
+            self._kv(activity_box, "Duração", f"{int(activity['duration']) // 60} min" if activity.get("duration") is not None else "—")
+            self._kv(activity_box, "TSS", str(activity.get("tss") if activity.get("tss") is not None else "—"))
+            points, ftp, _, _ = self._load_activity_streams(activity)
+            extra_profile = self._actual_profile(points, ftp, width=chart_width) if points else ""
+            if extra_profile:
+                activity_card = Vertical(classes="profile-card")
+                container.mount(activity_card)
+                activity_card.mount(Static(extra_profile, classes="profile"))
+            else:
+                container.mount(Label("Perfil realizado indisponível."))
+        for other in day_plans(self.entry):
+            if other is planned:
+                continue
+            container.mount(Label(f"OUTRO TREINO: {other.get('name') or 'Sem nome'}", classes="section"))
+            other_profile = self._profile(other, scale=2.0, width=chart_width)
+            if other_profile:
+                other_card = Vertical(classes="profile-card")
+                container.mount(other_card)
+                other_card.mount(Static(other_profile, classes="profile"))
+            else:
+                container.mount(Label("Perfil planejado indisponível."))
+            self._render_structure(container, other)
         for metric, title, unit, color in (
             ("heartrate", "FREQUÊNCIA CARDÍACA", "bpm", "#ff4d4d"),
             ("cadence", "CADÊNCIA", "rpm", "#22d3ee"),
@@ -744,22 +867,10 @@ class CalendarDetailScreen(Screen):
             container.mount(metric_card)
             metric_card.mount(Static(chart, classes="profile"))
             metric_card.mount(Label(self._metric_summary(points, unit), classes="profile-meta"))
-        zt = self._actual_zone_time(actual_points, actual_ftp) if actual_points else []
-        if not zt:
-            zt = self._zone_time(planned) if planned else []
-        if not zt and done and not planned:
-            try:
-                dur = done.get("duration") or 0
-                npw = done.get("normalized_power") or done.get("average_watts")
-                try:
-                    dur_s = float(dur)
-                except Exception:
-                    dur_s = 0
-                if dur_s > 0:
-                    synth = {"warmup_sec": 300, "cooldown_sec": 300, "repeats": 1, "on_sec": max(600, int(dur_s - 600)), "off_sec": 0, "on_power": 0.8 if npw else 0.7, "off_power": 0.5}
-                    zt = self._zone_time(synth)
-            except Exception:
-                zt = []
+        zt = (self._actual_zone_time(actual_points, actual_ftp) if done and actual_points
+              else self._zone_time(planned) if planned and not done else [])
+        if done and not zt:
+            container.mount(Label("Zonas de potência realizadas: indisponíveis"))
         hr_zt = self._hr_zone_time(hr_zone_data)
         if zt or hr_zt:
             container.mount(Label("TEMPO POR ZONA", classes="section"))

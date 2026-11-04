@@ -57,6 +57,7 @@ class WeekSummary:
     extra: int
     planned_zone_seconds: dict[str, float]
     actual_zone_seconds: dict[str, float] | None
+    unknown: int = 0
 
 
 def _number(value: object, *, positive: bool = False) -> float | None:
@@ -169,6 +170,26 @@ def zone_seconds_for_stream(points: list[tuple[float, float]], ftp: float | None
     return seconds
 
 
+def day_plans(entry: dict) -> list[dict]:
+    """Preserva planos distintos e reúne apenas uma cópia local/remota por ID."""
+    local = list(entry.get("local_plans") or [])
+    remote = list(entry.get("remote_plans") or [])
+    if not local and not remote:
+        return [entry["planned"]] if entry.get("planned") else []
+    plans = list(local)
+    local_ids = {p.get("external_id") for p in local if p.get("external_id")}
+    merged = set()
+    for plan in remote:
+        if plan.get("shadowed_by_local"):
+            continue
+        external_id = plan.get("external_id")
+        if external_id in local_ids and external_id not in merged:
+            merged.add(external_id)
+        else:
+            plans.append(plan)
+    return plans
+
+
 def week_summary(
     entries: dict[str, dict],
     week_start: date,
@@ -178,6 +199,7 @@ def week_summary(
     planned_duration = actual_duration = 0
     planned_tss = actual_tss = 0.0
     completed = missed = pending = extra = 0
+    unknown = 0
     planned_zones: dict[str, float] = {}
     actual_zones: dict[str, float] = {}
     has_actual_zones = False
@@ -185,25 +207,45 @@ def week_summary(
     for offset in range(7):
         day = week_start + timedelta(days=offset)
         entry = entries.get(day.isoformat(), {})
+        plans = day_plans(entry)
         planned = entry.get("planned")
         done = entry.get("done")
-        if planned:
-            summary = planned_workout_summary(planned)
+        activities = entry.get("activities")
+        if not isinstance(activities, list):
+            activities = [done] if done else []
+        matched_ids = set()
+        for plan in plans:
+            summary = planned_workout_summary(plan)
             planned_duration += summary.duration_seconds or 0
             planned_tss += summary.tss or 0.0
             for zone, seconds in summary.zone_seconds.items():
                 planned_zones[zone] = planned_zones.get(zone, 0.0) + seconds
-            if done:
+            event_id = plan.get("event_id")
+            matched_id = (entry.get("matches_by_event", {}).get(str(event_id))
+                          if event_id is not None else
+                          entry.get("matches_by_external", {}).get(plan.get("external_id")))
+            if matched_id is None and plan is planned:
+                matched_id = entry.get("matched_activity_id")
+            if matched_id is not None and str(matched_id) in matched_ids:
+                matched_id = None
+            if entry.get("matching_unavailable"):
+                unknown += 1
+            elif (any(str(a.get("id")) == str(matched_id) for a in activities)
+                    if entry.get("matching_required") and matched_id is not None
+                    else bool(activities) if not entry.get("matching_required") else False):
                 completed += 1
+                if matched_id is not None:
+                    matched_ids.add(str(matched_id))
             elif day < today:
                 missed += 1
             else:
                 pending += 1
-        elif done:
-            extra += 1
-        if done:
-            actual_duration += _seconds(done.get("duration") or done.get("moving_time") or done.get("elapsed_time")) or 0
-            actual_tss += _number(done.get("tss") or done.get("icu_training_load"), positive=True) or 0.0
+        for activity in activities:
+            if not entry.get("matching_unavailable") and (not plans or (entry.get("matching_required") and
+                               str(activity.get("id")) not in matched_ids)):
+                extra += 1
+            actual_duration += _seconds(activity.get("duration") or activity.get("moving_time") or activity.get("elapsed_time")) or 0
+            actual_tss += _number(activity.get("tss") or activity.get("icu_training_load"), positive=True) or 0.0
         if actual_zone_seconds and day.isoformat() in actual_zone_seconds:
             has_actual_zones = True
             for zone, seconds in actual_zone_seconds[day.isoformat()].items():
@@ -212,5 +254,5 @@ def week_summary(
     return WeekSummary(
         planned_duration, actual_duration, planned_tss, actual_tss,
         completed, missed, pending, extra, planned_zones,
-        actual_zones if has_actual_zones else None,
+        actual_zones if has_actual_zones else None, unknown,
     )

@@ -21,6 +21,56 @@ def _screen_text(screen: CalendarDetailScreen) -> list[str]:
 
 
 class CalendarDetailTest(unittest.IsolatedAsyncioTestCase):
+    async def test_perfil_historico_sem_estrutura_informa_indisponibilidade(self):
+        screen = CalendarDetailScreen("2026-11-02", {"planned": {
+            "name": "Histórico", "origin": "intervals", "historical_power_steps": None}})
+        async with CalendarDetailTestApp(screen).run_test(size=(160, 45)) as pilot:
+            await pilot.pause()
+            text = _screen_text(screen)
+            self.assertIn("Perfil planejado indisponível.", text)
+            self.assertIn("Intervals.icu", text)
+
+    async def test_atividade_sem_stream_nao_estima_zonas(self):
+        screen = CalendarDetailScreen("2026-11-02", {"done": {"id": "a", "duration": 3600, "average_watts": 150}})
+        screen._load_activity_streams = lambda activity: ([], None, {}, {})
+        async with CalendarDetailTestApp(screen).run_test(size=(160, 45)) as pilot:
+            await pilot.pause()
+            text = _screen_text(screen)
+            self.assertIn("Zonas de potência realizadas: indisponíveis", text)
+            self.assertNotIn("POTÊNCIA", text)
+
+    async def test_divergencia_remota_sem_plano_exibe_evento(self):
+        remote = {"name": "Sessão remota", "day": "2026-11-03", "origin": "intervals",
+                  "shadowed_by_local": True, "historical_power_steps": ((600, .45, .75),)}
+        screen = CalendarDetailScreen("2026-11-03", {"plan_divergence": True, "remote_plans": [remote]})
+        async with CalendarDetailTestApp(screen).run_test(size=(160, 45)) as pilot:
+            await pilot.pause()
+            text = _screen_text(screen)
+            self.assertIn("Plano local difere do evento remoto.", text)
+            self.assertIn("Evento remoto: Sessão remota · 2026-11-03", text)
+
+    async def test_perfil_planejado_disponivel_nao_e_dito_indisponivel_sem_stream(self):
+        planned = {"origin": "intervals", "historical_power_steps": ((600, .45, .75),)}
+        screen = CalendarDetailScreen("2026-11-02", {"planned": planned, "done": {"id": "a"}})
+        screen._load_activity_streams = lambda activity: ([], None, {}, {})
+        async with CalendarDetailTestApp(screen).run_test(size=(160, 45)) as pilot:
+            await pilot.pause()
+            text = _screen_text(screen)
+            self.assertIn("PERFIL PLANEJADO", text)
+            self.assertIn("Perfil realizado indisponível.", text)
+            self.assertNotIn("Perfil planejado indisponível.", text)
+
+    async def test_exibe_metricas_e_perfil_de_atividade_adicional(self):
+        first = {"id": "a", "name": "Primeira", "duration": 600}
+        second = {"id": "b", "name": "Segunda", "duration": 1200, "tss": 22}
+        screen = CalendarDetailScreen("2026-11-02", {"done": first, "activities": [first, second]})
+        screen._load_activity_streams = lambda activity: ([], None, {}, {})
+        async with CalendarDetailTestApp(screen).run_test(size=(160, 45)) as pilot:
+            await pilot.pause()
+            text = _screen_text(screen)
+            for expected in ("ATIVIDADE: Segunda", "20 min", "22", "Perfil realizado indisponível."):
+                self.assertIn(expected, text)
+
     async def test_detalhe_planejado_mostra_estrutura_sem_streams_reais(self):
         planned = {
             "name": "Sweet Spot", "focus": "sweetspot", "planned_duration": 3600,
@@ -75,6 +125,34 @@ class CalendarDetailTest(unittest.IsolatedAsyncioTestCase):
             text = _screen_text(screen)
             self.assertIn("COMPARAÇÃO FACTUAL", text)
             self.assertGreaterEqual(text.count("—"), 3)
+
+    async def test_detalhe_planejado_omite_campos_ausentes(self):
+        screen = CalendarDetailScreen("2026-11-02", {"planned": {"name": "Teste"}})
+        screen._load_activity_streams = lambda activity: ([], None, {}, {})
+
+        async with CalendarDetailTestApp(screen).run_test(size=(160, 45)) as pilot:
+            await pilot.pause()
+            text = _screen_text(screen)
+            self.assertIn("TREINO PLANEJADO", text)
+            self.assertIn("Teste", text)
+            self.assertNotIn("Foco", text)
+            self.assertNotIn("Duração", text)
+            self.assertNotIn("TSS", text)
+
+    async def test_perfil_planejado_usa_cores_por_zona(self):
+        planned = {
+            "focus": "sweetspot", "planned_duration": 3600, "tss": 55,
+            "params": {"warmup_sec": 600, "repeats": 1, "on_sec": 1800, "on_power": 0.90, "cooldown_sec": 600},
+        }
+        screen = CalendarDetailScreen("2026-11-02", {"planned": planned})
+        screen._load_activity_streams = lambda activity: ([], None, {}, {})
+
+        async with CalendarDetailTestApp(screen).run_test(size=(160, 45)) as pilot:
+            await pilot.pause()
+            profile_texts = [widget.render().markup for widget in screen.query("Static")]
+            combined = " ".join(profile_texts)
+            self.assertIn("[#", combined)
+            self.assertIn("PERFIL DO TREINO", [w.render().plain for w in screen.query("Label")])
 
 
 if __name__ == "__main__":

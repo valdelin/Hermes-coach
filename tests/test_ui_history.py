@@ -2,10 +2,22 @@
 
 import unittest
 
-from src.ui.history import link_activities, historical_power_steps
+from src.ui.history import link_activities, historical_power_steps, compare_power_structure
 
 
 class ActivityLinksTest(unittest.TestCase):
+    def test_mesmo_id_repetido_nao_duplica_atividade(self):
+        activities = [{"id": "same", "duration": 3600}, {"id": "same", "duration": 3600}]
+        result = link_activities([], activities)
+        self.assertEqual([a["id"] for a in result.activities], ["same"])
+
+    def test_manual_duplicado_quando_atividade_pareada_tambem_e_manual(self):
+        events = [{"id": 42, "paired_activity_id": "principal"}]
+        activities = [{"id": "copia", "source": "MANUAL", "paired_event_id": 42},
+                      {"id": "principal", "source": "MANUAL", "paired_event_id": 42}]
+        result = link_activities(events, activities)
+        self.assertEqual([a["id"] for a in result.activities], ["principal"])
+
     def test_execucao_tardia_e_manual_duplicado(self):
         events = [{"id": 42, "start_date_local": "2026-11-02T07:30:00",
                    "paired_activity_id": "fit"}]
@@ -41,6 +53,17 @@ class ActivityLinksTest(unittest.TestCase):
 
 
 class HistoricalPowerStepsTest(unittest.TestCase):
+    def test_compara_estrutura_sem_estimar_campos_ausentes(self):
+        local = {"params": {"warmup_sec": 600, "warmup_power_low": .45,
+            "warmup_power_high": .75, "repeats": 1, "on_sec": 2400, "off_sec": 0,
+            "on_power": .6, "cooldown_sec": 600, "cooldown_power_low": .7,
+            "cooldown_power_high": .45}}
+        remote = ((600, .45, .75), (2400, .6, .6), (600, .7, .45))
+        self.assertIs(compare_power_structure(local, remote), True)
+        self.assertIs(compare_power_structure(local, ((600, .45, .75), (2400, .7, .7), (600, .7, .45))), False)
+        self.assertIsNone(compare_power_structure({"params": {}}, remote))
+        self.assertIsNone(compare_power_structure(local, None))
+
     def test_perfil_estruturado_preserva_rampas_e_bloco(self):
         event = {"workout_doc": {"steps": [
             {"duration": 600, "power": {"units": "%ftp", "start": 45, "end": 75}},
@@ -56,6 +79,11 @@ class HistoricalPowerStepsTest(unittest.TestCase):
                 {"workout_doc": {"steps": [{"duration": 600}]}}):
             with self.subTest(event=event):
                 self.assertIsNone(historical_power_steps(event))
+
+    def test_potencia_conflitante_nao_gera_grafico(self):
+        event = {"workout_doc": {"steps": [{"duration": 600,
+            "power": {"units": "%ftp", "value": 60, "start": 45, "end": 75}}]}}
+        self.assertIsNone(historical_power_steps(event))
 
 
 if __name__ == "__main__":

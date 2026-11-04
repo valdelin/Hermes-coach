@@ -15,8 +15,11 @@
 ```mermaid
 graph LR
     T1[T1 Catálogo e runner] --> T2[T2 Modal operacional]
+    T1 --> T5[T5 Alinhamento facade]
+    T2 --> T5[T5 Alinhamento facade]
     T2 --> T3[T3 Dashboard]
     T2 --> T4[T4 Prontidão e docs]
+    T5 --> T6[T6 Validação e documentação]
 ```
 
 ## Task Breakdown
@@ -102,7 +105,7 @@ prévia/confirmação; suíte completa passa.
 
 **Status:** Complete (`T5`)
 
-**Depends on:** T1, T2, T3, T4
+**Depends on:** T1, T2
 
 **Files:** `src/ui/operations.py`, `src/ui/screens/operation.py`,
 `docs/MANUAL-TUI.md`, `tests/test_ui_operations.py`,

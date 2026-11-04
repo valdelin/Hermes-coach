@@ -25,7 +25,7 @@ uma execução atrasada como atividade extra.
 
 | Assumption / decision | Chosen default | Rationale | Confirmed? |
 | --- | --- | --- | --- |
-| Execução fora da data | Manter 02/11 como não realizado no dia e identificar execução vinculada em 03/11. | Preserva as duas datas reais. | Sim |
+| Execução fora da data | Mostrar 02/11 como não realizado e a atividade de 03/11 como extra, sem exibir vínculo entre as datas. | Evita confusão entre prescrição e execução em dias diferentes. | Sim |
 | Duplicata manual | Suprimir apenas se houver vínculo explícito ao mesmo evento e outra atividade for a pareada pelo evento. | Não descartar atividades manuais legítimas. | Sim |
 | Prescrição histórica | Usar evento remoto identificável como Hermes quando o plano local não contiver o dia, sem gravar no plano. | O evento de 02/11 ainda existe no provider. | Sim |
 | Campos não disponíveis | Mostrar indisponível e não inventar parâmetros ou zonas. | Integridade de dados. | Sim |
@@ -58,8 +58,8 @@ uma execução atrasada como atividade extra.
 
 **Acceptance Criteria:**
 
-1. WHEN o evento planejado estiver explicitamente pareado a atividade de outra data THEN the TUI SHALL mostrar no dia planejado que não houve execução naquele dia e informar a data vinculada. [HIST-05]
-2. WHEN a atividade vinculada ocorrer em outra data THEN the TUI SHALL identificá-la como execução atrasada daquele evento, sem classificá-la como extra. [HIST-06]
+1. WHEN o evento planejado estiver explicitamente pareado a atividade de outra data THEN the TUI SHALL mostrar no dia planejado que não houve execução naquele dia, sem exibir a data da atividade vinculada. [HIST-05]
+2. WHEN a atividade vinculada ocorrer em outra data sem prescrição para o dia da atividade THEN the TUI SHALL classificá-la como extra. [HIST-06]
 3. WHEN houver registro manual e atividade pareada distintos vinculados explicitamente ao mesmo evento THEN the TUI SHALL contar somente a atividade pareada como execução. [HIST-07]
 4. WHEN uma atividade manual não tiver duplicata comprovada THEN the TUI SHALL preservá-la como atividade. [HIST-08]
 5. The TUI SHALL contar cada atividade real uma única vez nos totais semanais da data efetiva. [HIST-09]

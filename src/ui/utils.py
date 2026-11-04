@@ -3,6 +3,7 @@
 
 import os
 import sys
+import math
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -113,7 +114,8 @@ def load_dashboard_data():
         "today_workout": None,
         "next_days": [],
         "ftp": os.environ.get("FTP") or str(DEFAULT_FTP),
-        "vo2": os.environ.get("VO2MAX") or os.environ.get("VO2") or "—",
+        "vo2": "—",
+        "vo2_date": None,
         "ctl": "—",
         "atl": "—",
         "tsb": "—",
@@ -130,24 +132,28 @@ def load_dashboard_data():
             oldest_w = newest - timedelta(days=90)
             wellness = client.wellness(oldest=oldest_w.isoformat(), newest=newest.isoformat())
             if isinstance(wellness, list):
+                latest = None
                 for entry in wellness:
-                    if not isinstance(entry, dict):
-                        continue
-                    v = entry.get("vo2max") or entry.get("vo2Max") or entry.get("VO2max")
-                    if v is None:
-                        continue
-                    s = str(v).strip()
-                    if s == "" or s.lower() == "null":
+                    raw = entry if isinstance(entry, dict) else getattr(entry, "raw", None)
+                    if not isinstance(raw, dict):
                         continue
                     try:
-                        fv = float(v)
-                        if fv.is_integer():
-                            data["vo2"] = str(int(fv))
-                        else:
-                            data["vo2"] = f"{fv:.1f}"
-                    except Exception:
-                        data["vo2"] = s
-                    break
+                        observed = date.fromisoformat(str(raw.get("id") or raw.get("day") or "")[:10])
+                        value = next((raw[key] for key in ("vo2max", "vo2Max", "VO2max")
+                                      if raw.get(key) is not None), None)
+                        if isinstance(value, bool):
+                            continue
+                        value = float(value)
+                        if not math.isfinite(value) or value <= 0 or not oldest_w <= observed <= newest:
+                            continue
+                    except (TypeError, ValueError):
+                        continue
+                    if latest is None or observed > latest[0]:
+                        latest = (observed, value)
+                if latest:
+                    observed, value = latest
+                    data["vo2"] = str(int(value)) if value.is_integer() else f"{value:.1f}"
+                    data["vo2_date"] = observed.isoformat()
         except Exception:
             pass
 

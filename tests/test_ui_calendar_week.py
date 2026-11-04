@@ -28,12 +28,14 @@ class CalendarWeekSummaryTest(unittest.IsolatedAsyncioTestCase):
         screen = CalendarScreen()
         screen.view_mode = "week"
         screen.current_date = screen.selected_date = date(2026, 10, 26)
+        screen._today = lambda: date(2026, 10, 30)
         screen._load_workouts = lambda: {
-            "2026-10-26": {"planned": planned, "done": {"duration": 3300, "tss": 48}},
+            "2026-10-26": {"planned": planned, "done": {"duration": 3300, "tss": 48, "id": "a1"}},
             "2026-10-27": {"planned": {"planned_duration": 1800, "tss": 20}},
             "2026-10-30": {"planned": {"planned_duration": 2400, "tss": 30}},
-            "2026-10-29": {"done": {"duration": 1200, "tss": 15}},
+            "2026-10-29": {"done": {"duration": 1200, "tss": 15, "id": "a2"}},
         }
+        screen._activity_zone_cache = {"a1": {"sweetspot": 1800.0, "zone2": 900.0}}
 
         async with CalendarWeekTestApp(screen).run_test(size=(160, 45)) as pilot:
             await pilot.pause()
@@ -41,9 +43,12 @@ class CalendarWeekSummaryTest(unittest.IsolatedAsyncioTestCase):
             for expected in ("RESUMO SEMANAL", "Planejado: 130m · TSS105",
                              "Realizado: 75m · TSS63",
                              "1 realizado · 1 perdido · 1 pendente · 1 extra",
-                             "Zonas planejadas:", "Zonas realizadas: indisponível"):
+                             "Zonas planejadas:"):
                 with self.subTest(expected=expected):
                     self.assertIn(expected, text)
+            self.assertNotIn("Zonas realizadas: indisponível", text)
+            joined = " ".join(text)
+            self.assertIn("Sweet Spot", joined)
 
     async def test_navegar_semana_recalcula_resumo(self):
         screen = CalendarScreen()

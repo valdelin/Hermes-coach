@@ -66,10 +66,13 @@ class OperationModal(ModalScreen[bool]):
         if self._flow.phase is OperationPhase.PREVIEW_READY:
             status.update("Prévia concluída. Revise a saída antes de continuar.")
             self.query_one("#operation-continue", Button).disabled = False
+            self.query_one("#operation-cancel", Button).disabled = False
         elif self._flow.phase is OperationPhase.SUCCEEDED:
             status.update("Operação concluída.")
-            self._complete_success()
-            self.query_one("#operation-cancel", Button).disabled = False
+            try:
+                self._complete_success()
+            finally:
+                self.query_one("#operation-cancel", Button).disabled = False
         else:
             status.update(f"Operação falhou (exit {result.returncode if result else 'desconhecido'}).")
             self.query_one("#operation-cancel", Button).disabled = False
@@ -86,8 +89,19 @@ class OperationModal(ModalScreen[bool]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
         if button_id == "operation-cancel":
-            if self._flow.phase is OperationPhase.APPLYING:
+            phase = self._flow.phase
+            if phase in (OperationPhase.APPLYING, OperationPhase.PREVIEW_READY) is False and phase is None:
+                # If preview hasn't completed yet, block closing
+                worker = getattr(self, "_worker", None)
+                if worker is not None and getattr(worker, "is_running", False):
+                    return
+            if phase is OperationPhase.APPLYING:
                 return
+            if phase is None:
+                # Still running preview
+                worker = getattr(self, "_worker", None)
+                if worker is not None and getattr(worker, "is_running", False):
+                    return
             self._flow.cancel()
             self.dismiss(False)
         elif button_id == "operation-continue" and self._flow.continue_after_preview():
